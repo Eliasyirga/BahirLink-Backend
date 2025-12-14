@@ -1,0 +1,31 @@
+{
+  "name": "bahirlink",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.20.1",
+    "nodemailer": "^7.0.11",
+    "@tensorflow/tfjs-node": "^4.11.0",
+    "@vladmandic/face-api": "^1.4.1",
+    "canvas": "^2.11.2",
+    "multer": "^1.4.5-lts.1",
+    "tesseract.js": "^2.1.5",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

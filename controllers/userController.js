@@ -89,6 +89,7 @@ export const changePassword = async (req, res) => {
 };
 
 // -------------------- REFRESH TOKEN --------------------
+
 export const refreshToken = async (req, res) => {
   try {
     const newAccessToken = await userService.refreshUserToken(req.body.token);

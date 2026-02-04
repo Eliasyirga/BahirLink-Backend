@@ -1,13 +1,25 @@
-const mongoose = require("mongoose");
+const { Sequelize } = require("sequelize");
+
+const sequelize = new Sequelize(process.env.DATABASE_URL, {
+  dialect: "postgres",
+  protocol: "postgres",
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false,
+    },
+  },
+  logging: console.log, // optional: logs all SQL queries
+});
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("MongoDB connected");
+    await sequelize.authenticate();
+    console.log("PostgreSQL (Neon) connected via Sequelize");
   } catch (err) {
-    console.error("MongoDB connection error:", err.message);
+    console.error("PostgreSQL connection error:", err);
     process.exit(1);
   }
 };
 
-module.exports = connectDB;
+module.exports = { sequelize, connectDB };

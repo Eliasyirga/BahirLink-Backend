@@ -1,13 +1,12 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
 
-// Existing routes
-const userRoutes = require("./routers/userRoute");
+const { connectDB, sequelize } = require("./config/db"); // Sequelize connection
 
-// New verification route
-const verifyRoutes = require("./routers/userRoute"); // <-- create this file as explained earlier
+// Routes
+const userRoutes = require("./routes/userRoute");
+const verifyRoutes = require("./routes/userRoute"); // or create a separate verifyRoute
 
 const app = express();
 
@@ -28,17 +27,20 @@ app.use("/public", express.static("public"));
 // Test route
 app.get("/", (req, res) => res.send("Backend is running!"));
 
-// Existing user routes
+// User routes
 app.use("/api/users", userRoutes);
+// app.use("/api/verify", verifyRoutes);
 
-// New verification route
-app.use("/api/verify", verifyRoutes);
+// Connect PostgreSQL (Neon) and start server
+const PORT = process.env.PORT || 5000;
 
-// Connect MongoDB
-mongoose
-  .connect(process.env.MONGO_URI)
+connectDB() // authenticate Sequelize
   .then(() => {
-    console.log("MongoDB Connected");
-    app.listen(5000, () => console.log("Server running on port 5000"));
+    // Sync all Sequelize models (creates tables if not exist)
+    return sequelize.sync({ alter: true }); // use { force: true } to drop & recreate tables
   })
-  .catch((err) => console.error("MongoDB Error:", err));
+  .then(() => {
+    console.log("All models synced to PostgreSQL (Neon)");
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch((err) => console.error("PostgreSQL connection error:", err));

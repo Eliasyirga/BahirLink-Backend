@@ -9,7 +9,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
       rejectUnauthorized: false,
     },
   },
-  logging: console.log, // optional: logs all SQL queries
+  logging: console.log, 
 });
 
 const connectDB = async () => {

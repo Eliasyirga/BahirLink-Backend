@@ -58,14 +58,13 @@ const User = sequelize.define(
     profileImage: { type: DataTypes.STRING },
     bio: { type: DataTypes.STRING },
 
-    // System info
     lastLogin: { type: DataTypes.DATE },
     lastPasswordChange: { type: DataTypes.DATE },
     loginAttempts: { type: DataTypes.INTEGER, defaultValue: 0 },
     isBlocked: { type: DataTypes.BOOLEAN, defaultValue: false },
   },
   {
-    timestamps: true, // createdAt & updatedAt
+    timestamps: true, 
     tableName: "users",
   }
 );

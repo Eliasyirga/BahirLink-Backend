@@ -2,11 +2,14 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-const { connectDB, sequelize } = require("./config/db"); // Sequelize connection
+const { connectDB, sequelize } = require("./config/db"); 
 
-// Routes
 const userRoutes = require("./routes/userRoute");
-const verifyRoutes = require("./routes/userRoute"); // or create a separate verifyRoute
+const verifyRoutes = require("./routes/userRoute"); 
+const guestRoutes = require("./routes/guestRoutes");
+const emergencyRoutes = require("./routes/emergencyRoutes");
+
+
 
 const app = express();
 
@@ -18,26 +21,28 @@ app.use(
   })
 );
 
-// Parse JSON
+
 app.use(express.json());
 
 // Serve static files
 app.use("/public", express.static("public"));
 
-// Test route
+
 app.get("/", (req, res) => res.send("Backend is running!"));
 
-// User routes
+
 app.use("/api/users", userRoutes);
 // app.use("/api/verify", verifyRoutes);
+app.use("/api/guests", guestRoutes);
+app.use("/api/emergencies", emergencyRoutes); 
 
-// Connect PostgreSQL (Neon) and start server
+
 const PORT = process.env.PORT || 5000;
 
-connectDB() // authenticate Sequelize
+connectDB() 
   .then(() => {
-    // Sync all Sequelize models (creates tables if not exist)
-    return sequelize.sync({ alter: true }); // use { force: true } to drop & recreate tables
+
+    return sequelize.sync({ alter: true });
   })
   .then(() => {
     console.log("All models synced to PostgreSQL (Neon)");

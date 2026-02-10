@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Emergency Chat Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    input, button { padding: 5px; margin: 5px; }
+    #logs { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; }
+    .user { color: blue; }
+    .guest { color: green; }
+  </style>
+</head>
+<body>
+  <h2>Emergency Chat Test</h2>
+
+  <div>
+    <h3>User (JWT)</h3>
+    <input type="text" id="userToken" placeholder="Paste JWT token here" size="50">
+    <input type="number" id="userEmergencyId" placeholder="Emergency ID" value="1">
+    <button id="userConnect">Connect User</button>
+    <input type="text" id="userMessage" placeholder="Type message">
+    <button id="userSend">Send Message</button>
+  </div>
+
+  <div>
+    <h3>Guest</h3>
+    <input type="number" id="guestId" placeholder="Guest ID" value="1">
+    <input type="number" id="guestEmergencyId" placeholder="Emergency ID" value="1">
+    <button id="guestConnect">Connect Guest</button>
+    <input type="text" id="guestMessage" placeholder="Type message">
+    <button id="guestSend">Send Message</button>
+  </div>
+
+  <h3>Logs</h3>
+  <div id="logs"></div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    const logs = document.getElementById("logs");
+    function log(msg, cls) {
+      const p = document.createElement("p");
+      if(cls) p.className = cls;
+      p.textContent = msg;
+      logs.appendChild(p);
+      logs.scrollTop = logs.scrollHeight;
+    }
+
+    let userSocket, guestSocket;
+
+    // --- USER CONNECT ---
+    document.getElementById("userConnect").onclick = () => {
+      const token = document.getElementById("userToken").value.trim();
+      const emergencyId = parseInt(document.getElementById("userEmergencyId").value);
+
+      if(!token) return alert("Enter JWT token");
+
+      userSocket = io("http://localhost:5000", { auth: { token } });
+
+      userSocket.on("connect", () => {
+        log(`✅ User connected`, "user");
+        userSocket.emit("chat:join", { emergencyId });
+      });
+
+      userSocket.on("connect_error", err => log(`❌ User error: ${err.message}`, "user"));
+
+      userSocket.on("chat:new", data => log(`USER RECEIVES: ${data.senderRole}: ${data.message}`, "user"));
+    };
+
+    // --- USER SEND MESSAGE ---
+    document.getElementById("userSend").onclick = () => {
+      const msg = document.getElementById("userMessage").value.trim();
+      const emergencyId = parseInt(document.getElementById("userEmergencyId").value);
+      if(!msg || !userSocket) return;
+      userSocket.emit("chat:send", { emergencyId, message: msg });
+      document.getElementById("userMessage").value = "";
+    };
+
+    // --- GUEST CONNECT ---
+    document.getElementById("guestConnect").onclick = () => {
+      const guestId = parseInt(document.getElementById("guestId").value);
+      const emergencyId = parseInt(document.getElementById("guestEmergencyId").value);
+      if(!guestId) return alert("Enter Guest ID");
+
+      guestSocket = io("http://localhost:5000", { auth: { guestId } });
+
+      guestSocket.on("connect", () => {
+        log(`✅ Guest connected`, "guest");
+        guestSocket.emit("chat:join", { emergencyId });
+      });
+
+      guestSocket.on("connect_error", err => log(`❌ Guest error: ${err.message}`, "guest"));
+
+      guestSocket.on("chat:new", data => log(`GUEST RECEIVES: ${data.senderRole}: ${data.message}`, "guest"));
+    };
+
+    // --- GUEST SEND MESSAGE ---
+    document.getElementById("guestSend").onclick = () => {
+      const msg = document.getElementById("guestMessage").value.trim();
+      const emergencyId = parseInt(document.getElementById("guestEmergencyId").value);
+      if(!msg || !guestSocket) return;
+      guestSocket.emit("chat:send", { emergencyId, message: msg });
+      document.getElementById("guestMessage").value = "";
+    };
+  </script>
+</body>
+</html>

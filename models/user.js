@@ -25,7 +25,7 @@ const User = sequelize.define(
     fullName: { type: DataTypes.STRING },
     phone: { type: DataTypes.STRING },
     role: {
-      type: DataTypes.ENUM("user", "provider", "admin"),
+      type: DataTypes.ENUM("user", "responder", "admin"),
       defaultValue: "user",
     },
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -52,7 +52,7 @@ const User = sequelize.define(
     city: { type: DataTypes.STRING },
     address: { type: DataTypes.STRING },
     dateOfBirth: { type: DataTypes.DATE },
-    gender: { type: DataTypes.ENUM("male", "female", "other") },
+    gender: { type: DataTypes.ENUM("male", "female") },
 
     // User profile
     profileImage: { type: DataTypes.STRING },

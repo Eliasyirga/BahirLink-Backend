@@ -31,7 +31,6 @@ const Emergency = sequelize.define(
       defaultValue: "reported",
     },
 
-    // For registered users
     citizenId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -41,7 +40,6 @@ const Emergency = sequelize.define(
       },
     },
 
-    // For guest users
     guestId: {
       type: DataTypes.INTEGER,
       allowNull: true,

@@ -1,15 +1,17 @@
-const { Message, User } = require("../models");
+const { Message, User, Emergency} = require("../models");
 const { canAccessEmergency } = require("../utils/emergencyAccess");
 
 const onlineUsers = {
   guest: new Set(),
   admin: new Set(),
   responder: new Set(),
-  user: new Set(), 
+  user: new Set(),
 };
 
 function chatSocket(io, socket) {
-  console.log(`User connected: ${socket.identity.id} (${socket.identity.role})`);
+  console.log(
+    `User connected: ${socket.identity.id} (${socket.identity.role})`,
+  );
 
   onlineUsers[socket.identity.role].add(socket.identity.id);
 
@@ -33,11 +35,17 @@ function chatSocket(io, socket) {
 
   socket.on("chat:send", async ({ emergencyId, message, type = "text" }) => {
     if (!message?.trim()) return;
+    const emergency = await Emergency.findByPk(emergencyId);
+    if (!emergency) return;
+
+    const isReporter =
+      emergency.reporterType === socket.identity.type &&
+      emergency.reporterId === socket.identity.id;
+
+    const isResponder = emergency.assignedResponderId === socket.identity.id;
 
     const canSend =
-      socket.identity.role === "guest"
-        ? await canAccessEmergency(socket.identity.id, emergencyId)
-        : ["admin", "responder"].includes(socket.identity.role);
+      ["admin"].includes(socket.identity.role) || isReporter || isResponder;
 
     if (!canSend) return;
 
@@ -70,9 +78,11 @@ function chatSocket(io, socket) {
   });
 
   socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.identity.id} (${socket.identity.role})`);
+    console.log(
+      `User disconnected: ${socket.identity.id} (${socket.identity.role})`,
+    );
     onlineUsers[socket.identity.role].delete(socket.identity.id);
   });
 }
 
-module.exports =  chatSocket;
+module.exports = chatSocket;

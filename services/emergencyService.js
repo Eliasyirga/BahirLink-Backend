@@ -1,18 +1,43 @@
 const { Emergency, User, Guest } = require("../models");
 
+const createGuestEmergency = async (emergencyData) => {
+  let { contactNo, ...rest } = emergencyData;
+
+  if (!contactNo) {
+    throw new Error("Guest contact number is required");
+  }
+
+  contactNo = String(contactNo).trim();
+
+  if (contactNo.length === 0) {
+    throw new Error("Guest contact number cannot be empty");
+  }
+
+  const [guest, created] = await Guest.findOrCreate({
+    where: { contactNo },
+    defaults: { contactNo },
+  });
+
+  console.log("Guest created/found:", guest.toJSON(), "Created?", created);
+
+  const emergency = await Emergency.create({
+    ...rest,
+    guestId: guest.id,
+    status: "reported",
+    reporterType: "guest",
+  });
+
+  console.log("Emergency created:", emergency.toJSON());
+
+  return emergency;
+};
+
 const createUserEmergency = async (userId, emergencyData) => {
   return await Emergency.create({
     ...emergencyData,
     citizenId: userId,
     status: "reported",
-  });
-};
-
-const createGuestEmergency = async (guestId, emergencyData) => {
-  return await Emergency.create({
-    ...emergencyData,
-    guestId,
-    status: "reported",
+    reporterType: "user",
   });
 };
 
@@ -49,8 +74,8 @@ const getEmergencies = async (userOrGuestId, isGuest = false) => {
 };
 
 module.exports = {
-  createUserEmergency,
   createGuestEmergency,
+  createUserEmergency,
   updateEmergency,
   deleteEmergency,
   getEmergencies,

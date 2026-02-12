@@ -12,10 +12,20 @@ const createUserEmergency = async (req, res) => {
 
 const createGuestEmergency = async (req, res) => {
   try {
-    const result = await emergencyService.createGuestEmergency(req.params.guestId, req.body);
-    res.status(201).json(result);
+    console.log("Request body:", req.body);
+    // Remove guestId dependency — we create the Guest automatically
+    const result = await emergencyService.createGuestEmergency(req.body);
+
+    // Return success response with emergency + guestId
+    res.status(201).json({
+      success: true,
+      data: result,
+    });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({
+      success: false,
+      error: err.message,
+    });
   }
 };
 

@@ -1,6 +1,5 @@
 import * as userService from "../services/userService.js";
 
-
 export const register = async (req, res) => {
   try {
     const user = await userService.registerUser(req.body);
@@ -14,7 +13,6 @@ export const register = async (req, res) => {
   }
 };
 
-
 export const verifyEmail = async (req, res) => {
   try {
     await userService.verifyEmailCode(req.body.email, req.body.code);
@@ -24,10 +22,16 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
-
 export const login = async (req, res) => {
   try {
     const result = await userService.loginUser(req.body);
+    if (!result.user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        error: "Email not verified. Please check your inbox.",
+      });
+    }
+
     if (result.mustChangePassword) {
       res.json({
         success: true,
@@ -48,7 +52,6 @@ export const login = async (req, res) => {
   }
 };
 
-
 export const getProfile = async (req, res) => {
   try {
     const user = await userService.getUserProfile(req.user.id);
@@ -57,7 +60,6 @@ export const getProfile = async (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 };
-
 
 export const updateProfile = async (req, res) => {
   try {
@@ -68,26 +70,30 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-
 export const forgotPassword = async (req, res) => {
   try {
     await userService.forgotUserPassword(req.body.email);
-    res.json({ success: true, message: "Temporary password sent to your email" });
+    res.json({
+      success: true,
+      message: "Temporary password sent to your email",
+    });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
 };
 
-
 export const changePassword = async (req, res) => {
   try {
-    await userService.changeUserPassword(req.user.id, req.body.currentPassword, req.body.newPassword);
+    await userService.changeUserPassword(
+      req.user.id,
+      req.body.currentPassword,
+      req.body.newPassword,
+    );
     res.json({ success: true, message: "Password changed successfully" });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
 };
-
 
 export const refreshToken = async (req, res) => {
   try {

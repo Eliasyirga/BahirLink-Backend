@@ -45,7 +45,7 @@ app.get("/", (req, res) => res.send("Backend is running!"));
 app.use("/api/users", userRoutes);
 // app.use("/api/verify", verifyRoutes);
 app.use("/api/guests", guestRoutes);
-app.use("/api/emergencies", emergencyRoutes);
+app.use("/api", emergencyRoutes);
 
 const PORT = process.env.PORT || 5000;
 

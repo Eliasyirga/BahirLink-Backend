@@ -11,7 +11,7 @@ const Emergency = sequelize.define(
     },
     emergencyType: {
       type: DataTypes.STRING,
-      allowNull: false, 
+      allowNull: true, 
     },
     description: {
       type: DataTypes.TEXT,

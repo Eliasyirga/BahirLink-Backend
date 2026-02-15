@@ -4,9 +4,9 @@ const router = express.Router();
 
 const emergencyController = require("../controllers/emergencyController");
 
-router.post("/emergencies", emergencyController.createUserEmergency);
+router.post("/users/:userId/emergencies", emergencyController.createUserEmergency);
 
-router.post("/emergencies", emergencyController.createGuestEmergency);
+router.post("/guests/emergencies", emergencyController.createGuestEmergency);
 
 router.put("/:userOrGuestId/:id", emergencyController.updateEmergency);
 

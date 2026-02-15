@@ -1,7 +1,7 @@
 const { Emergency, User, Guest } = require("../models");
 
 const createGuestEmergency = async (emergencyData) => {
-  let { contactNo, ...rest } = emergencyData;
+  let { contactNo, mediaUrl, mediaType, ...rest } = emergencyData;
 
   if (!contactNo) {
     throw new Error("Guest contact number is required");
@@ -13,35 +13,39 @@ const createGuestEmergency = async (emergencyData) => {
     throw new Error("Guest contact number cannot be empty");
   }
 
-  const [guest, created] = await Guest.findOrCreate({
-    where: { contactNo },
-    defaults: { contactNo },
-  });
-
-  console.log("Guest created/found:", guest.toJSON(), "Created?", created);
+  const guest = await Guest.create({ contactNo });
 
   const emergency = await Emergency.create({
     ...rest,
+    mediaUrl: mediaUrl || null,
+    mediaType: mediaType || null,
     guestId: guest.id,
     status: "reported",
     reporterType: "guest",
   });
 
-  console.log("Emergency created:", emergency.toJSON());
-
   return emergency;
 };
 
 const createUserEmergency = async (userId, emergencyData) => {
+  const { mediaUrl, mediaType, ...rest } = emergencyData;
+
   return await Emergency.create({
-    ...emergencyData,
+    ...rest,
+    mediaUrl: mediaUrl || null,
+    mediaType: mediaType || null,
     citizenId: userId,
     status: "reported",
     reporterType: "user",
   });
 };
 
-const updateEmergency = async (userOrGuestId, emergencyId, updatedData, isGuest = false) => {
+const updateEmergency = async (
+  userOrGuestId,
+  emergencyId,
+  updatedData,
+  isGuest = false,
+) => {
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
     : { id: emergencyId, citizenId: userOrGuestId };
@@ -66,7 +70,10 @@ const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
 };
 
 const getEmergencies = async (userOrGuestId, isGuest = false) => {
-  const whereClause = isGuest ? { guestId: userOrGuestId } : { citizenId: userOrGuestId };
+  const whereClause = isGuest
+    ? { guestId: userOrGuestId }
+    : { citizenId: userOrGuestId };
+
   return await Emergency.findAll({
     where: whereClause,
     order: [["createdAt", "DESC"]],

@@ -11,14 +11,15 @@ const Guest = sequelize.define(
     },
     contactNo: {
       type: DataTypes.STRING,
-      allowNull: false, 
+      allowNull: false,
+      unique: true,
     },
   },
   {
     tableName: "guests",
-    timestamps: true, 
-    updatedAt: false, 
-  }
+    timestamps: true,
+    updatedAt: false,
+  },
 );
 
 module.exports = Guest;

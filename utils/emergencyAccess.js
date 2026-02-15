@@ -3,6 +3,7 @@ const { Emergency, User } = require("../models");
 const Assignment = require("../models/Assignment")
 
 async function canAccessEmergency(userId, emergencyId) {
+  
   const emergency = await Emergency.findByPk(emergencyId);
   if (!emergency) return false;
 

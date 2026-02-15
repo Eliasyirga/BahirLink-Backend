@@ -81,7 +81,6 @@ export const loginUser = async ({ email, password, rememberMe }) => {
   return { accessToken, refreshToken, user };
 };
 
-// -------------------- GET PROFILE --------------------
 export const getUserProfile = async (userId) => {
   const user = await User.findByPk(userId, {
     attributes: ["firstName", "lastName", "fullName", "email", "phone", "gender", "dateOfBirth", "country", "city", "address"],
@@ -90,7 +89,6 @@ export const getUserProfile = async (userId) => {
   return user;
 };
 
-// -------------------- UPDATE PROFILE --------------------
 export const updateUserProfile = async (userId, updates) => {
   if (updates.firstName || updates.lastName)
     updates.fullName = `${updates.firstName || ""} ${updates.lastName || ""}`.trim();
@@ -136,7 +134,6 @@ export const changeUserPassword = async (userId, currentPassword, newPassword) =
   return true;
 };
 
-// -------------------- REFRESH TOKEN --------------------
 export const refreshUserToken = async (token) => {
   if (!token) throw new Error("No token provided");
 

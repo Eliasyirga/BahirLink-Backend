@@ -23,7 +23,7 @@ const Message = sequelize.define(
     senderType: {
       type: DataTypes.ENUM("user", "guest", "system"),
       allowNull: false,
-    },
+    }, 
 
     senderId: {
       type: DataTypes.INTEGER,

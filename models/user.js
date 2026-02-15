@@ -19,7 +19,6 @@ const User = sequelize.define(
       allowNull: false,
     },
 
-    // Optional fields
     firstName: { type: DataTypes.STRING },
     lastName: { type: DataTypes.STRING },
     fullName: { type: DataTypes.STRING },
@@ -32,7 +31,6 @@ const User = sequelize.define(
     isPhoneVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     isNationalIDVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
 
-    // Tokens
     verificationToken: { type: DataTypes.STRING },
     verificationTokenExpires: { type: DataTypes.DATE },
     resetPasswordToken: { type: DataTypes.STRING },
@@ -40,11 +38,9 @@ const User = sequelize.define(
     refreshToken: { type: DataTypes.STRING },
     googleId: { type: DataTypes.STRING },
 
-    // Verification codes
     verificationCode: { type: DataTypes.INTEGER },
     verificationCodeExpires: { type: DataTypes.BIGINT },
 
-    // Optional personal info
     nationalID: { type: DataTypes.STRING },
     nationalIDImage: { type: DataTypes.STRING },
     country: { type: DataTypes.STRING },
@@ -54,7 +50,6 @@ const User = sequelize.define(
     dateOfBirth: { type: DataTypes.DATE },
     gender: { type: DataTypes.ENUM("male", "female") },
 
-    // User profile
     profileImage: { type: DataTypes.STRING },
     bio: { type: DataTypes.STRING },
 

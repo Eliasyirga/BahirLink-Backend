@@ -17,10 +17,10 @@ const socketAuth = require("./middleware/socketAuth");
 
 const app = express();
 
-// CORS
+
 app.use(
   cors({
-    origin: /http:\/\/localhost:\d+/, // allow any localhost port
+    origin: /http:\/\/localhost:\d+/, 
     credentials: true,
   }),
 );
@@ -37,7 +37,6 @@ io.on("connection", (socket) => {
 
 app.use(express.json());
 
-// Serve static files
 app.use("/public", express.static("public"));
 
 app.get("/", (req, res) => res.send("Backend is running!"));

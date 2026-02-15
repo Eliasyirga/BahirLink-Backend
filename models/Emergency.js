@@ -9,18 +9,32 @@ const Emergency = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
+
     emergencyType: {
       type: DataTypes.STRING,
-      allowNull: true, 
+      allowNull: true,
     },
+
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+
     location: {
       type: DataTypes.STRING,
       allowNull: false,
     },
+
+    mediaUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    mediaType: {
+      type: DataTypes.ENUM("photo", "video", "audio"),
+      allowNull: true,
+    },
+
     status: {
       type: DataTypes.ENUM(
         "reported",
@@ -51,7 +65,7 @@ const Emergency = sequelize.define(
   },
   {
     tableName: "emergencies",
-    timestamps: true, 
+    timestamps: true,
   }
 );
 

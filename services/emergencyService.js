@@ -1,24 +1,31 @@
 const { Emergency, User, Guest } = require("../models");
+const path = require("path");
 
-const createGuestEmergency = async (emergencyData) => {
-  let { contactNo, mediaUrl, mediaType, ...rest } = emergencyData;
+const createGuestEmergency = async (emergencyData, file) => {
+  let { contactNo, mediaType, ...rest } = emergencyData;
 
-  if (!contactNo) {
-    throw new Error("Guest contact number is required");
-  }
-
+  if (!contactNo) throw new Error("Guest contact number is required");
   contactNo = String(contactNo).trim();
-
-  if (contactNo.length === 0) {
+  if (contactNo.length === 0)
     throw new Error("Guest contact number cannot be empty");
-  }
 
-  const guest = await Guest.create({ contactNo });
+  // ✅ Check if guest already exists
+  let guest = await Guest.findOne({ where: { contactNo } });
+  if (!guest) guest = await Guest.create({ contactNo });
+
+  // ✅ Handle media URL
+  let mediaUrl = null;
+  if (file) {
+    // Multer stores file in /public/uploads/<filename>
+    mediaUrl = `/public/uploads/${file.filename}`;
+  }
 
   const emergency = await Emergency.create({
     ...rest,
-    mediaUrl: mediaUrl || null,
-    mediaType: mediaType || null,
+    mediaUrl,
+    mediaType:
+      mediaType ||
+      (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
     guestId: guest.id,
     status: "reported",
     reporterType: "guest",
@@ -27,13 +34,18 @@ const createGuestEmergency = async (emergencyData) => {
   return emergency;
 };
 
-const createUserEmergency = async (userId, emergencyData) => {
-  const { mediaUrl, mediaType, ...rest } = emergencyData;
+const createUserEmergency = async (userId, emergencyData, file) => {
+  const { mediaType, ...rest } = emergencyData;
+
+  let mediaUrl = null;
+  if (file) mediaUrl = `/public/uploads/${file.filename}`;
 
   return await Emergency.create({
     ...rest,
-    mediaUrl: mediaUrl || null,
-    mediaType: mediaType || null,
+    mediaUrl,
+    mediaType:
+      mediaType ||
+      (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
     citizenId: userId,
     status: "reported",
     reporterType: "user",
@@ -44,6 +56,7 @@ const updateEmergency = async (
   userOrGuestId,
   emergencyId,
   updatedData,
+  file,
   isGuest = false,
 ) => {
   const whereClause = isGuest
@@ -51,8 +64,15 @@ const updateEmergency = async (
     : { id: emergencyId, citizenId: userOrGuestId };
 
   const emergency = await Emergency.findOne({ where: whereClause });
-
   if (!emergency) throw new Error("Emergency not found");
+
+  // Update media if new file uploaded
+  if (file) {
+    updatedData.mediaUrl = `/public/uploads/${file.filename}`;
+    updatedData.mediaType = file.mimetype.startsWith("video")
+      ? "video"
+      : "photo";
+  }
 
   return await emergency.update(updatedData);
 };

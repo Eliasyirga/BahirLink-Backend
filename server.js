@@ -17,10 +17,9 @@ const socketAuth = require("./middleware/socketAuth");
 
 const app = express();
 
-
 app.use(
   cors({
-    origin: /http:\/\/localhost:\d+/, 
+    origin: /http:\/\/localhost:\d+/,
     credentials: true,
   }),
 );

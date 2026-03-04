@@ -1,38 +1,14 @@
 const emergencyService = require("../services/emergencyService");
 
-const createUserEmergency = async (req, res) => {
-  try {
-    const mediaUrl = req.file ? req.file.path : null;
-    const mediaType = req.body.mediaType || null;
-
-    const userId = parseInt(req.params.userId, 10);
-
-    const result = await emergencyService.createUserEmergency(userId,
-      {
-        ...req.body,
-        mediaUrl,
-        mediaType,
-      },
-    );
-
-    res.status(201).json({ success: true, data: result });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
-  }
-};
-
+// Create guest emergency
 const createGuestEmergency = async (req, res) => {
   try {
     console.log("Request body:", req.body);
 
-    const mediaUrl = req.file ? req.file.path : null;
-    const mediaType = req.body.mediaType || null;
-
-    const result = await emergencyService.createGuestEmergency({
-      ...req.body,
-      mediaUrl,
-      mediaType,
-    });
+    const result = await emergencyService.createGuestEmergency(
+      req.body,
+      req.file,
+    );
 
     res.status(201).json({ success: true, data: result });
   } catch (err) {
@@ -40,26 +16,39 @@ const createGuestEmergency = async (req, res) => {
   }
 };
 
+// Create user emergency
+const createUserEmergency = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    const result = await emergencyService.createUserEmergency(
+      userId,
+      req.body,
+      req.file,
+    );
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+// Update emergency
 const updateEmergency = async (req, res) => {
   try {
     const { isGuest } = req.query;
-
-    const mediaUrl = req.file ? req.file.path : req.body.mediaUrl || null;
-    const mediaType = req.body.mediaType || null;
-
     const result = await emergencyService.updateEmergency(
       req.params.userOrGuestId,
       req.params.id,
-      { ...req.body, mediaUrl, mediaType },
+      req.body,
+      req.file,
       isGuest === "true",
     );
-
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
 };
 
+// Delete emergency
 const deleteEmergency = async (req, res) => {
   try {
     const { isGuest } = req.query;
@@ -74,6 +63,7 @@ const deleteEmergency = async (req, res) => {
   }
 };
 
+// Get emergencies
 const getEmergencies = async (req, res) => {
   try {
     const { isGuest } = req.query;

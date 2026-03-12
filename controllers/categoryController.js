@@ -2,6 +2,7 @@ const {
   createCategory,
   deleteCategory,
   getAllCategories,
+  getCategoriesByEmergencyType,
 } = require("../services/categoryService");
 
 const createCategoryHandler = async (req, res) => {
@@ -40,8 +41,21 @@ const getAllCategoriesHandler = async (req, res) => {
   }
 };
 
+const getCategoriesByTypeHandler = async (req, res) => {
+  try {
+    const { emergencyTypeId } = req.params;
+
+    const categories = await getCategoriesByEmergencyType(emergencyTypeId);
+
+    return res.status(200).json(categories);
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
+  }
+};
+
 module.exports = {
   createCategoryHandler,
   deleteCategoryHandler,
   getAllCategoriesHandler,
+  getCategoriesByTypeHandler,
 };

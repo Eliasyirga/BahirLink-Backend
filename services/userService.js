@@ -5,10 +5,18 @@ import { Op } from "sequelize";
 import User from "../models/user.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import sendEmail from "../utils/sendEmail.js";
-import { verificationEmail, temporaryPasswordEmail } from "../utils/emailTemplates.js";
+import {
+  verificationEmail,
+  temporaryPasswordEmail,
+} from "../utils/emailTemplates.js";
 
-
-export const registerUser = async ({ firstName, lastName, email, password }) => {
+export const registerUser = async ({
+  firstName,
+  lastName,
+  email,
+  role,
+  password,
+}) => {
   const existingUser = await User.findOne({ where: { email } });
   if (existingUser) throw new Error("Email already registered");
 
@@ -21,6 +29,7 @@ export const registerUser = async ({ firstName, lastName, email, password }) => 
     lastName,
     fullName,
     email,
+    role,
     password: hashedPassword,
     verificationCode,
     verificationCodeExpires: Date.now() + 10 * 60 * 1000,
@@ -30,16 +39,16 @@ export const registerUser = async ({ firstName, lastName, email, password }) => 
   await sendEmail(
     email,
     "Welcome to BahirLink! Verify Your Email",
-    verificationEmail(fullName, verificationCode)
+    verificationEmail(fullName, verificationCode),
   );
 
   return { id: user.id, fullName, email };
 };
 
-
 export const verifyEmailCode = async (email, code) => {
   const numericCode = Number(code);
-  if (!Number.isInteger(numericCode)) throw new Error("Invalid verification code");
+  if (!Number.isInteger(numericCode))
+    throw new Error("Invalid verification code");
 
   const user = await User.findOne({
     where: {
@@ -58,7 +67,6 @@ export const verifyEmailCode = async (email, code) => {
 
   return true;
 };
-
 
 export const loginUser = async ({ email, password, rememberMe }) => {
   const user = await User.findOne({ where: { email } });
@@ -83,7 +91,18 @@ export const loginUser = async ({ email, password, rememberMe }) => {
 
 export const getUserProfile = async (userId) => {
   const user = await User.findByPk(userId, {
-    attributes: ["firstName", "lastName", "fullName", "email", "phone", "gender", "dateOfBirth", "country", "city", "address"],
+    attributes: [
+      "firstName",
+      "lastName",
+      "fullName",
+      "email",
+      "phone",
+      "gender",
+      "dateOfBirth",
+      "country",
+      "city",
+      "address",
+    ],
   });
   if (!user) throw new Error("User not found");
   return user;
@@ -91,7 +110,8 @@ export const getUserProfile = async (userId) => {
 
 export const updateUserProfile = async (userId, updates) => {
   if (updates.firstName || updates.lastName)
-    updates.fullName = `${updates.firstName || ""} ${updates.lastName || ""}`.trim();
+    updates.fullName =
+      `${updates.firstName || ""} ${updates.lastName || ""}`.trim();
 
   const [_, updatedUsers] = await User.update(updates, {
     where: { id: userId },
@@ -101,7 +121,6 @@ export const updateUserProfile = async (userId, updates) => {
   if (!updatedUsers[0]) throw new Error("User not found");
   return updatedUsers[0];
 };
-
 
 export const forgotUserPassword = async (email) => {
   const user = await User.findOne({ where: { email } });
@@ -114,13 +133,20 @@ export const forgotUserPassword = async (email) => {
   user.mustChangePassword = true;
   await user.save();
 
-  await sendEmail(user.email, "Your Temporary Password for BahirLink", temporaryPasswordEmail(tempPassword));
+  await sendEmail(
+    user.email,
+    "Your Temporary Password for BahirLink",
+    temporaryPasswordEmail(tempPassword),
+  );
 
   return true;
 };
 
-
-export const changeUserPassword = async (userId, currentPassword, newPassword) => {
+export const changeUserPassword = async (
+  userId,
+  currentPassword,
+  newPassword,
+) => {
   const user = await User.findByPk(userId);
   if (!user) throw new Error("User not found");
 

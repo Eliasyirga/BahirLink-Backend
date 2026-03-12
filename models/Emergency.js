@@ -1,3 +1,4 @@
+// models/Emergency.js
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 
@@ -8,11 +9,6 @@ const Emergency = sequelize.define(
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
-    },
-
-    emergencyType: {
-      type: DataTypes.STRING,
-      allowNull: true,
     },
 
     description: {
@@ -36,12 +32,7 @@ const Emergency = sequelize.define(
     },
 
     status: {
-      type: DataTypes.ENUM(
-        "reported",
-        "assigned",
-        "in_progress",
-        "resolved"
-      ),
+      type: DataTypes.ENUM("reported", "assigned", "in_progress", "resolved"),
       defaultValue: "reported",
     },
 
@@ -62,11 +53,22 @@ const Emergency = sequelize.define(
         key: "id",
       },
     },
+
+    // ✅ Use a proper foreign key to link EmergencyType
+    emergencyTypeId: {
+      type: DataTypes.UUID, // match EmergencyType.id
+      allowNull: false,
+      references: {
+        model: "emergency_types",
+        key: "id",
+      },
+      onDelete: "CASCADE",
+    },
   },
   {
     tableName: "emergencies",
     timestamps: true,
-  }
+  },
 );
 
 module.exports = Emergency;

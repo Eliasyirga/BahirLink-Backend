@@ -23,15 +23,21 @@ const Message = sequelize.define(
     senderType: {
       type: DataTypes.ENUM("user", "guest", "system"),
       allowNull: false,
-    }, 
+    },
 
     senderId: {
       type: DataTypes.INTEGER,
-      allowNull: true, 
+      allowNull: true,
     },
 
     senderRole: {
-      type: DataTypes.ENUM("guest", "responder", "dispatcher", "admin", "system"),
+      type: DataTypes.ENUM(
+        "guest",
+        "responder",
+        "dispatcher",
+        "admin",
+        "system",
+      ),
       allowNull: false,
     },
 
@@ -49,7 +55,7 @@ const Message = sequelize.define(
   {
     tableName: "messages",
     timestamps: true,
-  }
+  },
 );
 
 module.exports = Message;

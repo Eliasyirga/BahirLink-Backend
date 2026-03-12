@@ -2,7 +2,7 @@ const { Emergency, User, Guest } = require("../models");
 const path = require("path");
 
 const createGuestEmergency = async (emergencyData, file) => {
-  let { contactNo, mediaType, ...rest } = emergencyData;
+  let { contactNo, mediaType, emergencyTypeId, ...rest } = emergencyData;
 
   if (!contactNo) throw new Error("Guest contact number is required");
   contactNo = String(contactNo).trim();
@@ -23,6 +23,7 @@ const createGuestEmergency = async (emergencyData, file) => {
   const emergency = await Emergency.create({
     ...rest,
     mediaUrl,
+    emergencyTypeId,
     mediaType:
       mediaType ||
       (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
@@ -35,7 +36,7 @@ const createGuestEmergency = async (emergencyData, file) => {
 };
 
 const createUserEmergency = async (userId, emergencyData, file) => {
-  const { mediaType, ...rest } = emergencyData;
+  const { mediaType, emergencyTypeId, ...rest } = emergencyData;
 
   let mediaUrl = null;
   if (file) mediaUrl = `/public/uploads/${file.filename}`;
@@ -43,6 +44,7 @@ const createUserEmergency = async (userId, emergencyData, file) => {
   return await Emergency.create({
     ...rest,
     mediaUrl,
+    emergencyTypeId,
     mediaType:
       mediaType ||
       (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),

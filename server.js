@@ -14,6 +14,8 @@ const guestRoutes = require("./routes/guestRoutes");
 const emergencyRoutes = require("./routes/emergencyRoutes");
 const chatSocket = require("./socket/chatSocket");
 const socketAuth = require("./middleware/socketAuth");
+const categoryRoutes = require("./routes/categoryRoutes");
+const emergencyTypeRoutes = require("./routes/emergencyTypeRoutes");
 
 const app = express();
 
@@ -43,7 +45,9 @@ app.get("/", (req, res) => res.send("Backend is running!"));
 app.use("/api/users", userRoutes);
 // app.use("/api/verify", verifyRoutes);
 app.use("/api/guests", guestRoutes);
-app.use("/api", emergencyRoutes);
+app.use("/api/emergencies", emergencyRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/emergencyType", emergencyTypeRoutes);
 
 const PORT = process.env.PORT || 5000;
 

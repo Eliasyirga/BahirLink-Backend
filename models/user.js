@@ -24,7 +24,7 @@ const User = sequelize.define(
     fullName: { type: DataTypes.STRING },
     phone: { type: DataTypes.STRING },
     role: {
-      type: DataTypes.ENUM("user", "responder", "admin"),
+      type: DataTypes.ENUM("user", "responder", "admin", "agency"),
       defaultValue: "user",
     },
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -59,9 +59,9 @@ const User = sequelize.define(
     isBlocked: { type: DataTypes.BOOLEAN, defaultValue: false },
   },
   {
-    timestamps: true, 
+    timestamps: true,
     tableName: "users",
-  }
+  },
 );
 
 module.exports = User;

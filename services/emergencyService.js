@@ -6,7 +6,8 @@ const createGuestEmergency = async (emergencyData, file) => {
     contactNo,
     mediaType,
     emergencyTypeId,
-    categoryId, // ✅ new
+    categoryId,
+    time, // ✅ new
     kebele,
     subdivision,
     street,
@@ -37,6 +38,7 @@ const createGuestEmergency = async (emergencyData, file) => {
     mediaUrl,
     emergencyTypeId,
     categoryId, // ✅ include categoryId
+    time,
     mediaType:
       mediaType ||
       (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
@@ -53,6 +55,7 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     mediaType,
     emergencyTypeId,
     categoryId, // ✅ new
+    time,
     kebele,
     subdivision,
     street,
@@ -73,6 +76,7 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     mediaUrl,
     emergencyTypeId,
     categoryId, // ✅ include categoryId
+    time,
     mediaType:
       mediaType ||
       (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),

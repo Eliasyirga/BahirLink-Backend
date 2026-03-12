@@ -27,7 +27,7 @@ const Emergency = sequelize.define(
 
     street: {
       type: DataTypes.STRING,
-      allowNull: true, 
+      allowNull: true,
     },
 
     mediaUrl: {
@@ -81,6 +81,10 @@ const Emergency = sequelize.define(
       },
       onDelete: "SET NULL",
     },
+    time: {
+      type: DataTypes.TIME,
+      allowNull: true, // optional
+    },
   },
   {
     tableName: "emergencies",
@@ -88,4 +92,4 @@ const Emergency = sequelize.define(
   },
 );
 
-module.exports = Emergency; 
+module.exports = Emergency;

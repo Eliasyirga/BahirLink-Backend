@@ -72,6 +72,15 @@ const Emergency = sequelize.define(
       },
       onDelete: "CASCADE",
     },
+    categoryId: {
+      type: DataTypes.UUID,
+      allowNull: true, // optional
+      references: {
+        model: "categories",
+        key: "id",
+      },
+      onDelete: "SET NULL",
+    },
   },
   {
     tableName: "emergencies",
@@ -79,4 +88,4 @@ const Emergency = sequelize.define(
   },
 );
 
-module.exports = Emergency;
+module.exports = Emergency; 

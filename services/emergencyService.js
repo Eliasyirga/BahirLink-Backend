@@ -2,25 +2,32 @@ const { Emergency, User, Guest } = require("../models");
 const path = require("path");
 
 const createGuestEmergency = async (emergencyData, file) => {
-  let { contactNo, mediaType, emergencyTypeId, kebele, subdivision, street, ...rest } = emergencyData;
+  let {
+    contactNo,
+    mediaType,
+    emergencyTypeId,
+    categoryId, // ✅ new
+    kebele,
+    subdivision,
+    street,
+    ...rest
+  } = emergencyData;
 
   if (!contactNo) throw new Error("Guest contact number is required");
   contactNo = String(contactNo).trim();
   if (contactNo.length === 0)
     throw new Error("Guest contact number cannot be empty");
 
-  if (!kebele || !subdivision) 
+  if (!kebele || !subdivision)
     throw new Error("Kebele and Subdivision are required");
 
-  // Check if guest already exists
+  // Check if guest exists
   let guest = await Guest.findOne({ where: { contactNo } });
   if (!guest) guest = await Guest.create({ contactNo });
 
   // Handle media URL
   let mediaUrl = null;
-  if (file) {
-    mediaUrl = `/public/uploads/${file.filename}`;
-  }
+  if (file) mediaUrl = `/public/uploads/${file.filename}`;
 
   const emergency = await Emergency.create({
     ...rest,
@@ -29,6 +36,7 @@ const createGuestEmergency = async (emergencyData, file) => {
     street,
     mediaUrl,
     emergencyTypeId,
+    categoryId, // ✅ include categoryId
     mediaType:
       mediaType ||
       (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
@@ -41,9 +49,17 @@ const createGuestEmergency = async (emergencyData, file) => {
 };
 
 const createUserEmergency = async (userId, emergencyData, file) => {
-  const { mediaType, emergencyTypeId, kebele, subdivision, street, ...rest } = emergencyData;
+  const {
+    mediaType,
+    emergencyTypeId,
+    categoryId, // ✅ new
+    kebele,
+    subdivision,
+    street,
+    ...rest
+  } = emergencyData;
 
-  if (!kebele || !subdivision) 
+  if (!kebele || !subdivision)
     throw new Error("Kebele and Subdivision are required");
 
   let mediaUrl = null;
@@ -56,6 +72,7 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     street,
     mediaUrl,
     emergencyTypeId,
+    categoryId, // ✅ include categoryId
     mediaType:
       mediaType ||
       (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
@@ -64,7 +81,6 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     reporterType: "user",
   });
 };
-
 
 const updateEmergency = async (
   userOrGuestId,

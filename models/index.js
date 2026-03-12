@@ -37,6 +37,17 @@ Emergency.belongsTo(EmergencyType, {
   as: "emergencyType",
 });
 
+Emergency.belongsTo(Category, {
+  foreignKey: "categoryId",
+  as: "category",
+  onDelete: "SET NULL",
+});
+
+Category.hasMany(Emergency, {
+  foreignKey: "categoryId",
+  as: "emergencies",
+});
+
 module.exports = {
   Guest,
   Emergency,

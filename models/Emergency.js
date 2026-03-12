@@ -1,4 +1,3 @@
-// models/Emergency.js
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 
@@ -16,9 +15,19 @@ const Emergency = sequelize.define(
       allowNull: true,
     },
 
-    location: {
+    kebele: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+
+    subdivision: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+
+    street: {
+      type: DataTypes.STRING,
+      allowNull: true, 
     },
 
     mediaUrl: {
@@ -54,9 +63,8 @@ const Emergency = sequelize.define(
       },
     },
 
-    // ✅ Use a proper foreign key to link EmergencyType
     emergencyTypeId: {
-      type: DataTypes.UUID, // match EmergencyType.id
+      type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: "emergency_types",

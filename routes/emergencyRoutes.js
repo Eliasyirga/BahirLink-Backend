@@ -8,7 +8,7 @@ const upload = require("../middleware/upload");
 
 // Create user emergency (with optional media)
 router.post(
-  "/users/:userId/emergencies",
+  "/users/:userId",
   upload.single("media"),
   emergencyController.createUserEmergency,
 );
@@ -17,7 +17,7 @@ router.post(
 
 // Create guest emergency (with optional media)
 router.post(
-  "/guests/emergencies",
+  "/guests",
   upload.single("media"),
   emergencyController.createGuestEmergency,
 );

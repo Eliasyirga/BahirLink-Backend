@@ -2,26 +2,31 @@ const { Emergency, User, Guest } = require("../models");
 const path = require("path");
 
 const createGuestEmergency = async (emergencyData, file) => {
-  let { contactNo, mediaType, emergencyTypeId, ...rest } = emergencyData;
+  let { contactNo, mediaType, emergencyTypeId, kebele, subdivision, street, ...rest } = emergencyData;
 
   if (!contactNo) throw new Error("Guest contact number is required");
   contactNo = String(contactNo).trim();
   if (contactNo.length === 0)
     throw new Error("Guest contact number cannot be empty");
 
-  // ✅ Check if guest already exists
+  if (!kebele || !subdivision) 
+    throw new Error("Kebele and Subdivision are required");
+
+  // Check if guest already exists
   let guest = await Guest.findOne({ where: { contactNo } });
   if (!guest) guest = await Guest.create({ contactNo });
 
-  // ✅ Handle media URL
+  // Handle media URL
   let mediaUrl = null;
   if (file) {
-    // Multer stores file in /public/uploads/<filename>
     mediaUrl = `/public/uploads/${file.filename}`;
   }
 
   const emergency = await Emergency.create({
     ...rest,
+    kebele,
+    subdivision,
+    street,
     mediaUrl,
     emergencyTypeId,
     mediaType:
@@ -36,13 +41,19 @@ const createGuestEmergency = async (emergencyData, file) => {
 };
 
 const createUserEmergency = async (userId, emergencyData, file) => {
-  const { mediaType, emergencyTypeId, ...rest } = emergencyData;
+  const { mediaType, emergencyTypeId, kebele, subdivision, street, ...rest } = emergencyData;
+
+  if (!kebele || !subdivision) 
+    throw new Error("Kebele and Subdivision are required");
 
   let mediaUrl = null;
   if (file) mediaUrl = `/public/uploads/${file.filename}`;
 
   return await Emergency.create({
     ...rest,
+    kebele,
+    subdivision,
+    street,
     mediaUrl,
     emergencyTypeId,
     mediaType:
@@ -53,6 +64,7 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     reporterType: "user",
   });
 };
+
 
 const updateEmergency = async (
   userOrGuestId,

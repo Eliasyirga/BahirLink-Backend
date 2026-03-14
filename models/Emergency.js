@@ -29,7 +29,10 @@ const Emergency = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-
+    location: {
+      type: DataTypes.JSON, 
+      allowNull: true,
+    },
     mediaUrl: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -74,7 +77,7 @@ const Emergency = sequelize.define(
     },
     categoryId: {
       type: DataTypes.UUID,
-      allowNull: true, // optional
+      allowNull: true,
       references: {
         model: "categories",
         key: "id",
@@ -83,7 +86,7 @@ const Emergency = sequelize.define(
     },
     time: {
       type: DataTypes.TIME,
-      allowNull: true, // optional
+      allowNull: true,
     },
   },
   {

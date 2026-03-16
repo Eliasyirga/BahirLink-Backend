@@ -30,7 +30,7 @@ const Emergency = sequelize.define(
       allowNull: true,
     },
     location: {
-      type: DataTypes.JSON, 
+      type: DataTypes.JSON,
       allowNull: true,
     },
     mediaUrl: {
@@ -55,9 +55,9 @@ const Emergency = sequelize.define(
         model: "users",
         key: "id",
       },
-    },
+    },  
 
-    guestId: {
+    guestId: { 
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {

@@ -16,6 +16,12 @@ const chatSocket = require("./socket/chatSocket");
 const socketAuth = require("./middleware/socketAuth");
 const categoryRoutes = require("./routes/categoryRoutes");
 const emergencyTypeRoutes = require("./routes/emergencyTypeRoutes");
+const agencyTypeRoutes = require("./routes/agencyTypeRoutes");
+const agencyRoutes = require("./routes/agencyRoutes");
+const kebeleRoutes = require("./routes/kebeleRoutes");
+const responderTeamRoutes = require("./routes/responderTeamRoutes");
+const crewRoleRoutes = require("./routes/crewRoleRoutes");
+const crewRoutes = require("./routes/crewRoutes");
 
 const app = express();
 
@@ -48,6 +54,12 @@ app.use("/api/guests", guestRoutes);
 app.use("/api/emergencies", emergencyRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/emergencyType", emergencyTypeRoutes);
+app.use("/api/agencyType", agencyTypeRoutes);
+app.use("/api/agency", agencyRoutes);
+app.use("/api/kebele", kebeleRoutes);
+app.use("/api/responderTeam", responderTeamRoutes);
+app.use("/api/crewRole", crewRoleRoutes);
+app.use("/api/crew", crewRoutes);
 
 const PORT = process.env.PORT || 5000;
 

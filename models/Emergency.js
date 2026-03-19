@@ -29,10 +29,12 @@ const Emergency = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+
     location: {
       type: DataTypes.JSON,
       allowNull: true,
     },
+
     mediaUrl: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -55,9 +57,9 @@ const Emergency = sequelize.define(
         model: "users",
         key: "id",
       },
-    },  
+    },
 
-    guestId: { 
+    guestId: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
@@ -75,6 +77,7 @@ const Emergency = sequelize.define(
       },
       onDelete: "CASCADE",
     },
+
     categoryId: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -84,6 +87,7 @@ const Emergency = sequelize.define(
       },
       onDelete: "SET NULL",
     },
+
     time: {
       type: DataTypes.TIME,
       allowNull: true,

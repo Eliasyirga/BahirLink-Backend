@@ -9,19 +9,18 @@ const Agency = require("./Agency");
 const ResponderTeam = require("./ResponderTeam");
 const Crew = require("./Crew");
 const CrewRole = require("./CrewRole");
+const CaseType = require("./CaseType");
+const Cases = require("./Cases");
 
-// ---------------- Guest ↔ Emergency ----------------
+
 Guest.hasMany(Emergency, { foreignKey: "guestId", as: "emergencies" });
 Emergency.belongsTo(Guest, { foreignKey: "guestId", as: "guest" });
 
-// ---------------- User ↔ Emergency ----------------
 User.hasMany(Emergency, { foreignKey: "citizenId", as: "emergencies" });
 Emergency.belongsTo(User, { foreignKey: "citizenId", as: "user" });
 
-// ---------------- Emergency ↔ Message ----------------
 Emergency.hasMany(Message, { foreignKey: "emergencyId", as: "messages" });
 Message.belongsTo(Emergency, { foreignKey: "emergencyId", as: "emergency" });
-// ---------------- EmergencyType ↔ Category ----------------
 
 EmergencyType.hasMany(Category, {
   foreignKey: "emergencyTypeId",
@@ -52,11 +51,10 @@ Category.hasMany(Emergency, {
   foreignKey: "categoryId",
   as: "emergencies",
 });
-// Relations
+
 Agency.belongsTo(AgencyType, { foreignKey: "agencyTypeId" });
 AgencyType.hasMany(Agency, { foreignKey: "agencyTypeId" });
 
-// Associations
 ResponderTeam.belongsTo(Agency, { foreignKey: "agencyId" });
 Agency.hasMany(ResponderTeam, { foreignKey: "agencyId" });
 
@@ -65,6 +63,18 @@ ResponderTeam.hasMany(Crew, { foreignKey: "responderTeamId" });
 
 Crew.belongsTo(CrewRole, { foreignKey: "roleId" });
 CrewRole.hasMany(Crew, { foreignKey: "roleId" });
+
+Cases.belongsTo(Agency, { foreignKey: "agencyId", as: "agency" });
+Agency.hasMany(Cases, { foreignKey: "agencyId", as: "cases" });
+
+Cases.belongsTo(CaseType, { foreignKey: "caseTypeId", as: "caseType" });
+CaseType.hasMany(Cases, { foreignKey: "caseTypeId", as: "cases" });
+
+Cases.belongsTo(ResponderTeam, {
+  foreignKey: "responderTeamId",
+  as: "responderTeam",
+});
+ResponderTeam.hasMany(Cases, { foreignKey: "responderTeamId", as: "cases" });
 
 module.exports = {
   Guest,
@@ -78,4 +88,6 @@ module.exports = {
   ResponderTeam,
   Crew,
   CrewRole,
+  CaseType,
+  Cases,
 };

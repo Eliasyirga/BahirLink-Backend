@@ -22,6 +22,8 @@ const kebeleRoutes = require("./routes/kebeleRoutes");
 const responderTeamRoutes = require("./routes/responderTeamRoutes");
 const crewRoleRoutes = require("./routes/crewRoleRoutes");
 const crewRoutes = require("./routes/crewRoutes");
+const caseTypeRoutes = require("./routes/caseTypeRoutes");
+const casesRoutes = require("./routes/casesRoutes");
 
 const app = express();
 
@@ -60,6 +62,8 @@ app.use("/api/kebele", kebeleRoutes);
 app.use("/api/responderTeam", responderTeamRoutes);
 app.use("/api/crewRole", crewRoleRoutes);
 app.use("/api/crew", crewRoutes);
+app.use("/api/caseType", caseTypeRoutes);
+app.use("/api/cases", casesRoutes);
 
 const PORT = process.env.PORT || 5000;
 

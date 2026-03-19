@@ -74,7 +74,7 @@ const Emergency = sequelize.define(
     },
     categoryId: {
       type: DataTypes.UUID,
-      allowNull: true, // optional
+      allowNull: true, 
       references: {
         model: "categories",
         key: "id",
@@ -83,7 +83,7 @@ const Emergency = sequelize.define(
     },
     time: {
       type: DataTypes.TIME,
-      allowNull: true, // optional
+      allowNull: true, 
     },
   },
   {

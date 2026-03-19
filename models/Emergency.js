@@ -30,6 +30,11 @@ const Emergency = sequelize.define(
       allowNull: true,
     },
 
+    location: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+
     mediaUrl: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -72,18 +77,20 @@ const Emergency = sequelize.define(
       },
       onDelete: "CASCADE",
     },
+
     categoryId: {
       type: DataTypes.UUID,
-      allowNull: true, 
+      allowNull: true,
       references: {
         model: "categories",
         key: "id",
       },
       onDelete: "SET NULL",
     },
+
     time: {
       type: DataTypes.TIME,
-      allowNull: true, 
+      allowNull: true,
     },
   },
   {

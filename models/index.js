@@ -4,6 +4,11 @@ const Message = require("./Message");
 const User = require("./user");
 const Category = require("./Category");
 const EmergencyType = require("./EmergencyType");
+const AgencyType = require("./AgencyType");
+const Agency = require("./Agency");
+const ResponderTeam = require("./ResponderTeam");
+const Crew = require("./Crew");
+const CrewRole = require("./CrewRole");
 
 // ---------------- Guest ↔ Emergency ----------------
 Guest.hasMany(Emergency, { foreignKey: "guestId", as: "emergencies" });
@@ -47,6 +52,19 @@ Category.hasMany(Emergency, {
   foreignKey: "categoryId",
   as: "emergencies",
 });
+// Relations
+Agency.belongsTo(AgencyType, { foreignKey: "agencyTypeId" });
+AgencyType.hasMany(Agency, { foreignKey: "agencyTypeId" });
+
+// Associations
+ResponderTeam.belongsTo(Agency, { foreignKey: "agencyId" });
+Agency.hasMany(ResponderTeam, { foreignKey: "agencyId" });
+
+Crew.belongsTo(ResponderTeam, { foreignKey: "responderTeamId" });
+ResponderTeam.hasMany(Crew, { foreignKey: "responderTeamId" });
+
+Crew.belongsTo(CrewRole, { foreignKey: "roleId" });
+CrewRole.hasMany(Crew, { foreignKey: "roleId" });
 
 module.exports = {
   Guest,
@@ -55,4 +73,9 @@ module.exports = {
   User,
   Category,
   EmergencyType,
+  Agency,
+  AgencyType,
+  ResponderTeam,
+  Crew,
+  CrewRole,
 };

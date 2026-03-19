@@ -9,10 +9,17 @@ const createGuestEmergency = async (emergencyData, file) => {
     categoryId,
     time, // ✅ new
     kebele,
+    location,
     subdivision,
     street,
+    latitude, // added
+    longitude,
     ...rest
   } = emergencyData;
+
+  if (!location && latitude != null && longitude != null) {
+    location = { latitude, longitude };
+  }
 
   if (!contactNo) throw new Error("Guest contact number is required");
   contactNo = String(contactNo).trim();
@@ -35,6 +42,7 @@ const createGuestEmergency = async (emergencyData, file) => {
     kebele,
     subdivision,
     street,
+    location,
     mediaUrl,
     emergencyTypeId,
     categoryId, // ✅ include categoryId
@@ -59,8 +67,15 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     kebele,
     subdivision,
     street,
+    location,
+    latitude, // added
+    longitude,
     ...rest
   } = emergencyData;
+
+  if (!location && latitude != null && longitude != null) {
+    location = { latitude, longitude };
+  }
 
   if (!kebele || !subdivision)
     throw new Error("Kebele and Subdivision are required");
@@ -73,6 +88,7 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     kebele,
     subdivision,
     street,
+    location,
     mediaUrl,
     emergencyTypeId,
     categoryId, // ✅ include categoryId

@@ -10,11 +10,12 @@ import {
   temporaryPasswordEmail,
 } from "../utils/emailTemplates.js";
 
+// ✅ REGISTER
 export const registerUser = async ({
   firstName,
   lastName,
   email,
-  role,
+  role = "user",
   password,
 }) => {
   const existingUser = await User.findOne({ where: { email } });
@@ -33,18 +34,22 @@ export const registerUser = async ({
     password: hashedPassword,
     verificationCode,
     verificationCodeExpires: Date.now() + 10 * 60 * 1000,
-    isEmailVerified: false,
+    isEmailVerified: role === "admin", // ✅ Admin auto-verified
   });
 
-  await sendEmail(
-    email,
-    "Welcome to BahirLink! Verify Your Email",
-    verificationEmail(fullName, verificationCode),
-  );
+  // ❗ Only send email if NOT admin
+  if (role !== "admin") {
+    await sendEmail(
+      email,
+      "Verify Your Email",
+      verificationEmail(fullName, verificationCode),
+    );
+  }
 
-  return { id: user.id, fullName, email };
+  return { id: user.id, fullName, email, role };
 };
 
+// ✅ VERIFY EMAIL
 export const verifyEmailCode = async (email, code) => {
   const numericCode = Number(code);
   if (!Number.isInteger(numericCode))
@@ -68,6 +73,7 @@ export const verifyEmailCode = async (email, code) => {
   return true;
 };
 
+// ✅ LOGIN
 export const loginUser = async ({ email, password, rememberMe }) => {
   const user = await User.findOne({ where: { email } });
   if (!user) throw new Error("User not found");
@@ -75,10 +81,7 @@ export const loginUser = async ({ email, password, rememberMe }) => {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("Invalid password");
 
-  if (user.mustChangePassword) {
-    return { mustChangePassword: true, user };
-  }
-
+  // 🔥 Generate tokens FIRST
   const accessToken = generateAccessToken(user.id);
   const refreshToken = rememberMe ? generateRefreshToken(user.id) : null;
 
@@ -86,12 +89,19 @@ export const loginUser = async ({ email, password, rememberMe }) => {
   user.lastLogin = new Date();
   await user.save();
 
-  return { accessToken, refreshToken, user };
+  return {
+    accessToken,
+    refreshToken,
+    user,
+    mustChangePassword: user.mustChangePassword || false,
+  };
 };
 
+// ✅ PROFILE
 export const getUserProfile = async (userId) => {
   const user = await User.findByPk(userId, {
     attributes: [
+      "id",
       "firstName",
       "lastName",
       "fullName",
@@ -102,16 +112,20 @@ export const getUserProfile = async (userId) => {
       "country",
       "city",
       "address",
+      "role",
     ],
   });
+
   if (!user) throw new Error("User not found");
   return user;
 };
 
+// ✅ UPDATE PROFILE
 export const updateUserProfile = async (userId, updates) => {
-  if (updates.firstName || updates.lastName)
+  if (updates.firstName || updates.lastName) {
     updates.fullName =
       `${updates.firstName || ""} ${updates.lastName || ""}`.trim();
+  }
 
   const [_, updatedUsers] = await User.update(updates, {
     where: { id: userId },
@@ -122,6 +136,7 @@ export const updateUserProfile = async (userId, updates) => {
   return updatedUsers[0];
 };
 
+// ✅ FORGOT PASSWORD
 export const forgotUserPassword = async (email) => {
   const user = await User.findOne({ where: { email } });
   if (!user) throw new Error("User not found");
@@ -135,13 +150,14 @@ export const forgotUserPassword = async (email) => {
 
   await sendEmail(
     user.email,
-    "Your Temporary Password for BahirLink",
+    "Temporary Password",
     temporaryPasswordEmail(tempPassword),
   );
 
   return true;
 };
 
+// ✅ CHANGE PASSWORD
 export const changeUserPassword = async (
   userId,
   currentPassword,
@@ -160,6 +176,7 @@ export const changeUserPassword = async (
   return true;
 };
 
+// ✅ REFRESH TOKEN
 export const refreshUserToken = async (token) => {
   if (!token) throw new Error("No token provided");
 
@@ -168,6 +185,20 @@ export const refreshUserToken = async (token) => {
 
   if (!user || user.refreshToken !== token) throw new Error("Invalid session");
 
-  const newAccessToken = generateAccessToken(user.id);
-  return newAccessToken;
+  return generateAccessToken(user.id);
+};
+
+export const getAllUsers = async () => {
+  const users = await User.findAll({
+    attributes: [
+      "id",
+      "firstName",
+      "lastName",
+      "fullName",
+      "email",
+      "role",
+      "isEmailVerified",
+    ],
+  });
+  return users;
 };

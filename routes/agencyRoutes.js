@@ -5,7 +5,11 @@ const {
   createAgencyHandler,
   updateAgencyHandler,
   deleteAgencyHandler,
+  getAllAgenciesHandler, // Added this
 } = require("../controllers/agencyController");
+
+// Get all agencies
+router.get("/", getAllAgenciesHandler);
 
 // Create a new agency
 router.post("/", createAgencyHandler);

@@ -1,6 +1,9 @@
 const Agency = require("../models/Agency");
 const bcrypt = require("bcryptjs");
 
+/**
+ * Create a new Agency
+ */
 const createAgency = async (data) => {
   const {
     name,
@@ -31,11 +34,13 @@ const createAgency = async (data) => {
     status: status || "active",
   });
 
-  agency.password = undefined;
-
+  agency.password = undefined; // hide password
   return agency;
 };
 
+/**
+ * Update an existing Agency
+ */
 const updateAgency = async (id, data) => {
   const agency = await Agency.findByPk(id);
   if (!agency) throw new Error("Agency not found");
@@ -47,10 +52,12 @@ const updateAgency = async (id, data) => {
   await agency.update(data);
 
   agency.password = undefined;
-
   return agency;
 };
 
+/**
+ * Delete an Agency
+ */
 const deleteAgency = async (id) => {
   const agency = await Agency.findByPk(id);
   if (!agency) throw new Error("Agency not found");
@@ -59,8 +66,24 @@ const deleteAgency = async (id) => {
   return { message: "Agency deleted successfully" };
 };
 
+/**
+ * Get All Agencies
+ */
+const getAllAgencies = async () => {
+  const agencies = await Agency.findAll({
+    order: [["name", "ASC"]], // optional: order alphabetically
+  });
+
+  // Remove passwords before returning
+  return agencies.map((agency) => {
+    const { password, ...rest } = agency.toJSON();
+    return rest;
+  });
+};
+
 module.exports = {
   createAgency,
   updateAgency,
   deleteAgency,
+  getAllAgencies, // export new function
 };

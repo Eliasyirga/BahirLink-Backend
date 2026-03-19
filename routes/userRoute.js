@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { verifyToken } = require("../middleware/auth");
+const { verifyToken, isAdmin } = require("../middleware/auth");
 const userController = require("../controllers/userController");
 
 router.post("/register", userController.register);
@@ -17,5 +17,7 @@ router.put("/profile", verifyToken, userController.updateProfile);
 
 // -------------------- TOKEN ROUTE --------------------
 router.post("/refresh-token", userController.refreshToken);
+
+router.get("/all", verifyToken, userController.getAllUsers);
 
 module.exports = router;

@@ -43,7 +43,7 @@ const ResponderTeam = sequelize.define(
       defaultValue: "active",
     },
     kebeles: {
-      type: DataTypes.JSON,// Array of kebeles 
+      type: DataTypes.JSON, // Array of kebeles
       allowNull: false,
       defaultValue: [],
     },

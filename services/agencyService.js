@@ -1,5 +1,8 @@
 const Agency = require("../models/Agency");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+
+const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
 
 /**
  * Create a new Agency
@@ -81,9 +84,41 @@ const getAllAgencies = async () => {
   });
 };
 
+const loginAgency = async (email, password) => {
+  // 1️⃣ Find agency by email
+  const agency = await Agency.findOne({ where: { email } });
+  if (!agency) {
+    throw new Error("Invalid email or password");
+  }
+
+  // 2️⃣ Compare passwords
+  const isMatch = await bcrypt.compare(password, agency.password);
+  if (!isMatch) {
+    throw new Error("Invalid email or password");
+  }
+
+  // 3️⃣ Generate JWT token
+  const token = jwt.sign(
+    {
+      id: agency.id,
+      name: agency.name,
+      email: agency.email,
+      agencyTypeId: agency.agencyTypeId,
+    },
+    JWT_SECRET,
+    { expiresIn: "1d" },
+  );
+
+  // 4️⃣ Hide password before sending
+  agency.password = undefined;
+
+  return { agency, token };
+};
+
 module.exports = {
   createAgency,
   updateAgency,
   deleteAgency,
-  getAllAgencies, // export new function
+  getAllAgencies,
+  loginAgency,
 };

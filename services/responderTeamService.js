@@ -80,8 +80,28 @@ const deleteTeam = async (id) => {
   return { message: "Responder Team deleted successfully" };
 };
 
+const getAllTeams = async () => {
+  const teams = await ResponderTeam.findAll({
+    order: [["createdAt", "DESC"]], // newest first
+  });
+  return teams;
+};
+
+const getTeamsByAgency = async (agencyId) => {
+  if (!agencyId) throw new Error("Agency ID is required");
+
+  const teams = await ResponderTeam.findAll({
+    where: { agencyId },
+    order: [["createdAt", "DESC"]],
+  });
+
+  return teams;
+};
+
 module.exports = {
   createTeam,
   updateTeam,
   deleteTeam,
+  getAllTeams,
+  getTeamsByAgency,
 };

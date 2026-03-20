@@ -5,7 +5,8 @@ const {
   createAgencyHandler,
   updateAgencyHandler,
   deleteAgencyHandler,
-  getAllAgenciesHandler, // Added this
+  getAllAgenciesHandler,
+  loginAgencyHandler,
 } = require("../controllers/agencyController");
 
 // Get all agencies
@@ -19,5 +20,7 @@ router.put("/:id", updateAgencyHandler);
 
 // Delete an agency
 router.delete("/:id", deleteAgencyHandler);
+
+router.post("/agent-login", loginAgencyHandler);
 
 module.exports = router;

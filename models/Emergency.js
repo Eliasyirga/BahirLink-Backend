@@ -68,14 +68,16 @@ const Emergency = sequelize.define(
       },
     },
 
+    // Temporarily nullable to allow migration for existing rows
     emergencyTypeId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true, // set to true for safe migration; later change to false
       references: {
         model: "emergency_types",
         key: "id",
       },
       onDelete: "CASCADE",
+      onUpdate: "CASCADE",
     },
 
     categoryId: {
@@ -86,6 +88,7 @@ const Emergency = sequelize.define(
         key: "id",
       },
       onDelete: "SET NULL",
+      onUpdate: "CASCADE",
     },
 
     time: {

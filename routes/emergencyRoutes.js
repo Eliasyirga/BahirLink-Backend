@@ -40,4 +40,8 @@ router.delete("/:userOrGuestId/:id", emergencyController.deleteEmergency);
 // Get all emergencies for user or guest
 router.get("/:userOrGuestId", emergencyController.getEmergencies);
 
+router.get(
+  "/agency/:agencyId/emergencies",
+  emergencyController.getEmergenciesByAgency,
+);
 module.exports = router;

@@ -1,18 +1,39 @@
-const { Emergency, User, Guest } = require("../models");
+const { Op } = require("sequelize");
+const {
+  Emergency,
+  Guest,
+  EmergencyType,
+  Agency,
+  AgencyType,
+} = require("../models");
 const path = require("path");
 
+// =========================
+// HARD-CODED MAPPING
+// =========================
+const emergencyTypeToAgencyType = {
+  Crime: "Police",
+  Medical: "Health",
+  Fire: "Fire",
+};
+// Default EmergencyType ID for fallback emergencies
+const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001"; // replace with real UUID
+
+// =========================
+// CREATE GUEST EMERGENCY
+// =========================
 const createGuestEmergency = async (emergencyData, file) => {
   let {
     contactNo,
     mediaType,
-    emergencyTypeId,
+    emergencyTypeId = DEFAULT_EMERGENCY_TYPE_ID,
     categoryId,
-    time, // ✅ new
+    time,
     kebele,
     location,
     subdivision,
     street,
-    latitude, // added
+    latitude,
     longitude,
     ...rest
   } = emergencyData;
@@ -23,19 +44,14 @@ const createGuestEmergency = async (emergencyData, file) => {
 
   if (!contactNo) throw new Error("Guest contact number is required");
   contactNo = String(contactNo).trim();
-  if (contactNo.length === 0)
-    throw new Error("Guest contact number cannot be empty");
-
   if (!kebele || !subdivision)
     throw new Error("Kebele and Subdivision are required");
 
-  // Check if guest exists
+  // Find or create guest
   let guest = await Guest.findOne({ where: { contactNo } });
   if (!guest) guest = await Guest.create({ contactNo });
 
-  // Handle media URL
-  let mediaUrl = null;
-  if (file) mediaUrl = `/public/uploads/${file.filename}`;
+  const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
 
   const emergency = await Emergency.create({
     ...rest,
@@ -45,10 +61,10 @@ const createGuestEmergency = async (emergencyData, file) => {
     location,
     mediaUrl,
     emergencyTypeId,
-    categoryId, // ✅ include categoryId
+    categoryId,
     time,
     mediaType:
-      mediaType ||
+      mediaType ??
       (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
     guestId: guest.id,
     status: "reported",
@@ -58,17 +74,20 @@ const createGuestEmergency = async (emergencyData, file) => {
   return emergency;
 };
 
+// =========================
+// CREATE USER EMERGENCY
+// =========================
 const createUserEmergency = async (userId, emergencyData, file) => {
-  const {
+  let {
     mediaType,
-    emergencyTypeId,
-    categoryId, // ✅ new
+    emergencyTypeId = DEFAULT_EMERGENCY_TYPE_ID,
+    categoryId,
     time,
     kebele,
     subdivision,
     street,
     location,
-    latitude, // added
+    latitude,
     longitude,
     ...rest
   } = emergencyData;
@@ -80,8 +99,7 @@ const createUserEmergency = async (userId, emergencyData, file) => {
   if (!kebele || !subdivision)
     throw new Error("Kebele and Subdivision are required");
 
-  let mediaUrl = null;
-  if (file) mediaUrl = `/public/uploads/${file.filename}`;
+  const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
 
   return await Emergency.create({
     ...rest,
@@ -91,10 +109,10 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     location,
     mediaUrl,
     emergencyTypeId,
-    categoryId, // ✅ include categoryId
+    categoryId,
     time,
     mediaType:
-      mediaType ||
+      mediaType ??
       (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
     citizenId: userId,
     status: "reported",
@@ -102,6 +120,9 @@ const createUserEmergency = async (userId, emergencyData, file) => {
   });
 };
 
+// =========================
+// UPDATE EMERGENCY
+// =========================
 const updateEmergency = async (
   userOrGuestId,
   emergencyId,
@@ -116,7 +137,6 @@ const updateEmergency = async (
   const emergency = await Emergency.findOne({ where: whereClause });
   if (!emergency) throw new Error("Emergency not found");
 
-  // Update media if new file uploaded
   if (file) {
     updatedData.mediaUrl = `/public/uploads/${file.filename}`;
     updatedData.mediaType = file.mimetype.startsWith("video")
@@ -127,6 +147,9 @@ const updateEmergency = async (
   return await emergency.update(updatedData);
 };
 
+// =========================
+// DELETE EMERGENCY
+// =========================
 const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
@@ -139,6 +162,9 @@ const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
   return { message: "Emergency deleted successfully" };
 };
 
+// =========================
+// GET USER/GUEST EMERGENCIES
+// =========================
 const getEmergencies = async (userOrGuestId, isGuest = false) => {
   const whereClause = isGuest
     ? { guestId: userOrGuestId }
@@ -147,7 +173,45 @@ const getEmergencies = async (userOrGuestId, isGuest = false) => {
   return await Emergency.findAll({
     where: whereClause,
     order: [["createdAt", "DESC"]],
+    include: [{ model: EmergencyType, as: "emergencyType" }],
   });
+};
+
+// =========================
+// GET EMERGENCIES FOR AGENCY
+// =========================
+const getEmergenciesForAgency = async (agencyId) => {
+  // 1️⃣ Get agency + its type
+  const agency = await Agency.findByPk(agencyId, {
+    include: { model: AgencyType, as: "agencyType" },
+  });
+
+  if (!agency) throw new Error("Agency not found");
+
+  const agencyTypeName = agency.agencyType?.name;
+  if (!agencyTypeName) return [];
+
+  // 2️⃣ Find all emergency types handled by this agency type
+  const handledEmergencyTypes = Object.entries(emergencyTypeToAgencyType)
+    .filter(([etype, aType]) => aType === agencyTypeName)
+    .map(([etype]) => etype);
+
+  if (!handledEmergencyTypes.length) return [];
+
+  // 3️⃣ Fetch emergencies
+  const emergencies = await Emergency.findAll({
+    include: [
+      {
+        model: EmergencyType,
+        as: "emergencyType",
+        where: { name: handledEmergencyTypes },
+        attributes: ["id", "name", "description"],
+      },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+
+  return emergencies;
 };
 
 module.exports = {
@@ -156,4 +220,5 @@ module.exports = {
   updateEmergency,
   deleteEmergency,
   getEmergencies,
+  getEmergenciesForAgency,
 };

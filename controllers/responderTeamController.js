@@ -1,3 +1,5 @@
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const ResponderTeam = require("../models/ResponderTeam");
 const {
   createTeam,
@@ -8,7 +10,7 @@ const {
 } = require("../services/responderTeamService");
 
 /**
- * Create a Responder Team with login credentials and kebeles
+ * Create a Responder Team
  */
 const createTeamHandler = async (req, res) => {
   try {
@@ -57,6 +59,46 @@ const createTeamHandler = async (req, res) => {
     });
   } catch (error) {
     console.error("CREATE TEAM ERROR:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Responder Login
+ */
+const responderLoginHandler = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Email and password are required" });
+    }
+
+    const responder = await ResponderTeam.findOne({ where: { email } });
+    if (!responder) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid email or password" });
+    }
+
+    const isMatch = await bcrypt.compare(password, responder.password);
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid email or password" });
+    }
+
+    const token = jwt.sign(
+      { id: responder.id, role: "responder" },
+      process.env.JWT_SECRET || "secret",
+      { expiresIn: "8h" },
+    );
+
+    res.status(200).json({ success: true, responder, token });
+  } catch (error) {
+    console.error("RESPONDER LOGIN ERROR:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -111,7 +153,7 @@ const getAllTeamsHandler = async (req, res) => {
 };
 
 /**
- * Get all Responder Teams for a specific agency
+ * Get Responder Teams by Agency
  */
 const getTeamsByAgencyHandler = async (req, res) => {
   try {
@@ -132,8 +174,9 @@ const getTeamsByAgencyHandler = async (req, res) => {
 
 module.exports = {
   createTeamHandler,
+  responderLoginHandler,
   updateTeamHandler,
   deleteTeamHandler,
   getAllTeamsHandler,
-  getTeamsByAgencyHandler, // <-- new export
+  getTeamsByAgencyHandler,
 };

@@ -1,22 +1,67 @@
 // controllers/emergencyController.js
 const emergencyService = require("../services/emergencyService");
-const { Emergency, EmergencyType } = require("../models"); // <-- IMPORT MODELS
+const { Emergency, EmergencyType } = require("../models");
+
+// =========================
+// 🧠 HELPER: Normalize Location
+// =========================
+const normalizeLocation = (body) => {
+  let latitude = body.latitude;
+  let longitude = body.longitude;
+
+  try {
+    // Case 1: JSON string
+    if (
+      body.location &&
+      typeof body.location === "string" &&
+      body.location.startsWith("{")
+    ) {
+      const parsed = JSON.parse(body.location);
+      latitude = parsed.latitude;
+      longitude = parsed.longitude;
+    }
+
+    // Case 2: "lat,lng"
+    else if (
+      body.location &&
+      typeof body.location === "string" &&
+      body.location.includes(",")
+    ) {
+      const parts = body.location.split(",");
+      latitude = parts[0];
+      longitude = parts[1];
+    }
+  } catch (e) {
+    console.warn("⚠️ Failed to parse location:", body.location);
+  }
+
+  return {
+    ...body,
+    latitude: latitude ? parseFloat(latitude) : null,
+    longitude: longitude ? parseFloat(longitude) : null,
+  };
+};
 
 // =========================
 // CREATE GUEST EMERGENCY
 // =========================
 const createGuestEmergency = async (req, res) => {
   try {
-    console.log("Create Guest Emergency - Request body:", req.body);
+    console.log("Create Guest Emergency - Raw body:", req.body);
+
+    // ✅ Normalize location
+    const cleanBody = normalizeLocation(req.body);
+
+    console.log("✅ Cleaned body:", cleanBody);
 
     const result = await emergencyService.createGuestEmergency(
-      req.body,
+      cleanBody,
       req.file,
     );
 
     res.status(201).json({ success: true, data: result });
   } catch (err) {
-    console.error("Error creating guest emergency:", err);
+    console.error("❌ Error creating guest emergency:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
@@ -31,15 +76,20 @@ const createUserEmergency = async (req, res) => {
 
     console.log(`Create User Emergency - User ID: ${userId}`, req.body);
 
+    // ✅ Normalize location (SAME as guest)
+    const cleanBody = normalizeLocation(req.body);
+
+    console.log("✅ Cleaned body:", cleanBody);
+
     const result = await emergencyService.createUserEmergency(
       userId,
-      req.body,
+      cleanBody,
       req.file,
     );
 
     res.status(201).json({ success: true, data: result });
   } catch (err) {
-    console.error("Error creating user emergency:", err);
+    console.error("❌ Error creating user emergency:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
@@ -58,17 +108,20 @@ const updateEmergency = async (req, res) => {
       `Update Emergency - ID: ${req.params.id}, User/Guest ID: ${userOrGuestId}, isGuest: ${isGuest}`,
     );
 
+    // ✅ Normalize location on update too
+    const cleanBody = normalizeLocation(req.body);
+
     const result = await emergencyService.updateEmergency(
       userOrGuestId,
       req.params.id,
-      req.body,
+      cleanBody,
       req.file,
       isGuest === "true",
     );
 
     res.json({ success: true, data: result });
   } catch (err) {
-    console.error("Error updating emergency:", err);
+    console.error("❌ Error updating emergency:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
@@ -83,10 +136,6 @@ const deleteEmergency = async (req, res) => {
 
     if (isNaN(userOrGuestId)) throw new Error("Invalid user/guest ID");
 
-    console.log(
-      `Delete Emergency - ID: ${req.params.id}, User/Guest ID: ${userOrGuestId}, isGuest: ${isGuest}`,
-    );
-
     const result = await emergencyService.deleteEmergency(
       userOrGuestId,
       req.params.id,
@@ -95,13 +144,13 @@ const deleteEmergency = async (req, res) => {
 
     res.json({ success: true, message: result.message });
   } catch (err) {
-    console.error("Error deleting emergency:", err);
+    console.error("❌ Error deleting emergency:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
 
 // =========================
-// GET EMERGENCIES FOR USER/GUEST
+// GET EMERGENCIES
 // =========================
 const getEmergencies = async (req, res) => {
   try {
@@ -110,10 +159,6 @@ const getEmergencies = async (req, res) => {
 
     if (isNaN(userOrGuestId)) throw new Error("Invalid user/guest ID");
 
-    console.log(
-      `Get Emergencies - User/Guest ID: ${userOrGuestId}, isGuest: ${isGuest}`,
-    );
-
     const result = await emergencyService.getEmergencies(
       userOrGuestId,
       isGuest === "true",
@@ -121,13 +166,13 @@ const getEmergencies = async (req, res) => {
 
     res.json({ success: true, data: Array.isArray(result) ? result : [] });
   } catch (err) {
-    console.error("Error fetching emergencies:", err);
+    console.error("❌ Error fetching emergencies:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
 
 // =========================
-// GET EMERGENCIES BY AGENCY
+// GET BY AGENCY
 // =========================
 const getEmergenciesByAgency = async (req, res) => {
   try {
@@ -138,10 +183,11 @@ const getEmergenciesByAgency = async (req, res) => {
 
     res.json({ success: true, data: emergencies });
   } catch (err) {
-    console.error("Error fetching emergencies:", err);
+    console.error("❌ Error fetching emergencies:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
 module.exports = {
   createGuestEmergency,
   createUserEmergency,

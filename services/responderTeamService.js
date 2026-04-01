@@ -98,10 +98,63 @@ const getTeamsByAgency = async (agencyId) => {
   return teams;
 };
 
+const loginResponder = async (email, password) => {
+  if (!email || !password) {
+    throw new Error("Email and password are required");
+  }
+
+  // Find responder
+  const responder = await ResponderTeam.findOne({
+    where: { email },
+  });
+
+  if (!responder) {
+    throw new Error("Responder not found");
+  }
+
+  // Check status
+  if (responder.status !== "active") {
+    throw new Error("Responder account is inactive");
+  }
+
+  // Compare password
+  const isMatch = await bcrypt.compare(password, responder.password);
+
+  if (!isMatch) {
+    throw new Error("Invalid password");
+  }
+
+  // Create JWT token
+  const token = jwt.sign(
+    {
+      id: responder.id,
+      email: responder.email,
+      agencyId: responder.agencyId,
+      role: "responder",
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" },
+  );
+
+  return {
+    responder: {
+      id: responder.id,
+      name: responder.name,
+      email: responder.email,
+      phone: responder.phone,
+      agencyId: responder.agencyId,
+      kebeles: responder.kebeles,
+      status: responder.status,
+    },
+    token,
+  };
+};
+
 module.exports = {
   createTeam,
   updateTeam,
   deleteTeam,
+  loginResponder,
   getAllTeams,
   getTeamsByAgency,
 };

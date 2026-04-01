@@ -7,10 +7,13 @@ const {
   deleteTeamHandler,
   getAllTeamsHandler,
   getTeamsByAgencyHandler,
+  responderLoginHandler,
 } = require("../controllers/responderTeamController");
 
 // Create a new responder team with multiple kebeles
 router.post("/", createTeamHandler);
+
+router.post("/login", responderLoginHandler);
 
 // Update a responder team by ID (can also update kebeles)
 router.put("/:id", updateTeamHandler);

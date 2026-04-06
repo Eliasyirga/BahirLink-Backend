@@ -1,6 +1,6 @@
 const casesService = require("../services/casesService");
 
-
+// ✅ CREATE CASE
 const createCase = async (req, res) => {
   try {
     const newCase = await casesService.createCase(req.body);
@@ -10,7 +10,7 @@ const createCase = async (req, res) => {
   }
 };
 
-
+// ✅ GET ALL CASES
 const getAllCases = async (req, res) => {
   try {
     const cases = await casesService.getAllCases();
@@ -20,6 +20,7 @@ const getAllCases = async (req, res) => {
   }
 };
 
+// ✅ GET CASE BY ID
 const getCaseById = async (req, res) => {
   try {
     const singleCase = await casesService.getCaseById(req.params.id);
@@ -29,12 +30,21 @@ const getCaseById = async (req, res) => {
   }
 };
 
-/**
- * Update case status (approve/reject)
- */
+// ✅ GET CASES BY RESPONDER TEAM
+const getCasesByResponderTeam = async (req, res) => {
+  try {
+    const responderTeamId = req.params.responderTeamId;
+    const cases = await casesService.getCasesByResponderTeam(responderTeamId);
+    res.status(200).json(cases);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ✅ UPDATE CASE STATUS
 const updateCaseStatus = async (req, res) => {
   try {
-    const { status } = req.body; // status = "approved" | "rejected" | "pending"
+    const { status } = req.body; // "approved" | "rejected" | "pending"
     const updatedCase = await casesService.updateCaseStatus(
       req.params.id,
       status,
@@ -45,9 +55,7 @@ const updateCaseStatus = async (req, res) => {
   }
 };
 
-/**
- * Delete a case
- */
+// ✅ DELETE CASE
 const deleteCase = async (req, res) => {
   try {
     const result = await casesService.deleteCase(req.params.id);
@@ -61,6 +69,7 @@ module.exports = {
   createCase,
   getAllCases,
   getCaseById,
+  getCasesByResponderTeam, // ✅ new
   updateCaseStatus,
   deleteCase,
 };

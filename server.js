@@ -24,6 +24,10 @@ const crewRoleRoutes = require("./routes/crewRoleRoutes");
 const crewRoutes = require("./routes/crewRoutes");
 const caseTypeRoutes = require("./routes/caseTypeRoutes");
 const casesRoutes = require("./routes/casesRoutes");
+const serviceTypeRoutes = require("./routes/serviceTypeRoutes");
+const serviceCategoryRoutes = require("./routes/serviceCategoryRoutes");
+const serviceRoutes = require("./routes/serviceRoutes");
+const caseReportsRoutes = require("./routes/caseReportsRoutes");
 
 const app = express();
 
@@ -64,6 +68,10 @@ app.use("/api/crewRole", crewRoleRoutes);
 app.use("/api/crew", crewRoutes);
 app.use("/api/caseType", caseTypeRoutes);
 app.use("/api/cases", casesRoutes);
+app.use("/api/serviceType", serviceTypeRoutes);
+app.use("/api/serviceCategory", serviceCategoryRoutes);
+app.use("/api/service", serviceRoutes);
+app.use("/api/caseReports", caseReportsRoutes);
 
 const PORT = process.env.PORT || 5000;
 

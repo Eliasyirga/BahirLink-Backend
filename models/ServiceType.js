@@ -1,25 +1,28 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 
-const Guest = sequelize.define(
-  "Guest",
+const ServiceType = sequelize.define(
+  "ServiceType",
   {
     id: {
       type: DataTypes.INTEGER,
-      autoIncrement: true,
+      autoIncrement: true, // ✅ auto-increment integer
       primaryKey: true,
     },
-    contactNo: {
+    name: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
     },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
   },
   {
-    tableName: "guests",
+    tableName: "service_types",
     timestamps: true,
-    updatedAt: false,
   },
 );
 
-module.exports = Guest;
+module.exports = ServiceType;

@@ -4,10 +4,10 @@ const casesController = require("../controllers/casesController");
 
 router.post("/", casesController.createCase);
 
-
 router.get("/", casesController.getAllCases);
 
 router.get("/:id", casesController.getCaseById);
+router.get("/:responderTeamTd", casesController.getCasesByResponderTeam);
 
 router.put("/:id/status", casesController.updateCaseStatus);
 

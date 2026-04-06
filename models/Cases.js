@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
+const Kebele = require("./Kebele");
 const Agency = require("./Agency");
 const CaseType = require("./CaseType");
 const ResponderTeam = require("./ResponderTeam");
@@ -29,22 +30,32 @@ const Cases = sequelize.define(
       allowNull: false,
     },
 
-    lastSeenLocation: {
+    lastSeenLocationId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: Kebele,
+        key: "id",
+      },
+      onDelete: "SET NULL",
+      onUpdate: "CASCADE",
+    },
+
+    mediaUrl: {
       type: DataTypes.STRING,
       allowNull: true,
     },
 
-    image: {
-      type: DataTypes.STRING,
+    mediaType: {
+      type: DataTypes.ENUM("photo", "video", "audio"),
       allowNull: true,
     },
 
     contactInfo: {
       type: DataTypes.STRING,
-      allowNull: true, // optional
+      allowNull: true,
     },
 
-    // 🔹 Foreign keys
     caseTypeId: {
       type: DataTypes.INTEGER,
       allowNull: false,

@@ -16,6 +16,11 @@ const Crew = require("./Crew");
 const CrewRole = require("./CrewRole");
 const CaseType = require("./CaseType");
 const Cases = require("./Cases");
+const ServiceType = require("./ServiceType");
+const ServiceCategory = require("./ServiceCategory");
+const Service = require("./Service");
+const Kebele = require("./Kebele");
+const CaseReport = require("./CaseReport");
 
 // =========================
 // USER / GUEST RELATIONSHIPS
@@ -164,6 +169,34 @@ Cases.belongsTo(ResponderTeam, {
   as: "responderTeam",
 });
 
+ServiceType.hasMany(ServiceCategory, { foreignKey: "serviceTypeId" });
+ServiceCategory.belongsTo(ServiceType, { foreignKey: "serviceTypeId" });
+
+// A User can have many Services
+User.hasMany(Service, { foreignKey: "citizenId" });
+
+// Each Service belongs to a User (optional)
+Service.belongsTo(User, { foreignKey: "citizenId" });
+
+// ServiceType -> Service (one-to-many)
+ServiceType.hasMany(Service, { foreignKey: "serviceTypeId" });
+Service.belongsTo(ServiceType, { foreignKey: "serviceTypeId" });
+
+// ServiceCategory -> Service (one-to-many)
+ServiceCategory.hasMany(Service, { foreignKey: "serviceCategoryId" });
+Service.belongsTo(ServiceCategory, { foreignKey: "serviceCategoryId" });
+
+// 🔹 Relations
+Kebele.hasMany(Cases, { foreignKey: "lastSeenLocationId" });
+Cases.belongsTo(Kebele, { foreignKey: "lastSeenLocationId" });
+
+// Associations
+Cases.hasMany(CaseReport, { foreignKey: "caseId" });
+CaseReport.belongsTo(Cases, { foreignKey: "caseId" });
+
+CaseType.hasMany(CaseReport, { foreignKey: "caseTypeId" });
+CaseReport.belongsTo(CaseType, { foreignKey: "caseTypeId" });
+
 // =========================
 // EXPORTS
 // =========================
@@ -181,4 +214,8 @@ module.exports = {
   CrewRole,
   CaseType,
   Cases,
+  ServiceType,
+  ServiceCategory,
+  Service,
+  CaseReport,
 };

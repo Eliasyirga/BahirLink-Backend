@@ -2,10 +2,10 @@ const Cases = require("../models/Cases");
 const CaseType = require("../models/CaseType");
 const Agency = require("../models/Agency");
 const ResponderTeam = require("../models/ResponderTeam");
+const Kebele = require("../models/Kebele");
 
 /**
- * Create a new case (by Responder Team)
- * @param {Object} data - case details
+ * Create a new case
  */
 const createCase = async (data) => {
   const {
@@ -13,8 +13,9 @@ const createCase = async (data) => {
     age,
     gender,
     description,
-    lastSeenLocation,
-    image,
+    lastSeenLocationId,
+    mediaUrl,
+    mediaType,
     contactInfo,
     caseTypeId,
     agencyId,
@@ -26,57 +27,78 @@ const createCase = async (data) => {
     age,
     gender,
     description,
-    lastSeenLocation: lastSeenLocation || null,
-    image: image || null,
+    lastSeenLocationId: lastSeenLocationId || null,
+    mediaUrl: mediaUrl || null,
+    mediaType: mediaType || null,
     contactInfo: contactInfo || null,
     caseTypeId,
     agencyId,
     responderTeamId,
-    status: "pending", // default status
+    status: "pending",
   });
 
-  return newCase;
+  const result = await Cases.findByPk(newCase.id, {
+    include: [
+      { model: Agency, attributes: ["id", "name"] },
+      { model: CaseType, attributes: ["id", "name"] },
+      { model: ResponderTeam, attributes: ["id", "name"] },
+      { model: Kebele, attributes: ["id", "name"] },
+    ],
+  });
+
+  return result;
 };
 
 /**
  * Get all cases
- * @param {Boolean} onlyApproved - true to return only approved cases
  */
 const getAllCases = async () => {
-  const cases = await Cases.findAll({
+  return await Cases.findAll({
     include: [
-      { model: Agency, as: "agency", attributes: ["id", "name"] },
-      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
-      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
+      { model: Agency, attributes: ["id", "name"] },
+      { model: CaseType, attributes: ["id", "name"] },
+      { model: ResponderTeam, attributes: ["id", "name"] },
+      { model: Kebele, attributes: ["id", "name"] },
     ],
     order: [["createdAt", "DESC"]],
   });
-
-  return cases;
 };
 
 /**
  * Get one case by ID
- * @param {Number} id
  */
 const getCaseById = async (id) => {
   const singleCase = await Cases.findByPk(id, {
     include: [
-      { model: Agency, as: "agency", attributes: ["id", "name"] },
-      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
-      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
+      { model: Agency, attributes: ["id", "name"] },
+      { model: CaseType, attributes: ["id", "name"] },
+      { model: ResponderTeam, attributes: ["id", "name"] },
+      { model: Kebele, attributes: ["id", "name"] },
     ],
   });
-
   if (!singleCase) throw new Error("Case not found");
-
   return singleCase;
 };
 
 /**
- * Update case status (approve/reject)
- * @param {Number} id
- * @param {String} status - "approved" | "rejected" | "pending"
+ * Get all cases for a specific Responder Team
+ */
+const getCasesByResponderTeam = async (responderTeamId) => {
+  const cases = await Cases.findAll({
+    where: { responderTeamId },
+    include: [
+      { model: Agency, attributes: ["id", "name"] },
+      { model: CaseType, attributes: ["id", "name"] },
+      { model: ResponderTeam, attributes: ["id", "name"] },
+      { model: Kebele, attributes: ["id", "name"] },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+  return cases;
+};
+
+/**
+ * Update case status
  */
 const updateCaseStatus = async (id, status) => {
   const singleCase = await Cases.findByPk(id);
@@ -94,7 +116,6 @@ const updateCaseStatus = async (id, status) => {
 
 /**
  * Delete a case
- * @param {Number} id
  */
 const deleteCase = async (id) => {
   const singleCase = await Cases.findByPk(id);
@@ -108,6 +129,7 @@ module.exports = {
   createCase,
   getAllCases,
   getCaseById,
+  getCasesByResponderTeam, // ✅ new
   updateCaseStatus,
   deleteCase,
 };

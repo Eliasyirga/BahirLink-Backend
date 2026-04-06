@@ -1,4 +1,9 @@
-const { createKebele, updateKebele, deleteKebele } = require("../services/kebeleService");
+const {
+  createKebele,
+  updateKebele,
+  deleteKebele,
+  getAllKebeles,
+} = require("../services/kebeleService");
 
 /**
  * Create Kebele
@@ -54,9 +59,18 @@ const deleteKebeleHandler = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+const getAllKebelesHandler = async (req, res) => {
+  try {
+    const kebeles = await getAllKebeles();
+    res.json(kebeles);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
 module.exports = {
   createKebeleHandler,
   updateKebeleHandler,
   deleteKebeleHandler,
+  getAllKebelesHandler,
 };

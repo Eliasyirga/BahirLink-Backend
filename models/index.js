@@ -78,6 +78,18 @@ AgencyType.belongsToMany(EmergencyType, {
 });
 
 // =========================
+// EMERGENCY ↔ AGENCY
+// =========================
+Agency.hasMany(Emergency, {
+  foreignKey: "agencyId",
+  as: "emergencies",
+});
+
+Emergency.belongsTo(Agency, {
+  foreignKey: "agencyId",
+  as: "agency",
+});
+// =========================
 // AGENCY STRUCTURE
 // =========================
 Agency.belongsTo(AgencyType, {

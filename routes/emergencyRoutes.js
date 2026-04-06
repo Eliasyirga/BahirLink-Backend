@@ -44,4 +44,6 @@ router.get(
   "/agency/:agencyId/emergencies",
   emergencyController.getEmergenciesByAgency,
 );
+
+router.get("/admin/all", emergencyController.getAllEmergenciesAdmin);
 module.exports = router;

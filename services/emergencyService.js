@@ -5,6 +5,7 @@ const {
   EmergencyType,
   Agency,
   AgencyType,
+  Category,
 } = require("../models");
 const path = require("path");
 
@@ -214,6 +215,45 @@ const getEmergenciesForAgency = async (agencyId) => {
   return emergencies;
 };
 
+const getAllEmergenciesForAdmin = async () => {
+  return await Emergency.findAll({
+    attributes: [
+      "id",
+      "kebele",
+      "subdivision",
+      "street",
+      "status",
+      "time",
+      "createdAt",
+      "reporterType", // useful to differentiate guest/user
+    ],
+    include: [
+      {
+        model: EmergencyType,
+        as: "emergencyType",
+        attributes: ["id", "name"],
+      },
+      {
+        model: Category,
+        as: "category",
+        attributes: ["id", "name"],
+      },
+      {
+        model: Agency,
+        as: "agency",
+        attributes: ["id", "name"],
+      },
+      {
+        model: Guest,
+        as: "guest",
+        attributes: ["id", "contactNo"],
+        required: false,
+      },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+};
+
 module.exports = {
   createGuestEmergency,
   createUserEmergency,
@@ -221,4 +261,5 @@ module.exports = {
   deleteEmergency,
   getEmergencies,
   getEmergenciesForAgency,
+  getAllEmergenciesForAdmin,
 };

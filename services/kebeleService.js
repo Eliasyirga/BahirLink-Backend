@@ -42,9 +42,17 @@ const deleteKebele = async (id) => {
   await kebele.destroy();
   return { message: "Kebele deleted successfully" };
 };
+const getAllKebeles = async () => {
+  const kebeles = await Kebele.findAll({
+    order: [["createdAt", "DESC"]], // newest first
+  });
+
+  return kebeles;
+};
 
 module.exports = {
   createKebele,
   updateKebele,
   deleteKebele,
+  getAllKebeles,
 };

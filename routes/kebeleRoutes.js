@@ -5,7 +5,11 @@ const {
   createKebeleHandler,
   updateKebeleHandler,
   deleteKebeleHandler,
+  getAllKebelesHandler,
 } = require("../controllers/kebeleController");
+
+// Get all Kebeles
+router.get("/", getAllKebelesHandler);
 
 // Create a new kebele
 router.post("/", createKebeleHandler);

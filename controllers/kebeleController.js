@@ -3,6 +3,7 @@ const {
   updateKebele,
   deleteKebele,
   getAllKebeles,
+
   getKebelesByResponderTeam,
 } = require("../services/kebeleService");
 
@@ -74,18 +75,6 @@ const deleteKebeleHandler = async (req, res) => {
 /**
  * Get all Kebeles (optional: include their responder team)
  */
-const getAllKebelesHandler = async (req, res) => {
-  try {
-    const { includeTeam } = req.query; // true/false
-
-    const kebeles = await getAllKebeles(includeTeam === "true");
-
-    res.status(200).json({ data: kebeles });
-  } catch (error) {
-    console.error("GET ALL KEBELES ERROR:", error);
-    res.status(500).json({ message: error.message });
-  }
-};
 
 /**
  * Get Kebeles by Responder Team
@@ -103,6 +92,14 @@ const getKebelesByResponderTeamHandler = async (req, res) => {
   } catch (error) {
     console.error("GET KEBELES BY TEAM ERROR:", error);
     res.status(500).json({ message: error.message });
+  }
+};
+const getAllKebelesHandler = async (req, res) => {
+  try {
+    const kebeles = await getAllKebeles();
+    res.json(kebeles);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 

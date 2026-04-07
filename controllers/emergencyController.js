@@ -130,6 +130,19 @@ const getEmergenciesByAgencyHandler = async (req, res) => {
   }
 };
 
+// =========================
+// GET ALL EMERGENCIES FOR ADMIN
+// =========================
+const getAllEmergenciesAdmin = async (req, res) => {
+  try {
+    const emergencies = await emergencyService.getAllEmergenciesForAdmin();
+    res.json({ success: true, data: emergencies });
+  } catch (err) {
+    console.error("❌ Error fetching all emergencies for admin:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 module.exports = {
   createGuestEmergencyHandler,
   createUserEmergencyHandler,
@@ -138,4 +151,6 @@ module.exports = {
   getEmergenciesHandler,
   getEmergenciesForResponderTeamHandler,
   getEmergenciesByAgencyHandler,
+
+  getAllEmergenciesAdmin,
 };

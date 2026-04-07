@@ -49,18 +49,17 @@ const deleteKebele = async (id) => {
   await kebele.destroy();
   return { message: "Kebele deleted successfully" };
 };
-
-/**
- * Get all kebeles (optionally include their responder team)
- */
-const getAllKebeles = async (includeTeam = false) => {
+const getAllKebeles = async () => {
   const kebeles = await Kebele.findAll({
-    include: includeTeam ? [{ model: ResponderTeam, as: "responderTeam" }] : [],
-    order: [["createdAt", "DESC"]],
+    order: [["createdAt", "DESC"]], // newest first
   });
 
   return kebeles;
 };
+
+/**
+ * Get all kebeles (optionally include their responder team)
+ */
 
 /**
  * Get kebeles by Responder Team

@@ -4,10 +4,33 @@ const {
   deleteTeam,
   getAllTeams,
   getTeamsByAgency,
+  loginResponder,
+  getTeamById, // Ensure this is exported from your service
 } = require("../services/responderTeamService");
 
 /**
- * Create a Responder Team
+ * Get Single Team by ID
+ * REQUIRED for frontend AddCasePage to sync agencyId
+ */
+const getTeamByIdHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Team ID is required" });
+    }
+
+    const team = await getTeamById(id);
+    return res.status(200).json(team); // Return direct object for easier frontend access
+  } catch (error) {
+    console.error("GET TEAM BY ID ERROR:", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Create a new Responder Team
  */
 const createTeamHandler = async (req, res) => {
   try {
@@ -33,12 +56,10 @@ const createTeamHandler = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Name, username, email, password, agencyId, and at least one kebele are required",
+        message: "All fields and at least one kebele are required",
       });
     }
 
-    // Call service to create team and assign kebeles
     const team = await createTeam({
       name,
       username,
@@ -50,14 +71,23 @@ const createTeamHandler = async (req, res) => {
       kebeles,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Responder Team created successfully",
       data: team,
     });
   } catch (error) {
     console.error("CREATE TEAM ERROR:", error);
-    res.status(500).json({ success: false, message: error.message });
+
+    if (error.name === "SequelizeUniqueConstraintError") {
+      const field = error.errors[0].path;
+      return res.status(400).json({
+        success: false,
+        message: `The ${field} "${error.errors[0].value}" is already taken.`,
+      });
+    }
+
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -74,17 +104,22 @@ const responderLoginHandler = async (req, res) => {
         .json({ success: false, message: "Email and password are required" });
     }
 
-    // Call service to handle login
-    const { responder, token } =
-      await require("../services/responderTeamService").loginResponder(
-        email,
-        password,
-      );
+    const { responder, token } = await loginResponder(email, password);
 
-    res.status(200).json({ success: true, responder, token });
+    // Add explicit responderTeamId for frontend convenience
+    const responderData = {
+      ...responder,
+      responderTeamId: responder.id,
+    };
+
+    return res.status(200).json({
+      success: true,
+      responder: responderData,
+      token,
+    });
   } catch (error) {
     console.error("RESPONDER LOGIN ERROR:", error);
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(401).json({ success: false, message: error.message });
   }
 };
 
@@ -97,15 +132,14 @@ const updateTeamHandler = async (req, res) => {
     const data = req.body;
 
     const team = await updateTeam(id, data);
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Responder Team updated successfully",
       data: team,
     });
   } catch (error) {
     console.error("UPDATE TEAM ERROR:", error);
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -116,11 +150,10 @@ const deleteTeamHandler = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await deleteTeam(id);
-
-    res.status(200).json({ success: true, message: result.message });
+    return res.status(200).json({ success: true, message: result.message });
   } catch (error) {
     console.error("DELETE TEAM ERROR:", error);
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -130,10 +163,9 @@ const deleteTeamHandler = async (req, res) => {
 const getAllTeamsHandler = async (req, res) => {
   try {
     const teams = await getAllTeams();
-    res.status(200).json({ success: true, data: teams });
+    return res.status(200).json({ success: true, data: teams });
   } catch (error) {
-    console.error("GET ALL TEAMS ERROR:", error);
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -143,17 +175,10 @@ const getAllTeamsHandler = async (req, res) => {
 const getTeamsByAgencyHandler = async (req, res) => {
   try {
     const { agencyId } = req.params;
-    if (!agencyId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Agency ID is required" });
-    }
-
     const teams = await getTeamsByAgency(agencyId);
-    res.status(200).json({ success: true, data: teams });
+    return res.status(200).json({ success: true, data: teams });
   } catch (error) {
-    console.error("GET TEAMS BY AGENCY ERROR:", error);
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -164,4 +189,5 @@ module.exports = {
   deleteTeamHandler,
   getAllTeamsHandler,
   getTeamsByAgencyHandler,
+  getTeamByIdHandler, // Exported for your routes
 };

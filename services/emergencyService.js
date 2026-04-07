@@ -3,21 +3,22 @@ const {
   Emergency,
   Guest,
   EmergencyType,
+  Kebele,
+  ResponderTeam,
   Agency,
   AgencyType,
 } = require("../models");
 const path = require("path");
 
-// =========================
-// HARD-CODED MAPPING
-// =========================
+// Hard-coded mapping for agency types
 const emergencyTypeToAgencyType = {
   Crime: "Police",
   Medical: "Health",
   Fire: "Fire",
 };
-// Default EmergencyType ID for fallback emergencies
-const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001"; // replace with real UUID
+
+// Default EmergencyType ID for fallback
+const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
 // =========================
 // CREATE GUEST EMERGENCY
@@ -29,7 +30,7 @@ const createGuestEmergency = async (emergencyData, file) => {
     emergencyTypeId = DEFAULT_EMERGENCY_TYPE_ID,
     categoryId,
     time,
-    kebele,
+    kebele, // kebele ID
     location,
     subdivision,
     street,
@@ -45,7 +46,11 @@ const createGuestEmergency = async (emergencyData, file) => {
   if (!contactNo) throw new Error("Guest contact number is required");
   contactNo = String(contactNo).trim();
   if (!kebele || !subdivision)
-    throw new Error("Kebele and Subdivision are required");
+    throw new Error("Kebele ID and Subdivision are required");
+
+  // Verify kebele exists
+  const kebeleRecord = await Kebele.findByPk(kebele);
+  if (!kebeleRecord) throw new Error("Invalid kebele ID");
 
   // Find or create guest
   let guest = await Guest.findOne({ where: { contactNo } });
@@ -53,9 +58,9 @@ const createGuestEmergency = async (emergencyData, file) => {
 
   const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
 
-  const emergency = await Emergency.create({
+  return await Emergency.create({
     ...rest,
-    kebele,
+    kebeleId: kebeleRecord.id,
     subdivision,
     street,
     location,
@@ -70,8 +75,6 @@ const createGuestEmergency = async (emergencyData, file) => {
     status: "reported",
     reporterType: "guest",
   });
-
-  return emergency;
 };
 
 // =========================
@@ -97,13 +100,17 @@ const createUserEmergency = async (userId, emergencyData, file) => {
   }
 
   if (!kebele || !subdivision)
-    throw new Error("Kebele and Subdivision are required");
+    throw new Error("Kebele ID and Subdivision are required");
+
+  // Verify kebele exists
+  const kebeleRecord = await Kebele.findByPk(kebele);
+  if (!kebeleRecord) throw new Error("Invalid kebele ID");
 
   const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
 
   return await Emergency.create({
     ...rest,
-    kebele,
+    kebeleId: kebeleRecord.id,
     subdivision,
     street,
     location,
@@ -173,15 +180,18 @@ const getEmergencies = async (userOrGuestId, isGuest = false) => {
   return await Emergency.findAll({
     where: whereClause,
     order: [["createdAt", "DESC"]],
-    include: [{ model: EmergencyType, as: "emergencyType" }],
+    include: [
+      { model: EmergencyType, as: "emergencyType" },
+      { model: Kebele, as: "kebele" },
+    ],
   });
 };
 
 // =========================
-// GET EMERGENCIES FOR AGENCY
+// GET EMERGENCIES BY AGENCY
 // =========================
-const getEmergenciesForAgency = async (agencyId) => {
-  // 1️⃣ Get agency + its type
+const getEmergenciesByAgency = async (agencyId) => {
+  // 1️⃣ Find agency + its type
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
   });
@@ -191,14 +201,14 @@ const getEmergenciesForAgency = async (agencyId) => {
   const agencyTypeName = agency.agencyType?.name;
   if (!agencyTypeName) return [];
 
-  // 2️⃣ Find all emergency types handled by this agency type
+  // 2️⃣ Get emergency types handled by this agency type
   const handledEmergencyTypes = Object.entries(emergencyTypeToAgencyType)
     .filter(([etype, aType]) => aType === agencyTypeName)
     .map(([etype]) => etype);
 
   if (!handledEmergencyTypes.length) return [];
 
-  // 3️⃣ Fetch emergencies
+  // 3️⃣ Fetch emergencies for these types
   const emergencies = await Emergency.findAll({
     include: [
       {
@@ -207,6 +217,34 @@ const getEmergenciesForAgency = async (agencyId) => {
         where: { name: handledEmergencyTypes },
         attributes: ["id", "name", "description"],
       },
+      { model: Kebele, as: "kebele", attributes: ["id", "name"] },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+
+  return emergencies;
+};
+
+// =========================
+// GET EMERGENCIES FOR A RESONDER TEAM
+// =========================
+const getEmergenciesForResponderTeam = async (responderTeamId) => {
+  // 1️⃣ Get all kebeles for this responder team
+  const kebeles = await Kebele.findAll({
+    where: { responderTeamId },
+    attributes: ["id", "name"],
+  });
+
+  if (!kebeles.length) return [];
+
+  const kebeleIds = kebeles.map((k) => k.id);
+
+  // 2️⃣ Get emergencies for these kebeles
+  const emergencies = await Emergency.findAll({
+    where: { kebeleId: { [Op.in]: kebeleIds } },
+    include: [
+      { model: Kebele, as: "kebele", attributes: ["id", "name"] },
+      { model: EmergencyType, as: "emergencyType", attributes: ["id", "name"] },
     ],
     order: [["createdAt", "DESC"]],
   });
@@ -220,5 +258,6 @@ module.exports = {
   updateEmergency,
   deleteEmergency,
   getEmergencies,
-  getEmergenciesForAgency,
+  getEmergenciesForResponderTeam,
+  getEmergenciesByAgency,
 };

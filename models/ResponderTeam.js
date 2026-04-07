@@ -1,6 +1,7 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 const Agency = require("./Agency");
+const Kebele = require("./Kebele"); // import Kebele for association
 
 const ResponderTeam = sequelize.define(
   "ResponderTeam",
@@ -41,11 +42,6 @@ const ResponderTeam = sequelize.define(
     status: {
       type: DataTypes.ENUM("active", "inactive"),
       defaultValue: "active",
-    },
-    kebeles: {
-      type: DataTypes.JSON, // Array of kebeles
-      allowNull: false,
-      defaultValue: [],
     },
   },
   {

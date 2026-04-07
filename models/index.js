@@ -185,6 +185,22 @@ CaseReport.belongsTo(Cases, { foreignKey: "caseId" });
 CaseType.hasMany(CaseReport, { foreignKey: "caseTypeId" });
 CaseReport.belongsTo(CaseType, { foreignKey: "caseTypeId" });
 
+Emergency.belongsTo(Kebele, {
+  foreignKey: "kebeleId", // column in Emergency table
+  as: "kebele", // optional alias for easier include
+  onUpdate: "CASCADE",
+  onDelete: "RESTRICT",
+});
+Kebele.hasMany(Emergency, {
+  foreignKey: "kebeleId",
+  as: "emergencies", // optional alias for easier include
+});
+
+// Kebele belongs to one ResponderTeam
+Kebele.belongsTo(ResponderTeam, { foreignKey: "responderTeamId", as: "team" });
+// ResponderTeam has many Kebeles
+ResponderTeam.hasMany(Kebele, { foreignKey: "responderTeamId", as: "kebeles" });
+
 // =========================
 // EXPORTS
 // =========================

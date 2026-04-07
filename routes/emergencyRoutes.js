@@ -8,9 +8,9 @@ const upload = require("../middleware/upload");
 
 // Create user emergency (with optional media)
 router.post(
-  "/users/:userId",
+  "/users",
   upload.single("media"),
-  emergencyController.createUserEmergency,
+  emergencyController.createUserEmergencyHandler,
 );
 
 // ================= GUEST EMERGENCY =================
@@ -19,7 +19,7 @@ router.post(
 router.post(
   "/guests",
   upload.single("media"),
-  emergencyController.createGuestEmergency,
+  emergencyController.createGuestEmergencyHandler,
 );
 
 // ================= UPDATE =================
@@ -28,20 +28,31 @@ router.post(
 router.put(
   "/:userOrGuestId/:id",
   upload.single("media"),
-  emergencyController.updateEmergency,
+  emergencyController.updateEmergencyHandler,
 );
 
 // ================= DELETE =================
 
-router.delete("/:userOrGuestId/:id", emergencyController.deleteEmergency);
+router.delete(
+  "/:userOrGuestId/:id",
+  emergencyController.deleteEmergencyHandler,
+);
 
 // ================= GET =================
 
 // Get all emergencies for user or guest
-router.get("/:userOrGuestId", emergencyController.getEmergencies);
+router.get("/:userOrGuestId", emergencyController.getEmergenciesHandler);
 
+// Get emergencies for a responder team
+router.get(
+  "/responder-team/:responderTeamId",
+  emergencyController.getEmergenciesForResponderTeamHandler,
+);
+
+// Get emergencies for an agency
 router.get(
   "/agency/:agencyId/emergencies",
-  emergencyController.getEmergenciesByAgency,
+  emergencyController.getEmergenciesByAgencyHandler,
 );
+
 module.exports = router;

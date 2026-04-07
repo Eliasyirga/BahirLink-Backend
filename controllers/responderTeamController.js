@@ -1,6 +1,3 @@
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const ResponderTeam = require("../models/ResponderTeam");
 const {
   createTeam,
   updateTeam,
@@ -41,6 +38,7 @@ const createTeamHandler = async (req, res) => {
       });
     }
 
+    // Call service to create team and assign kebeles
     const team = await createTeam({
       name,
       username,
@@ -76,25 +74,12 @@ const responderLoginHandler = async (req, res) => {
         .json({ success: false, message: "Email and password are required" });
     }
 
-    const responder = await ResponderTeam.findOne({ where: { email } });
-    if (!responder) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid email or password" });
-    }
-
-    const isMatch = await bcrypt.compare(password, responder.password);
-    if (!isMatch) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid email or password" });
-    }
-
-    const token = jwt.sign(
-      { id: responder.id, role: "responder" },
-      process.env.JWT_SECRET || "secret",
-      { expiresIn: "8h" },
-    );
+    // Call service to handle login
+    const { responder, token } =
+      await require("../services/responderTeamService").loginResponder(
+        email,
+        password,
+      );
 
     res.status(200).json({ success: true, responder, token });
   } catch (error) {

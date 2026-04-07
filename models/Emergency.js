@@ -14,10 +14,13 @@ const Emergency = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-
-    kebele: {
-      type: DataTypes.STRING,
-      allowNull: false,
+    kebeleId: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // temporary
+      references: {
+        model: "kebeles",
+        key: "id",
+      },
     },
 
     subdivision: {

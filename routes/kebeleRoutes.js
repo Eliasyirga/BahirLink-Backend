@@ -5,15 +5,18 @@ const {
   createKebeleHandler,
   updateKebeleHandler,
   deleteKebeleHandler,
+  getAllKebelesHandler,
+  getKebelesByResponderTeamHandler,
 } = require("../controllers/kebeleController");
 
-// Create a new kebele
 router.post("/", createKebeleHandler);
 
-// Update an existing kebele
 router.put("/:id", updateKebeleHandler);
 
-// Delete a kebele
 router.delete("/:id", deleteKebeleHandler);
+
+router.get("/", getAllKebelesHandler);
+
+router.get("/team/:responderTeamId", getKebelesByResponderTeamHandler);
 
 module.exports = router;

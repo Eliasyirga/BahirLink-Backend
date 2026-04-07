@@ -1,7 +1,5 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
-const ServiceType = require("./ServiceType");
-const ServiceCategory = require("./ServiceCategory");
 
 const Service = sequelize.define(
   "Service",
@@ -15,7 +13,6 @@ const Service = sequelize.define(
     name: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
 
     description: {
@@ -23,6 +20,42 @@ const Service = sequelize.define(
       allowNull: true,
     },
 
+    kebele: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+
+    subdivision: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+
+    street: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    location: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+
+    mediaUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    mediaType: {
+      type: DataTypes.ENUM("photo", "video", "audio"),
+      allowNull: true,
+    },
+
+    status: {
+      type: DataTypes.ENUM("active", "inactive", "pending"),
+      defaultValue: "active",
+    },
+
+    // Foreign keys
     serviceTypeId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -44,11 +77,27 @@ const Service = sequelize.define(
       onDelete: "CASCADE",
       onUpdate: "CASCADE",
     },
+
+    citizenId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "users",
+        key: "id",
+      },
+      onDelete: "SET NULL",
+      onUpdate: "CASCADE",
+    },
+
+    time: {
+      type: DataTypes.TIME,
+      allowNull: true,
+    },
   },
   {
     tableName: "services",
     timestamps: true,
-  },
+  }
 );
 
 module.exports = Service;

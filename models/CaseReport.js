@@ -2,7 +2,7 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 const Cases = require("./Cases");
-const CaseType = require("./CaseType"); // type of report (e.g., "wanted", "lost", etc.)
+const CaseType = require("./CaseType");
 
 const CaseReport = sequelize.define(
   "CaseReport",

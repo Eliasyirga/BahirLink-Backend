@@ -1,10 +1,7 @@
-const ResponderTeam = require("../models/ResponderTeam");
+const { ResponderTeam, Kebele } = require("../models");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
-/**
- * Create a Responder Team with login credentials and kebeles
- * data: { name, username, email, password, phone, agencyId, status, kebeles: [] }
- */
 const createTeam = async (data) => {
   const { name, username, email, password, phone, agencyId, status, kebeles } =
     data;
@@ -23,10 +20,8 @@ const createTeam = async (data) => {
     );
   }
 
-  // Hash password
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Create the responder team
   const team = await ResponderTeam.create({
     name,
     username,
@@ -35,43 +30,46 @@ const createTeam = async (data) => {
     phone,
     agencyId,
     status: status || "active",
-    kebeles,
   });
 
-  return team;
+  // Assign kebeles by updating their responderTeamId
+  await Kebele.update({ responderTeamId: team.id }, { where: { id: kebeles } });
+
+  // Return team with its assigned kebeles
+  return await ResponderTeam.findByPk(team.id, {
+    include: { model: Kebele, as: "kebeles" },
+  });
 };
 
-/**
- * Update a Responder Team (attributes + kebeles + optional password)
- * data: { name?, username?, email?, password?, phone?, status?, kebeles? }
- */
 const updateTeam = async (id, data) => {
   const team = await ResponderTeam.findByPk(id);
   if (!team) throw new Error("Responder Team not found");
 
   const { password, kebeles, ...teamData } = data;
 
-  // Hash new password if provided
   if (password) {
     teamData.password = await bcrypt.hash(password, 10);
   }
 
-  // Update team attributes
   await team.update(teamData);
 
-  // Update kebeles if provided
   if (kebeles) {
     if (!Array.isArray(kebeles) || kebeles.length === 0)
       throw new Error("At least one kebele must be provided");
-    await team.update({ kebeles });
+
+    await Kebele.update(
+      { responderTeamId: null },
+      { where: { responderTeamId: id } },
+    );
+
+    await Kebele.update({ responderTeamId: id }, { where: { id: kebeles } });
   }
 
-  return team;
+  return await ResponderTeam.findByPk(id, {
+    include: { model: Kebele, as: "kebeles" },
+  });
 };
 
-/**
- * Delete a Responder Team
- */
 const deleteTeam = async (id) => {
   const team = await ResponderTeam.findByPk(id);
   if (!team) throw new Error("Responder Team not found");
@@ -81,50 +79,41 @@ const deleteTeam = async (id) => {
 };
 
 const getAllTeams = async () => {
-  const teams = await ResponderTeam.findAll({
-    order: [["createdAt", "DESC"]], // newest first
+  return await ResponderTeam.findAll({
+    include: { model: Kebele, as: "kebeles" },
+    order: [["createdAt", "DESC"]],
   });
-  return teams;
 };
 
 const getTeamsByAgency = async (agencyId) => {
   if (!agencyId) throw new Error("Agency ID is required");
 
-  const teams = await ResponderTeam.findAll({
+  return await ResponderTeam.findAll({
     where: { agencyId },
+    include: { model: Kebele, as: "kebeles" },
     order: [["createdAt", "DESC"]],
   });
-
-  return teams;
 };
 
+/**
+ * Login for responder
+ */
 const loginResponder = async (email, password) => {
-  if (!email || !password) {
-    throw new Error("Email and password are required");
-  }
+  if (!email || !password) throw new Error("Email and password are required");
 
-  // Find responder
   const responder = await ResponderTeam.findOne({
     where: { email },
+    include: { model: Kebele, as: "kebeles" }, // fetch assigned kebeles
   });
 
-  if (!responder) {
-    throw new Error("Responder not found");
-  }
+  if (!responder) throw new Error("Responder not found");
 
-  // Check status
-  if (responder.status !== "active") {
+  if (responder.status !== "active")
     throw new Error("Responder account is inactive");
-  }
 
-  // Compare password
   const isMatch = await bcrypt.compare(password, responder.password);
+  if (!isMatch) throw new Error("Invalid password");
 
-  if (!isMatch) {
-    throw new Error("Invalid password");
-  }
-
-  // Create JWT token
   const token = jwt.sign(
     {
       id: responder.id,

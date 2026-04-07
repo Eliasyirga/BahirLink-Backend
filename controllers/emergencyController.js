@@ -136,13 +136,22 @@ const getEmergenciesByAgencyHandler = async (req, res) => {
 const getAllEmergenciesAdmin = async (req, res) => {
   try {
     const emergencies = await emergencyService.getAllEmergenciesForAdmin();
-    res.json({ success: true, data: emergencies });
+
+    // Map reporter info for frontend convenience
+    const mapped = emergencies.map((e) => ({
+      ...e.toJSON(),
+      reporterName:
+        e.reporterType === "guest"
+          ? e.guest?.contactNo || "Guest"
+          : e.citizen?.fullName || "Registered User",
+    }));
+
+    res.json({ success: true, data: mapped });
   } catch (err) {
     console.error("❌ Error fetching all emergencies for admin:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
-
 module.exports = {
   createGuestEmergencyHandler,
   createUserEmergencyHandler,

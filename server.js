@@ -50,6 +50,8 @@ io.on("connection", (socket) => {
 
 app.use(express.json());
 
+app.use("/uploads", express.static("uploads"));
+
 app.use("/public", express.static("public"));
 
 app.get("/", (req, res) => res.send("Backend is running!"));

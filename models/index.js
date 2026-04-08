@@ -1,5 +1,5 @@
 // models/index.js
-
+const { sequelize } = require("../config/db");
 // =========================
 // IMPORT MODELS
 // =========================
@@ -243,4 +243,5 @@ module.exports = {
   ServiceCategory,
   Service,
   CaseReport,
+  Kebele,
 };

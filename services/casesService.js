@@ -1,11 +1,8 @@
-const Cases = require("../models/Cases");
-const CaseType = require("../models/CaseType");
-const Agency = require("../models/Agency");
-const ResponderTeam = require("../models/ResponderTeam");
-const Kebele = require("../models/Kebele");
+const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models"); // Importing from index.js ensures aliases are registered
 
 /**
  * Create a new case
+ * Logic: Automatically fetches agencyId from the ResponderTeam record
  */
 const createCase = async (data) => {
   const {
@@ -18,10 +15,18 @@ const createCase = async (data) => {
     mediaType,
     contactInfo,
     caseTypeId,
-    agencyId,
     responderTeamId,
   } = data;
 
+  // 1. Validate the Responder Team and extract their Agency ID
+  const team = await ResponderTeam.findByPk(responderTeamId);
+  if (!team) {
+    throw new Error(`Responder Team with ID ${responderTeamId} not found.`);
+  }
+
+  const assignedAgencyId = team.agencyId;
+
+  // 2. Create the case with the verified agencyId
   const newCase = await Cases.create({
     fullName,
     age,
@@ -31,22 +36,21 @@ const createCase = async (data) => {
     mediaUrl: mediaUrl || null,
     mediaType: mediaType || null,
     contactInfo: contactInfo || null,
-    caseTypeId,
-    agencyId,
-    responderTeamId,
+    caseTypeId: Number(caseTypeId),
+    agencyId: assignedAgencyId,
+    responderTeamId: Number(responderTeamId),
     status: "pending",
   });
 
-  const result = await Cases.findByPk(newCase.id, {
+  // 3. Return the full object using the aliases defined in models/index.js
+  return await Cases.findByPk(newCase.id, {
     include: [
-      { model: Agency, attributes: ["id", "name"] },
-      { model: CaseType, attributes: ["id", "name"] },
-      { model: ResponderTeam, attributes: ["id", "name"] },
-      { model: Kebele, attributes: ["id", "name"] },
+      { model: Agency, as: "agency", attributes: ["id", "name"] },
+      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
+      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
+      { model: Kebele, attributes: ["id", "name"] }, // Kebele has no alias in your index.js
     ],
   });
-
-  return result;
 };
 
 /**
@@ -55,9 +59,9 @@ const createCase = async (data) => {
 const getAllCases = async () => {
   return await Cases.findAll({
     include: [
-      { model: Agency, attributes: ["id", "name"] },
-      { model: CaseType, attributes: ["id", "name"] },
-      { model: ResponderTeam, attributes: ["id", "name"] },
+      { model: Agency, as: "agency", attributes: ["id", "name"] },
+      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
+      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
       { model: Kebele, attributes: ["id", "name"] },
     ],
     order: [["createdAt", "DESC"]],
@@ -70,9 +74,9 @@ const getAllCases = async () => {
 const getCaseById = async (id) => {
   const singleCase = await Cases.findByPk(id, {
     include: [
-      { model: Agency, attributes: ["id", "name"] },
-      { model: CaseType, attributes: ["id", "name"] },
-      { model: ResponderTeam, attributes: ["id", "name"] },
+      { model: Agency, as: "agency", attributes: ["id", "name"] },
+      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
+      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
       { model: Kebele, attributes: ["id", "name"] },
     ],
   });
@@ -84,17 +88,16 @@ const getCaseById = async (id) => {
  * Get all cases for a specific Responder Team
  */
 const getCasesByResponderTeam = async (responderTeamId) => {
-  const cases = await Cases.findAll({
+  return await Cases.findAll({
     where: { responderTeamId },
     include: [
-      { model: Agency, attributes: ["id", "name"] },
-      { model: CaseType, attributes: ["id", "name"] },
-      { model: ResponderTeam, attributes: ["id", "name"] },
+      { model: Agency, as: "agency", attributes: ["id", "name"] },
+      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
+      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
       { model: Kebele, attributes: ["id", "name"] },
     ],
     order: [["createdAt", "DESC"]],
   });
-  return cases;
 };
 
 /**
@@ -129,7 +132,7 @@ module.exports = {
   createCase,
   getAllCases,
   getCaseById,
-  getCasesByResponderTeam, // ✅ new
+  getCasesByResponderTeam,
   updateCaseStatus,
   deleteCase,
 };

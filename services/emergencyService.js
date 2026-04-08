@@ -1,13 +1,15 @@
 const { Op } = require("sequelize");
 const {
   Emergency,
-  Guest,
+
   EmergencyType,
   Kebele,
   ResponderTeam,
   Agency,
   AgencyType,
   Category,
+  User,
+  Guest,
 } = require("../models");
 const path = require("path");
 
@@ -254,42 +256,54 @@ const getEmergenciesForResponderTeam = async (responderTeamId) => {
 };
 
 const getAllEmergenciesForAdmin = async () => {
-  return await Emergency.findAll({
-    attributes: [
-      "id",
-      "kebele",
-      "subdivision",
-      "street",
-      "status",
-      "time",
-      "createdAt",
-      "reporterType", // useful to differentiate guest/user
-    ],
-    include: [
-      {
-        model: EmergencyType,
-        as: "emergencyType",
-        attributes: ["id", "name"],
-      },
-      {
-        model: Category,
-        as: "category",
-        attributes: ["id", "name"],
-      },
-      {
-        model: Agency,
-        as: "agency",
-        attributes: ["id", "name"],
-      },
-      {
-        model: Guest,
-        as: "guest",
-        attributes: ["id", "contactNo"],
-        required: false,
-      },
-    ],
-    order: [["createdAt", "DESC"]],
-  });
+  try {
+    const emergencies = await Emergency.findAll({
+      include: [
+        {
+          model: EmergencyType,
+          attributes: ["name"],
+        },
+        {
+          model: Category,
+          attributes: ["name"],
+        },
+        {
+          model: User,
+          attributes: ["id", "username", "email", "phone"],
+        },
+        {
+          model: Guest,
+          attributes: ["id", "contactNo"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    // Normalize reporter type
+    const result = emergencies.map((e) => {
+      return {
+        id: e.id,
+        emergencyType: e.emergencyType,
+        category: e.category,
+        kebele: e.kebele,
+        subdivision: e.subdivision,
+        street: e.street,
+        reporterType: e.citizenId ? "user" : "guest",
+        reporterName: e.citizenId
+          ? e.User?.username || "Registered User"
+          : e.guestId
+            ? e.Guest?.contactNo || "Guest"
+            : "Unknown",
+        status: e.status,
+        createdAt: e.createdAt,
+      };
+    });
+
+    return result;
+  } catch (err) {
+    console.error("❌ Error in getAllEmergenciesForAdmin:", err);
+    throw err;
+  }
 };
 
 module.exports = {

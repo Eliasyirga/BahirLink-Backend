@@ -39,5 +39,7 @@ router.get(
   emergencyController.getEmergenciesByAgencyHandler,
 );
 
+// Get all emergencies for admin
 router.get("/admin/all", emergencyController.getAllEmergenciesAdmin);
+
 module.exports = router;

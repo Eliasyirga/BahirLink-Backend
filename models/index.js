@@ -21,7 +21,7 @@ const ServiceCategory = require("./ServiceCategory");
 const Service = require("./Service");
 const Kebele = require("./Kebele");
 const CaseReport = require("./CaseReport");
-
+const ResponderTeamKebele = require("./ResponderTeamKebele");
 // =========================
 // USER / GUEST RELATIONSHIPS
 // =========================
@@ -213,6 +213,15 @@ Kebele.belongsTo(ResponderTeam, { foreignKey: "responderTeamId", as: "team" });
 // ResponderTeam has many Kebeles
 ResponderTeam.hasMany(Kebele, { foreignKey: "responderTeamId", as: "kebeles" });
 
+ResponderTeam.belongsToMany(Kebele, {
+  through: ResponderTeamKebele,
+  foreignKey: "responderTeamId",
+});
+
+Kebele.belongsToMany(ResponderTeam, {
+  through: ResponderTeamKebele,
+  foreignKey: "kebeleId",
+});
 // =========================
 // EXPORTS
 // =========================

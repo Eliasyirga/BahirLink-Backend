@@ -1,18 +1,14 @@
-// 1. IMPORT EVERYTHING FROM THE MODELS FOLDER (index.js)
-// This ensures Sequelize, ResponderTeam, and Kebele are all initialized and linked
 const { ResponderTeam, Kebele } = require("../models");
-const { sequelize } = require("../config/db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 /**
- * Create a new Responder Team
+ * Create Responder Team + assign kebeles
  */
 const createTeam = async (data) => {
   const { name, username, email, password, phone, agencyId, status, kebeles } =
     data;
 
-  // Validation...
   if (
     !name ||
     !username ||
@@ -20,135 +16,146 @@ const createTeam = async (data) => {
     !password ||
     !agencyId ||
     !kebeles ||
+    !Array.isArray(kebeles) ||
     kebeles.length === 0
   ) {
-    throw new Error("Required fields missing or no kebeles selected");
+    throw new Error(
+      "Name, username, email, password, agencyId, and at least one kebele are required",
+    );
   }
 
-  // Now sequelize will NOT be undefined!
-  const transaction = await sequelize.transaction();
+  const hashedPassword = await bcrypt.hash(password, 10);
 
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
+  // create team
+  const team = await ResponderTeam.create({
+    name,
+    username,
+    email,
+    password: hashedPassword,
+    phone,
+    agencyId,
+    status: status || "active",
+  });
 
-    const team = await ResponderTeam.create(
-      {
-        name,
-        username,
-        email,
-        password: hashedPassword,
-        phone,
-        agencyId,
-        status: status || "active",
-      },
-      { transaction },
-    );
+  // assign kebeles via join table
+  await team.addKebeles(kebeles, {
+    through: { agencyId },
+  });
 
-    await Kebele.update(
-      { responderTeamId: team.id },
-      {
-        where: { id: kebeles },
-        transaction,
-      },
-    );
-
-    await transaction.commit();
-
-    return await ResponderTeam.findByPk(team.id, {
-      include: { model: Kebele, as: "kebeles" },
-    });
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw error;
-  }
+  // return with kebeles
+  return await ResponderTeam.findByPk(team.id, {
+    include: {
+      model: Kebele,
+      as: "kebeles",
+      through: { attributes: [] }, // hide join table
+    },
+  });
 };
+
 /**
- * Update a Responder Team
+ * Update Responder Team + reassign kebeles
  */
 const updateTeam = async (id, data) => {
-  const transaction = await sequelize.transaction();
+  const team = await ResponderTeam.findByPk(id);
+  if (!team) throw new Error("Responder Team not found");
 
-  try {
-    const team = await ResponderTeam.findByPk(id);
-    if (!team) throw new Error("Responder Team not found");
+  const { password, kebeles, ...teamData } = data;
 
-    const { password, kebeles, ...teamData } = data;
-
-    if (password) {
-      teamData.password = await bcrypt.hash(password, 10);
-    }
-
-    await team.update(teamData, { transaction });
-
-    if (kebeles) {
-      // Clear old assignments
-      await Kebele.update(
-        { responderTeamId: null },
-        { where: { responderTeamId: id }, transaction },
-      );
-
-      // Assign new ones
-      await Kebele.update(
-        { responderTeamId: id },
-        { where: { id: kebeles }, transaction },
-      );
-    }
-
-    await transaction.commit();
-
-    return await ResponderTeam.findByPk(id, {
-      include: { model: Kebele, as: "kebeles" },
-    });
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw error;
+  // hash password if updated
+  if (password) {
+    teamData.password = await bcrypt.hash(password, 10);
   }
+
+  await team.update(teamData);
+
+  // update kebele assignments
+  if (kebeles !== undefined) {
+    if (!Array.isArray(kebeles) || kebeles.length === 0) {
+      throw new Error("At least one kebele must be provided");
+    }
+
+    // remove all old relations
+    await team.setKebeles([]);
+
+    // add new ones
+    await team.addKebeles(kebeles, {
+      through: { agencyId: team.agencyId },
+    });
+  }
+
+  return await ResponderTeam.findByPk(id, {
+    include: {
+      model: Kebele,
+      as: "kebeles",
+      through: { attributes: [] },
+    },
+  });
 };
 
 /**
- * Delete a Responder Team
+ * Delete team
  */
 const deleteTeam = async (id) => {
   const team = await ResponderTeam.findByPk(id);
   if (!team) throw new Error("Responder Team not found");
 
-  // Unassign kebeles first
-  await Kebele.update(
-    { responderTeamId: null },
-    { where: { responderTeamId: id } },
-  );
-
   await team.destroy();
   return { message: "Responder Team deleted successfully" };
 };
 
+/**
+ * Get all teams
+ */
 const getAllTeams = async () => {
   return await ResponderTeam.findAll({
-    include: { model: Kebele, as: "kebeles" },
+    include: {
+      model: Kebele,
+      as: "kebeles",
+      through: { attributes: [] },
+    },
     order: [["createdAt", "DESC"]],
   });
 };
 
+/**
+ * Get teams by agency
+ */
 const getTeamsByAgency = async (agencyId) => {
   if (!agencyId) throw new Error("Agency ID is required");
+
   return await ResponderTeam.findAll({
     where: { agencyId },
-    include: { model: Kebele, as: "kebeles" },
+    include: {
+      model: Kebele,
+      as: "kebeles",
+      through: { attributes: [] },
+    },
     order: [["createdAt", "DESC"]],
   });
 };
 
+/**
+ * Login responder
+ */
 const loginResponder = async (email, password) => {
-  if (!email || !password) throw new Error("Email and password are required");
+  if (!email || !password) {
+    throw new Error("Email and password are required");
+  }
 
   const responder = await ResponderTeam.findOne({
     where: { email },
-    include: { model: Kebele, as: "kebeles" },
+    include: {
+      model: Kebele,
+      as: "kebeles",
+      through: { attributes: [] },
+    },
   });
 
   if (!responder) throw new Error("Responder not found");
-  if (responder.status !== "active")
+
+  if (responder.status !== "active") {
     throw new Error("Responder account is inactive");
+  }
 
   const isMatch = await bcrypt.compare(password, responder.password);
   if (!isMatch) throw new Error("Invalid password");
@@ -182,7 +189,7 @@ module.exports = {
   createTeam,
   updateTeam,
   deleteTeam,
+  loginResponder,
   getAllTeams,
   getTeamsByAgency,
-  loginResponder,
 };

@@ -13,13 +13,13 @@ const {
  */
 const createKebeleHandler = async (req, res) => {
   try {
-    const { name, description, responderTeamId } = req.body;
+    const { name, description } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: "Kebele name is required" });
     }
 
-    const kebele = await createKebele({ name, description, responderTeamId });
+    const kebele = await createKebele({ name, description });
 
     res.status(201).json({
       message: "Kebele created successfully",
@@ -31,19 +31,14 @@ const createKebeleHandler = async (req, res) => {
   }
 };
 
-/**
- * Update Kebele
- * Can also update its assigned responder team
- */
 const updateKebeleHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, responderTeamId } = req.body;
+    const { name, description } = req.body;
 
     const kebele = await updateKebele(id, {
       name,
       description,
-      responderTeamId,
     });
 
     res.status(200).json({

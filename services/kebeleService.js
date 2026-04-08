@@ -49,13 +49,14 @@ const getKebelesByResponderTeam = async (responderTeamId) => {
   const responderTeam = await ResponderTeam.findByPk(responderTeamId, {
     include: {
       model: Kebele,
-      through: { attributes: [] }, // hide join table
+      as: "kebeles", // match your association alias
+      through: { attributes: [] }, // hide join table columns
     },
   });
 
   if (!responderTeam) throw new Error("Responder Team not found");
 
-  return responderTeam.Kebeles;
+  return responderTeam.kebeles; // lowercase 'kebeles'
 };
 
 module.exports = {

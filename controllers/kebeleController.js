@@ -51,9 +51,7 @@ const updateKebeleHandler = async (req, res) => {
   }
 };
 
-/**
- * Delete Kebele
- */
+
 const deleteKebeleHandler = async (req, res) => {
   try {
     const { id } = req.params;
@@ -67,13 +65,7 @@ const deleteKebeleHandler = async (req, res) => {
   }
 };
 
-/**
- * Get all Kebeles (optional: include their responder team)
- */
 
-/**
- * Get Kebeles by Responder Team
- */
 const getKebelesByResponderTeamHandler = async (req, res) => {
   try {
     const { responderTeamId } = req.params;

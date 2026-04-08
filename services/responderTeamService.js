@@ -1,4 +1,4 @@
-const { ResponderTeam, Kebele } = require("../models");
+const { ResponderTeam, Kebele, ResponderTeamKebele } = require("../models");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
@@ -15,7 +15,6 @@ const createTeam = async (data) => {
     !email ||
     !password ||
     !agencyId ||
-    !kebeles ||
     !Array.isArray(kebeles) ||
     kebeles.length === 0
   ) {
@@ -26,7 +25,22 @@ const createTeam = async (data) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // create team
+  // 🔥 CHECK: prevent duplicate kebele assignment in same agency
+  const existing = await ResponderTeamKebele.findAll({
+    where: {
+      kebeleId: kebeles,
+      agencyId,
+    },
+  });
+
+  if (existing.length > 0) {
+    const usedIds = existing.map((e) => e.kebeleId);
+    throw new Error(
+      `Kebele(s) already assigned in this agency: ${usedIds.join(", ")}`,
+    );
+  }
+
+  // 1. Create team
   const team = await ResponderTeam.create({
     name,
     username,
@@ -37,17 +51,17 @@ const createTeam = async (data) => {
     status: status || "active",
   });
 
-  // assign kebeles via join table
+  // 2. Assign kebeles
   await team.addKebeles(kebeles, {
     through: { agencyId },
   });
 
-  // return with kebeles
+  // 3. Return with kebeles
   return await ResponderTeam.findByPk(team.id, {
     include: {
       model: Kebele,
       as: "kebeles",
-      through: { attributes: [] }, // hide join table
+      through: { attributes: [] },
     },
   });
 };
@@ -92,9 +106,6 @@ const updateTeam = async (id, data) => {
   });
 };
 
-/**
- * Delete team
- */
 const deleteTeam = async (id) => {
   const team = await ResponderTeam.findByPk(id);
   if (!team) throw new Error("Responder Team not found");
@@ -103,9 +114,6 @@ const deleteTeam = async (id) => {
   return { message: "Responder Team deleted successfully" };
 };
 
-/**
- * Get all teams
- */
 const getAllTeams = async () => {
   return await ResponderTeam.findAll({
     include: {
@@ -117,9 +125,6 @@ const getAllTeams = async () => {
   });
 };
 
-/**
- * Get teams by agency
- */
 const getTeamsByAgency = async (agencyId) => {
   if (!agencyId) throw new Error("Agency ID is required");
 
@@ -134,9 +139,6 @@ const getTeamsByAgency = async (agencyId) => {
   });
 };
 
-/**
- * Login responder
- */
 const loginResponder = async (email, password) => {
   if (!email || !password) {
     throw new Error("Email and password are required");

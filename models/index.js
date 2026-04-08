@@ -208,19 +208,16 @@ Kebele.hasMany(Emergency, {
   as: "emergencies", // optional alias for easier include
 });
 
-// Kebele belongs to one ResponderTeam
-Kebele.belongsTo(ResponderTeam, { foreignKey: "responderTeamId", as: "team" });
-// ResponderTeam has many Kebeles
-ResponderTeam.hasMany(Kebele, { foreignKey: "responderTeamId", as: "kebeles" });
-
 ResponderTeam.belongsToMany(Kebele, {
   through: ResponderTeamKebele,
   foreignKey: "responderTeamId",
+  as: "kebeles",
 });
 
 Kebele.belongsToMany(ResponderTeam, {
   through: ResponderTeamKebele,
   foreignKey: "kebeleId",
+  as: "teams",
 });
 // =========================
 // EXPORTS
@@ -244,4 +241,5 @@ module.exports = {
   Service,
   CaseReport,
   Kebele,
+  ResponderTeamKebele,
 };

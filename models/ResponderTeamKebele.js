@@ -28,7 +28,7 @@ const ResponderTeamKebele = sequelize.define(
     indexes: [
       {
         unique: true,
-        fields: ["kebeleId", "agencyId"], // ensures kebele is unique per agency
+        fields: ["kebeleId", "agencyId"], 
       },
     ],
   },

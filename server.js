@@ -81,6 +81,8 @@ const PORT = process.env.PORT || 5000;
 
 connectDB()
   .then(() => {
+    app.use("/api/kebele", kebeleRoutes);
+
     return sequelize.sync({ alter: true });
   })
   .then(() => {

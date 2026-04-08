@@ -174,10 +174,18 @@ const getAllTeamsHandler = async (req, res) => {
  */
 const getTeamsByAgencyHandler = async (req, res) => {
   try {
-    const { agencyId } = req.params;
+    const agencyId = Number(req.params.agencyId); // convert to number
+    if (!agencyId || isNaN(agencyId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid agencyId is required",
+      });
+    }
+
     const teams = await getTeamsByAgency(agencyId);
     return res.status(200).json({ success: true, data: teams });
   } catch (error) {
+    console.error("Error fetching teams by agency:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

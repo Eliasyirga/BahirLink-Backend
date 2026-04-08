@@ -55,9 +55,21 @@ const getCaseById = async (req, res) => {
 const getCasesByResponderTeam = async (req, res) => {
   try {
     const responderTeamId = req.params.responderTeamId;
-    const cases = await casesService.getCasesByResponderTeam(responderTeamId);
+
+    let cases;
+    // Check if the frontend is requesting EVERYTHING
+    if (responderTeamId === "all") {
+      cases = await casesService.getAllCases();
+    } else {
+      // Otherwise, treat it as a number for a specific team
+      cases = await casesService.getCasesByResponderTeam(
+        parseInt(responderTeamId),
+      );
+    }
+
     res.status(200).json(cases);
   } catch (error) {
+    console.error("Fetch Error:", error);
     res.status(500).json({ message: error.message });
   }
 };

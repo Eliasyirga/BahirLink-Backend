@@ -19,12 +19,11 @@ const Kebele = sequelize.define(
       allowNull: true,
     },
     responderTeamId: {
-      // foreign key pointing to ResponderTeam
       type: DataTypes.INTEGER,
-      allowNull: true, // initially nullable
+      allowNull: true,
       references: { model: "responder_teams", key: "id" },
       onUpdate: "CASCADE",
-      onDelete: "SET NULL", // if team deleted, kebele becomes unassigned
+      onDelete: "SET NULL",
     },
   },
   {

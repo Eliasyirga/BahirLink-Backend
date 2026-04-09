@@ -187,6 +187,18 @@ const loginResponder = async (email, password) => {
   };
 };
 
+const getTeamById = async (id) => {
+  return await ResponderTeam.findByPk(id, {
+    include: [
+      {
+        model: Kebele,
+        as: "kebeles", // make sure your association uses this alias
+        through: { attributes: [] }, // if using a join table
+      },
+    ],
+  });
+};
+
 module.exports = {
   createTeam,
   updateTeam,
@@ -194,4 +206,5 @@ module.exports = {
   loginResponder,
   getAllTeams,
   getTeamsByAgency,
+  getTeamById,
 };

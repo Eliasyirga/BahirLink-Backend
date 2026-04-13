@@ -232,22 +232,28 @@ const getEmergenciesByAgency = async (agencyId) => {
 // GET EMERGENCIES FOR A RESONDER TEAM
 // =========================
 const getEmergenciesForResponderTeam = async (responderTeamId) => {
-  // 1️⃣ Get all kebeles for this responder team
-  const kebeles = await Kebele.findAll({
-    where: { responderTeamId },
-    attributes: ["id", "name"],
-  });
-
-  if (!kebeles.length) return [];
-
-  const kebeleIds = kebeles.map((k) => k.id);
-
-  // 2️⃣ Get emergencies for these kebeles
   const emergencies = await Emergency.findAll({
-    where: { kebeleId: { [Op.in]: kebeleIds } },
     include: [
-      { model: Kebele, as: "kebele", attributes: ["id", "name"] },
-      { model: EmergencyType, as: "emergencyType", attributes: ["id", "name"] },
+      {
+        model: Kebele,
+        as: "kebele", // Emergency → Kebele alias
+        required: true,
+        attributes: ["id", "name"],
+        include: [
+          {
+            model: ResponderTeam,
+            as: "teams", // Kebele → ResponderTeam alias
+            where: { id: responderTeamId }, // ✅ unique, enough
+            attributes: [], // no need to include team info
+            through: { attributes: [] }, // hide join table
+          },
+        ],
+      },
+      {
+        model: EmergencyType,
+        as: "emergencyType",
+        attributes: ["id", "name"],
+      },
     ],
     order: [["createdAt", "DESC"]],
   });

@@ -2,9 +2,7 @@ const { ResponderTeam, Kebele, ResponderTeamKebele } = require("../models");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-/**
- * Create Responder Team + assign kebeles
- */
+
 const createTeam = async (data) => {
   const { name, username, email, password, phone, agencyId, status, kebeles } =
     data;

@@ -100,15 +100,20 @@ const getEmergenciesHandler = async (req, res) => {
 const getEmergenciesForResponderTeamHandler = async (req, res) => {
   try {
     const { responderTeamId } = req.params;
-    if (!responderTeamId)
+
+    if (!responderTeamId) {
       return res
         .status(400)
         .json({ success: false, message: "Responder Team ID is required" });
+    }
 
+    // Call the function we discussed earlier
     const emergencies = await getEmergenciesForResponderTeam(responderTeamId);
-    res.status(200).json({ success: true, data: emergencies });
+
+    return res.status(200).json({ success: true, data: emergencies });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error(error); // good for debugging
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 

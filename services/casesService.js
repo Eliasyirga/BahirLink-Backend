@@ -1,8 +1,8 @@
-const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models"); // Importing from index.js ensures aliases are registered
+const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models");
 
 /**
  * Create a new case
- * Logic: Automatically fetches agencyId from the ResponderTeam record
+ * Logic: Includes new Wanted/Missing attributes and auto-assigns Agency
  */
 const createCase = async (data) => {
   const {
@@ -16,6 +16,14 @@ const createCase = async (data) => {
     contactInfo,
     caseTypeId,
     responderTeamId,
+    // --- NEW ATTRIBUTES ---
+    reward,
+    priority,
+    lastSeenDate,
+    height,
+    weight,
+    distinctiveFeatures,
+    isDangerous,
   } = data;
 
   // 1. Validate the Responder Team and extract their Agency ID
@@ -26,7 +34,7 @@ const createCase = async (data) => {
 
   const assignedAgencyId = team.agencyId;
 
-  // 2. Create the case with the verified agencyId
+  // 2. Create the case with all specialized attributes
   const newCase = await Cases.create({
     fullName,
     age,
@@ -40,21 +48,29 @@ const createCase = async (data) => {
     agencyId: assignedAgencyId,
     responderTeamId: Number(responderTeamId),
     status: "pending",
+    // --- NEW FIELDS ---
+    reward: reward || 0.0,
+    priority: priority || "medium",
+    lastSeenDate: lastSeenDate || null,
+    height: height || null,
+    weight: weight || null,
+    distinctiveFeatures: distinctiveFeatures || null,
+    isDangerous: isDangerous || false,
   });
 
-  // 3. Return the full object using the aliases defined in models/index.js
+  // 3. Return the full object with associations
   return await Cases.findByPk(newCase.id, {
     include: [
       { model: Agency, as: "agency", attributes: ["id", "name"] },
       { model: CaseType, as: "caseType", attributes: ["id", "name"] },
       { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
-      { model: Kebele, attributes: ["id", "name"] }, // Kebele has no alias in your index.js
+      { model: Kebele, attributes: ["id", "name"] },
     ],
   });
 };
 
 /**
- * Get all cases
+ * Get all cases (Ordered by Priority and Date)
  */
 const getAllCases = async () => {
   return await Cases.findAll({
@@ -64,7 +80,11 @@ const getAllCases = async () => {
       { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
       { model: Kebele, attributes: ["id", "name"] },
     ],
-    order: [["createdAt", "DESC"]],
+    // Sort by priority (if you want critical first) and then by date
+    order: [
+      ["priority", "DESC"],
+      ["createdAt", "DESC"],
+    ],
   });
 };
 
@@ -102,13 +122,17 @@ const getCasesByResponderTeam = async (responderTeamId) => {
 
 /**
  * Update case status
+ * Logic: Allow transition to 'resolved' for closed cases
  */
 const updateCaseStatus = async (id, status) => {
   const singleCase = await Cases.findByPk(id);
   if (!singleCase) throw new Error("Case not found");
 
-  if (!["pending", "approved", "rejected"].includes(status)) {
-    throw new Error("Invalid status value");
+  const validStatuses = ["pending", "approved", "rejected", "resolved"];
+  if (!validStatuses.includes(status)) {
+    throw new Error(
+      `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+    );
   }
 
   singleCase.status = status;

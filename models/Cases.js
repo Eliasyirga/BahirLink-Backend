@@ -19,6 +19,47 @@ const Cases = sequelize.define(
       allowNull: false,
     },
 
+    // --- NEW ATTRIBUTES FOR WANTED/MISSING ---
+
+    reward: {
+      type: DataTypes.DECIMAL(10, 2), // Supports large amounts like 10000.00
+      allowNull: true,
+      defaultValue: 0.0,
+    },
+
+    priority: {
+      type: DataTypes.ENUM("low", "medium", "high", "critical"),
+      defaultValue: "medium",
+    },
+
+    lastSeenDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+
+    // Physical Identifiers (Crucial for Wanted/Missing)
+    height: {
+      type: DataTypes.STRING, // e.g., "175cm" or "5'9"
+      allowNull: true,
+    },
+
+    weight: {
+      type: DataTypes.STRING, // e.g., "70kg"
+      allowNull: true,
+    },
+
+    distinctiveFeatures: {
+      type: DataTypes.TEXT, // Tattoos, scars, glasses, etc.
+      allowNull: true,
+    },
+
+    isDangerous: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false, // Specifically for "Wanted" cases
+    },
+
+    // --- EXISTING ATTRIBUTES ---
+
     age: DataTypes.INTEGER,
 
     gender: {
@@ -78,7 +119,7 @@ const Cases = sequelize.define(
     },
 
     status: {
-      type: DataTypes.ENUM("pending", "approved", "rejected"),
+      type: DataTypes.ENUM("pending", "approved", "rejected", "resolved"),
       defaultValue: "pending",
     },
   },

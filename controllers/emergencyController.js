@@ -83,13 +83,18 @@ const deleteEmergencyHandler = async (req, res) => {
 // =========================
 const getEmergenciesHandler = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const isGuest = !!req.query.guestId;
-    const id = userId || req.query.guestId;
+    const { userOrGuestId } = req.params; // Make sure this matches your router param name
+    const isGuest = req.query.guestId === "true";
 
-    const emergencies = await getEmergencies(id, isGuest);
+    console.log(
+      `Fetching emergencies for ${isGuest ? "Guest" : "User"}: ${userOrGuestId}`,
+    );
+
+    const emergencies = await getEmergencies(userOrGuestId, isGuest);
     res.status(200).json({ success: true, data: emergencies });
   } catch (error) {
+    // THIS LOG IS CRITICAL - It will tell you the exact SQL or JS error
+    console.error("DETAILED ERROR:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -6,7 +6,7 @@ const ServiceType = sequelize.define(
   {
     id: {
       type: DataTypes.INTEGER,
-      autoIncrement: true, // ✅ auto-increment integer
+      autoIncrement: true, 
       primaryKey: true,
     },
     name: {

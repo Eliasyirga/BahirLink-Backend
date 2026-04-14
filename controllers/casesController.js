@@ -2,29 +2,42 @@ const casesService = require("../services/casesService");
 
 const createCase = async (req, res) => {
   try {
-    // 1. Manually build the data object from req.body
-    // This ensures strings from FormData are converted to Numbers for Sequelize
+    // 1. Manually build and cast the data object from req.body
+    // This handles strings-to-numbers and strings-to-booleans for Sequelize
     const data = {
       fullName: req.body.fullName,
       description: req.body.description,
       gender: req.body.gender,
       age: req.body.age ? parseInt(req.body.age) : null,
 
-      // Convert these strings to actual Integers
+      // Foreign Keys
       caseTypeId: parseInt(req.body.caseTypeId),
       lastSeenLocationId: req.body.lastSeenLocationId
         ? parseInt(req.body.lastSeenLocationId)
         : null,
-      agencyId: parseInt(req.body.agencyId || 1),
       responderTeamId: parseInt(req.body.responderTeamId || 1),
 
-      // 2. Capture the file path saved by Multer
+      // Media from Multer
       mediaUrl: req.file ? `/uploads/${req.file.filename}` : null,
       mediaType: req.file ? "photo" : null,
       contactInfo: req.body.contactInfo || null,
+
+      // --- NEW WANTED / MISSING FIELDS ---
+      reward: req.body.reward ? parseFloat(req.body.reward) : 0.0,
+      priority: req.body.priority || "medium", // low, medium, high, critical
+      lastSeenDate: req.body.lastSeenDate
+        ? new Date(req.body.lastSeenDate)
+        : null,
+      height: req.body.height || null,
+      weight: req.body.weight || null,
+      distinctiveFeatures: req.body.distinctiveFeatures || null,
+
+      // Handle boolean conversion from FormData string
+      isDangerous:
+        req.body.isDangerous === "true" || req.body.isDangerous === true,
     };
 
-    // 3. Pass the CLEANED data object to your service
+    // 2. Pass the CLEANED data object to the service
     const newCase = await casesService.createCase(data);
 
     res.status(201).json(newCase);
@@ -76,7 +89,7 @@ const getCasesByResponderTeam = async (req, res) => {
 
 const updateCaseStatus = async (req, res) => {
   try {
-    const { status } = req.body; // "approved" | "rejected" | "pending"
+    const { status } = req.body; // "approved" | "rejected" | "pending" | "resolved"
     const updatedCase = await casesService.updateCaseStatus(
       req.params.id,
       status,

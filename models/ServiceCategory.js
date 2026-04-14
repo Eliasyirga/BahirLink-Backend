@@ -1,19 +1,17 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
-const ServiceType = require("./ServiceType");
 
 const ServiceCategory = sequelize.define(
   "ServiceCategory",
   {
     id: {
       type: DataTypes.INTEGER,
-      autoIncrement: true, 
+      autoIncrement: true,
       primaryKey: true,
     },
     name: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
     description: {
       type: DataTypes.TEXT,
@@ -28,7 +26,16 @@ const ServiceCategory = sequelize.define(
       },
     },
   },
-  { tableName: "service_categories", timestamps: true },
+  {
+    tableName: "service_categories",
+    timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ["name", "serviceTypeId"],
+      },
+    ],
+  },
 );
 
 module.exports = ServiceCategory;

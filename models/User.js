@@ -24,7 +24,13 @@ const User = sequelize.define(
     fullName: { type: DataTypes.STRING },
     phone: { type: DataTypes.STRING },
     role: {
-      type: DataTypes.ENUM("user", "responder", "admin", "agency"),
+      type: DataTypes.ENUM(
+        "user",
+        "responder",
+        "admin",
+        "agency",
+        "serviceadmin",
+      ),
       defaultValue: "user",
     },
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },

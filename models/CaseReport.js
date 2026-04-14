@@ -1,4 +1,3 @@
-// models/CaseReport.js
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 const Cases = require("./Cases");
@@ -15,7 +14,7 @@ const CaseReport = sequelize.define(
 
     description: {
       type: DataTypes.TEXT,
-      allowNull: true, // optional explanation
+      allowNull: true, 
     },
 
     caseId: {

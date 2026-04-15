@@ -62,6 +62,25 @@ const deleteCategory = async (categoryId) => {
   await category.destroy();
   return true;
 };
+const getCategoriesByServiceType = async (serviceTypeId) => {
+  // Check if the service type exists first (Optional, but good for error handling)
+  const serviceType = await ServiceType.findByPk(serviceTypeId);
+  if (!serviceType) throw new Error("ServiceType not found");
+
+  const categories = await Category.findAll({
+    where: { serviceTypeId: serviceTypeId },
+    include: [
+      {
+        model: ServiceType,
+        attributes: ["id", "name"],
+      },
+    ],
+    // Optional: Sort alphabetically
+    order: [["name", "ASC"]],
+  });
+
+  return categories;
+};
 
 module.exports = {
   createCategory,
@@ -69,4 +88,5 @@ module.exports = {
   getCategoryById,
   updateCategory,
   deleteCategory,
+  getCategoriesByServiceType,
 };

@@ -40,6 +40,23 @@ const getCategoryById = async (req, res) => {
   }
 };
 
+// ✅ GET CATEGORIES BY SERVICE TYPE ID (New Method)
+const getCategoriesByServiceType = async (req, res) => {
+  try {
+    const { serviceTypeId } = req.params;
+    const categories =
+      await categoryService.getCategoriesByServiceType(serviceTypeId);
+
+    // Returning the list directly as 'categories' to match Flutter's expectations
+    res.json({
+      success: true,
+      categories,
+    });
+  } catch (err) {
+    res.status(404).json({ success: false, error: err.message });
+  }
+};
+
 // ✅ UPDATE CATEGORY
 const updateCategory = async (req, res) => {
   try {
@@ -74,6 +91,7 @@ module.exports = {
   createCategory,
   getAllCategories,
   getCategoryById,
+  getCategoriesByServiceType, // Added this
   updateCategory,
   deleteCategory,
 };

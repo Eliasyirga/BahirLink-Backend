@@ -3,9 +3,14 @@ const caseReportsService = require("../services/caseReportsService");
 // ✅ CREATE REPORT
 const createReport = async (req, res) => {
   try {
+    // If you use authentication middleware, you might want to attach
+    // the reporterId automatically from the token:
+    // const reportData = { ...req.body, reporterId: req.user?.id };
+
     const report = await caseReportsService.createReport(req.body);
     res.status(201).json({ success: true, report });
   } catch (error) {
+    // 400 Bad Request for validation or logic errors
     res.status(400).json({ success: false, error: error.message });
   }
 };

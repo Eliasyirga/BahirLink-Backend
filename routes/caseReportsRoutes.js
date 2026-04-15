@@ -2,17 +2,21 @@ const express = require("express");
 const router = express.Router();
 const caseReportsController = require("../controllers/caseReportsController");
 
+// ✅ Create a new report
 router.post("/", caseReportsController.createReport);
 
+// ✅ Get all reports
 router.get("/", caseReportsController.getAllReports);
 
-router.get("/:caseId", caseReportsController.getReportsByCase);
+// ✅ Specific filtering routes (Changed to unique paths)
+router.get("/case/:caseId", caseReportsController.getReportsByCase);
 
-router.get("/:caseTypeId", caseReportsController.getReportsByCaseType);
+router.get("/type/:caseTypeId", caseReportsController.getReportsByCaseType);
 
-router.get("/:reporterId", caseReportsController.getReportsByReporter);
+router.get("/reporter/:reporterId", caseReportsController.getReportsByReporter);
 
-router.patch("/:id/status", caseReportsController.updateReportStatus);
+// ✅ Status update and deletion
+router.patch("/status/:id", caseReportsController.updateReportStatus);
 
 router.delete("/:id", caseReportsController.deleteReport);
 

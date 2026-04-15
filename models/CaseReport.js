@@ -2,6 +2,7 @@ const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 const Cases = require("./Cases");
 const CaseType = require("./CaseType");
+const Kebele = require("./Kebele"); // Import your Kebele model
 
 const CaseReport = sequelize.define(
   "CaseReport",
@@ -14,7 +15,21 @@ const CaseReport = sequelize.define(
 
     description: {
       type: DataTypes.TEXT,
-      allowNull: true, 
+      allowNull: true,
+    },
+
+    // Reference to the Kebele model
+    kebeleId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: { model: Kebele, key: "id" },
+      onDelete: "CASCADE",
+    },
+
+    // The specific date and time they saw the person
+    spottedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
     },
 
     caseId: {
@@ -33,7 +48,7 @@ const CaseReport = sequelize.define(
 
     reporterId: {
       type: DataTypes.INTEGER,
-      allowNull: true, // optional: user who reported
+      allowNull: true,
       references: { model: "users", key: "id" },
       onDelete: "SET NULL",
     },

@@ -89,34 +89,40 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     emergencyTypeId = DEFAULT_EMERGENCY_TYPE_ID,
     categoryId,
     time,
-    kebele,
+    kebeleId, // From previous fix
     subdivision,
     street,
-    location,
-    latitude,
-    longitude,
+    location, // This might be a string from Flutter, we will override it
+    latitude, // Sent by Flutter request.fields["latitude"]
+    longitude, // Sent by Flutter request.fields["longitude"]
     ...rest
   } = emergencyData;
 
-  if (!location && latitude != null && longitude != null) {
-    location = { latitude, longitude };
+  // 📍 CONVERT TO JSON OBJECT
+  // If Flutter sent latitude and longitude, create the JSON object for Sequelize
+  if (latitude && longitude) {
+    location = {
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+    };
   }
 
-  if (!kebele || !subdivision)
+  // Validation
+  if (!kebeleId || !subdivision)
     throw new Error("Kebele ID and Subdivision are required");
 
-  // Verify kebele exists
-  const kebeleRecord = await Kebele.findByPk(kebele);
+  const kebeleRecord = await Kebele.findByPk(kebeleId);
   if (!kebeleRecord) throw new Error("Invalid kebele ID");
 
   const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
 
+  // Sequelize will automatically stringify the 'location' object into the JSON column
   return await Emergency.create({
     ...rest,
     kebeleId: kebeleRecord.id,
     subdivision,
     street,
-    location,
+    location, // Now a JS Object: { latitude: 11.3, longitude: 37.3 }
     mediaUrl,
     emergencyTypeId,
     categoryId,

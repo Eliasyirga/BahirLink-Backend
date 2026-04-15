@@ -169,6 +169,18 @@ Cases.belongsTo(ResponderTeam, {
   as: "responderTeam",
 });
 
+// =========================
+// CASE REPORTS (Update this section)
+// =========================
+Cases.hasMany(CaseReport, { foreignKey: "caseId", as: "reports" });
+CaseReport.belongsTo(Cases, { foreignKey: "caseId", as: "case" }); // Added 'as'
+
+CaseType.hasMany(CaseReport, { foreignKey: "caseTypeId", as: "reports" });
+CaseReport.belongsTo(CaseType, { foreignKey: "caseTypeId", as: "caseType" }); // Added 'as'
+
+Kebele.hasMany(CaseReport, { foreignKey: "kebeleId", as: "reports" });
+CaseReport.belongsTo(Kebele, { foreignKey: "kebeleId", as: "kebele" }); // Added 'as'
+
 ServiceType.hasMany(ServiceCategory, { foreignKey: "serviceTypeId" });
 ServiceCategory.belongsTo(ServiceType, { foreignKey: "serviceTypeId" });
 

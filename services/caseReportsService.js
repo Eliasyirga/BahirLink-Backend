@@ -6,18 +6,21 @@ const createReport = async (data) => {
     description: data.description,
     caseId: data.caseId,
     caseTypeId: data.caseTypeId,
+    kebeleId: data.kebeleId, // Added from new model
+    spottedAt: data.spottedAt, // Added from new model
     reporterId: data.reporterId || null,
   });
 
+  // Re-fetching with all associations including the new Kebele relation
   return await CaseReport.findByPk(report.id, {
-    include: ["case", "caseType"],
+    include: ["case", "caseType", "kebele"],
   });
 };
 
 // ✅ GET ALL REPORTS
 const getAllReports = async () => {
   return await CaseReport.findAll({
-    include: ["case", "caseType"],
+    include: ["case", "caseType", "kebele"], // Added kebele to includes
     order: [["createdAt", "DESC"]],
   });
 };
@@ -26,7 +29,7 @@ const getAllReports = async () => {
 const getReportsByCase = async (caseId) => {
   return await CaseReport.findAll({
     where: { caseId },
-    include: ["caseType", "case"],
+    include: ["caseType", "case", "kebele"], // Added kebele to includes
   });
 };
 
@@ -34,7 +37,7 @@ const getReportsByCase = async (caseId) => {
 const getReportsByCaseType = async (caseTypeId) => {
   return await CaseReport.findAll({
     where: { caseTypeId },
-    include: ["case", "caseType"],
+    include: ["case", "caseType", "kebele"], // Added kebele to includes
   });
 };
 
@@ -42,7 +45,7 @@ const getReportsByCaseType = async (caseTypeId) => {
 const getReportsByReporter = async (reporterId) => {
   return await CaseReport.findAll({
     where: { reporterId },
-    include: ["case", "caseType"],
+    include: ["case", "caseType", "kebele"], // Added kebele to includes
   });
 };
 

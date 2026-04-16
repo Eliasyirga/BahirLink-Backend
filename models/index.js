@@ -188,7 +188,8 @@ ServiceCategory.belongsTo(ServiceType, { foreignKey: "serviceTypeId" });
 User.hasMany(Service, { foreignKey: "citizenId" });
 
 // Each Service belongs to a User (optional)
-Service.belongsTo(User, { foreignKey: "citizenId" });
+User.hasMany(Service, { foreignKey: "citizenId", as: "services" });
+Service.belongsTo(User, { foreignKey: "citizenId", as: "citizen" });
 
 // ServiceType -> Service (one-to-many)
 ServiceType.hasMany(Service, { foreignKey: "serviceTypeId" });

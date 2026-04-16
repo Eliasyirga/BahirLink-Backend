@@ -1,8 +1,8 @@
-// services/serviceService.js
 const { Service, ServiceType, ServiceCategory, User } = require("../models");
 
+// ✅ CREATE SERVICE
 const createService = async (data, userIdFromParams) => {
-  // Map coordinates to JSON if they exist in the request
+  // Ensure location data is converted to Floats from Multipart Strings
   const locationData =
     data.latitude && data.longitude
       ? {
@@ -14,79 +14,88 @@ const createService = async (data, userIdFromParams) => {
   const service = await Service.create({
     name: data.name || "Service Request",
     description: data.description,
-    kebeleId: parseInt(data.kebeleId),
+
+    // Convert Multipart strings to Numbers
+    kebeleId: data.kebeleId ? parseInt(data.kebeleId) : null,
+    serviceTypeId: data.serviceTypeId ? parseInt(data.serviceTypeId) : null,
+    serviceCategoryId: data.serviceCategoryId
+      ? parseInt(data.serviceCategoryId)
+      : null,
+    citizenId: parseInt(userIdFromParams || data.citizenId),
+
     subdivision: data.subdivision,
     street: data.street,
     location: locationData,
     mediaUrl: data.mediaUrl,
     mediaType: data.mediaType,
     status: "pending",
-    citizenId: userIdFromParams || data.citizenId,
-    serviceTypeId: data.serviceTypeId,
-    serviceCategoryId: data.serviceCategoryId,
     time: data.time,
   });
 
   return await Service.findByPk(service.id, {
-    include: [ServiceType, ServiceCategory],
+    include: [{ model: ServiceType }, { model: ServiceCategory }],
   });
 };
 
 // ✅ UPDATE SERVICE
 const updateService = async (serviceId, updates) => {
-  const [_, updatedServices] = await Service.update(updates, {
-    where: { id: serviceId },
-    returning: true,
-  });
+  // If updates come from a multipart form, parse IDs if they exist
+  const processedUpdates = { ...updates };
+  if (updates.serviceTypeId)
+    processedUpdates.serviceTypeId = parseInt(updates.serviceTypeId);
+  if (updates.serviceCategoryId)
+    processedUpdates.serviceCategoryId = parseInt(updates.serviceCategoryId);
 
-  if (!updatedServices[0]) throw new Error("Service not found");
+  const [rowsUpdated, updatedServices] = await Service.update(
+    processedUpdates,
+    {
+      where: { id: serviceId },
+      returning: true,
+    },
+  );
 
-  const result = await Service.findByPk(serviceId, {
+  if (rowsUpdated === 0) throw new Error("Service not found");
+
+  return await Service.findByPk(serviceId, {
     include: [ServiceType, ServiceCategory],
   });
-
-  return result;
 };
 
 // ✅ GET ALL SERVICES
 const getAllServices = async () => {
-  const services = await Service.findAll({
+  return await Service.findAll({
     include: [
       { model: ServiceType },
       { model: ServiceCategory },
-      { model: User, attributes: ["id", "fullName", "email"] },
+      // Note: Make sure the association name in your model matches "User" or "Citizen"
+      { model: User, as: "citizen", attributes: ["id", "fullName", "email"] },
     ],
+    order: [["createdAt", "DESC"]],
   });
-
-  return services;
 };
 
 // ✅ GET SERVICES BY SERVICE TYPE
 const getServicesByType = async (serviceTypeId) => {
-  const services = await Service.findAll({
-    where: { serviceTypeId },
+  return await Service.findAll({
+    where: { serviceTypeId: parseInt(serviceTypeId) },
     include: [
       { model: ServiceType },
       { model: ServiceCategory },
-      { model: User, attributes: ["id", "fullName", "email"] },
+      { model: User, as: "citizen", attributes: ["id", "fullName", "email"] },
     ],
   });
-
-  return services;
 };
 
 // ✅ GET SERVICES BY USER (citizenId)
 const getServicesByUser = async (citizenId) => {
-  const services = await Service.findAll({
-    where: { citizenId },
+  return await Service.findAll({
+    where: { citizenId: parseInt(citizenId) },
     include: [
       { model: ServiceType },
       { model: ServiceCategory },
-      { model: User, attributes: ["id", "fullName", "email"] },
+      { model: User, as: "citizen", attributes: ["id", "fullName", "email"] },
     ],
   });
-
-  return services;
 };
 
 // ✅ DELETE SERVICE

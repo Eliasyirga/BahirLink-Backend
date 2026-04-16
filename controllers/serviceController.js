@@ -1,12 +1,17 @@
-// controllers/serviceController.js
 const serviceService = require("../services/serviceService");
 
 // ✅ CREATE SERVICE
 exports.create = async (req, res) => {
   try {
-    // We pass req.body AND the userId from the URL params
+    // If a file was uploaded via Multer, it will be in req.file
+    // We can pass it along with the body to the service
+    const serviceData = {
+      ...req.body,
+      file: req.file, // Contains buffer, originalname, mimetype, etc.
+    };
+
     const service = await serviceService.createService(
-      req.body,
+      serviceData,
       req.params.userId,
     );
 
@@ -15,19 +20,21 @@ exports.create = async (req, res) => {
       service,
     });
   } catch (err) {
-    console.error("Error in Service Controller:", err);
+    console.error("❌ Error in Service Controller (Create):", err);
     res.status(400).json({
       success: false,
       error: err.message,
     });
   }
 };
+
 // ✅ UPDATE SERVICE
 exports.update = async (req, res) => {
   try {
     const service = await serviceService.updateService(req.params.id, req.body);
     res.json({ success: true, service });
   } catch (err) {
+    console.error("❌ Error in Service Controller (Update):", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
@@ -38,7 +45,7 @@ exports.getAll = async (req, res) => {
     const services = await serviceService.getAllServices();
     res.json({ success: true, services });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 

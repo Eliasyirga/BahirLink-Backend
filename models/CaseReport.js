@@ -18,7 +18,6 @@ const CaseReport = sequelize.define(
       allowNull: true,
     },
 
-    // Reference to the Kebele model
     kebeleId: {
       type: DataTypes.INTEGER,
       allowNull: false,

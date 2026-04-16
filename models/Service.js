@@ -20,10 +20,18 @@ const Service = sequelize.define(
       allowNull: true,
     },
 
-    kebele: {
-      type: DataTypes.STRING,
+    // --- UPDATED KEBELE FIELD ---
+    kebeleId: {
+      type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: "kebeles", // This should match the tableName of your Kebele model
+        key: "id",
+      },
+      onDelete: "RESTRICT", // Or "CASCADE" depending on your logic
+      onUpdate: "CASCADE",
     },
+    // ----------------------------
 
     subdivision: {
       type: DataTypes.STRING,
@@ -55,7 +63,6 @@ const Service = sequelize.define(
       defaultValue: "active",
     },
 
-    // Foreign keys
     serviceTypeId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -97,7 +104,7 @@ const Service = sequelize.define(
   {
     tableName: "services",
     timestamps: true,
-  }
+  },
 );
 
 module.exports = Service;

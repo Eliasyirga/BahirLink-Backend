@@ -4,13 +4,24 @@ const serviceService = require("../services/serviceService");
 // ✅ CREATE SERVICE
 exports.create = async (req, res) => {
   try {
-    const service = await serviceService.createService(req.body);
-    res.status(201).json({ success: true, service });
+    // We pass req.body AND the userId from the URL params
+    const service = await serviceService.createService(
+      req.body,
+      req.params.userId,
+    );
+
+    res.status(201).json({
+      success: true,
+      service,
+    });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    console.error("Error in Service Controller:", err);
+    res.status(400).json({
+      success: false,
+      error: err.message,
+    });
   }
 };
-
 // ✅ UPDATE SERVICE
 exports.update = async (req, res) => {
   try {

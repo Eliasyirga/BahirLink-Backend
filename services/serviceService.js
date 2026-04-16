@@ -1,29 +1,35 @@
 // services/serviceService.js
 const { Service, ServiceType, ServiceCategory, User } = require("../models");
 
-// ✅ CREATE SERVICE
-const createService = async (data) => {
+const createService = async (data, userIdFromParams) => {
+  // Map coordinates to JSON if they exist in the request
+  const locationData =
+    data.latitude && data.longitude
+      ? {
+          latitude: parseFloat(data.latitude),
+          longitude: parseFloat(data.longitude),
+        }
+      : data.location;
+
   const service = await Service.create({
+    name: data.name || "Service Request",
     description: data.description,
-    kebele: data.kebele,
+    kebeleId: parseInt(data.kebeleId),
     subdivision: data.subdivision,
     street: data.street,
-    location: data.location,
+    location: locationData,
     mediaUrl: data.mediaUrl,
     mediaType: data.mediaType,
-    status: data.status || "reported",
-    citizenId: data.citizenId,
+    status: "pending",
+    citizenId: userIdFromParams || data.citizenId,
     serviceTypeId: data.serviceTypeId,
     serviceCategoryId: data.serviceCategoryId,
     time: data.time,
   });
 
-  // Populate serviceType and serviceCategory
-  const result = await Service.findByPk(service.id, {
+  return await Service.findByPk(service.id, {
     include: [ServiceType, ServiceCategory],
   });
-
-  return result;
 };
 
 // ✅ UPDATE SERVICE
@@ -97,6 +103,6 @@ module.exports = {
   updateService,
   getAllServices,
   getServicesByType,
-  getServicesByUser, // added
+  getServicesByUser,
   deleteService,
 };

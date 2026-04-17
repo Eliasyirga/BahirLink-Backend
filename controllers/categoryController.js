@@ -3,6 +3,7 @@ const {
   deleteCategory,
   getAllCategories,
   getCategoriesByEmergencyType,
+  updateCategory,
 } = require("../services/categoryService");
 
 const createCategoryHandler = async (req, res) => {
@@ -53,9 +54,31 @@ const getCategoriesByTypeHandler = async (req, res) => {
   }
 };
 
+const updateCategoryHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const updatedCategory = await updateCategory(id, req.body);
+
+    return res.status(200).json({
+      success: true,
+      message: "Category updated successfully",
+      data: updatedCategory,
+    });
+  } catch (err) {
+    console.error("Update category error:", err.message);
+
+    return res.status(400).json({
+      success: false,
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   createCategoryHandler,
   deleteCategoryHandler,
   getAllCategoriesHandler,
   getCategoriesByTypeHandler,
+  updateCategoryHandler,
 };

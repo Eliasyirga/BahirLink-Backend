@@ -242,22 +242,27 @@ const getEmergenciesForResponderTeam = async (responderTeamId) => {
     include: [
       {
         model: Kebele,
-        as: "kebele", // Emergency → Kebele alias
+        as: "kebele",
         required: true,
         attributes: ["id", "name"],
         include: [
           {
             model: ResponderTeam,
-            as: "teams", // Kebele → ResponderTeam alias
-            where: { id: responderTeamId }, // ✅ unique, enough
-            attributes: [], // no need to include team info
-            through: { attributes: [] }, // hide join table
+            as: "teams",
+            where: { id: responderTeamId },
+            attributes: [],
+            through: { attributes: [] },
           },
         ],
       },
       {
         model: EmergencyType,
         as: "emergencyType",
+        attributes: ["id", "name"],
+      },
+      {
+        model: Category, // 🔥 ADD THIS
+        as: "category",
         attributes: ["id", "name"],
       },
     ],
@@ -273,43 +278,50 @@ const getAllEmergenciesForAdmin = async () => {
       include: [
         {
           model: EmergencyType,
-          attributes: ["name"],
+          as: "emergencyType",
+          attributes: ["id", "name"],
         },
         {
           model: Category,
-          attributes: ["name"],
+          as: "category",
+          attributes: ["id", "name"],
+        },
+        {
+          model: Kebele,
+          as: "kebele",
+          attributes: ["id", "name"],
         },
         {
           model: User,
-          attributes: ["id", "username", "email", "phone"],
+          as: "user",
+          attributes: ["id", "fullName", "email", "phone"],
         },
         {
           model: Guest,
+          as: "guest",
           attributes: ["id", "contactNo"],
         },
       ],
       order: [["createdAt", "DESC"]],
     });
 
-    // Normalize reporter type
-    const result = emergencies.map((e) => {
-      return {
-        id: e.id,
-        emergencyType: e.emergencyType,
-        category: e.category,
-        kebele: e.kebele,
-        subdivision: e.subdivision,
-        street: e.street,
-        reporterType: e.citizenId ? "user" : "guest",
-        reporterName: e.citizenId
-          ? e.User?.username || "Registered User"
-          : e.guestId
-            ? e.Guest?.contactNo || "Guest"
-            : "Unknown",
-        status: e.status,
-        createdAt: e.createdAt,
-      };
-    });
+    const result = emergencies.map((e) => ({
+      id: e.id,
+      emergencyType: e.emergencyType?.name || null,
+      category: e.category?.name || null,
+      kebele: e.kebele?.name || null,
+      subdivision: e.subdivision,
+      street: e.street,
+
+      reporterType: e.user ? "user" : "guest",
+
+      reporterName: e.user
+        ? e.user.fullName || "Registered User"
+        : e.guest?.contactNo || "Guest",
+
+      status: e.status,
+      createdAt: e.createdAt,
+    }));
 
     return result;
   } catch (err) {

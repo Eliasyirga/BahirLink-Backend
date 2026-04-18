@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const {
+  sequelize,
   Emergency,
 
   EmergencyType,
@@ -23,63 +24,110 @@ const emergencyTypeToAgencyType = {
 // Default EmergencyType ID for fallback
 const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
-// =========================
-// CREATE GUEST EMERGENCY
-// =========================
+/**
+ * CREATE GUEST EMERGENCY (SERVICE)
+ * Handles data type parsing, guest verification, and
+ * atomic database insertion for BahirLink.
+ */
 const createGuestEmergency = async (emergencyData, file) => {
-  let {
+  // 1. Destructure incoming data
+  const {
     contactNo,
     mediaType,
-    emergencyTypeId = DEFAULT_EMERGENCY_TYPE_ID,
-    categoryId,
-    time,
-    kebele, // kebele ID
-    location,
-    subdivision,
-    street,
-    latitude,
-    longitude,
-    ...rest
-  } = emergencyData;
-
-  if (!location && latitude != null && longitude != null) {
-    location = { latitude, longitude };
-  }
-
-  if (!contactNo) throw new Error("Guest contact number is required");
-  contactNo = String(contactNo).trim();
-  if (!kebele || !subdivision)
-    throw new Error("Kebele ID and Subdivision are required");
-
-  // Verify kebele exists
-  const kebeleRecord = await Kebele.findByPk(kebele);
-  if (!kebeleRecord) throw new Error("Invalid kebele ID");
-
-  // Find or create guest
-  let guest = await Guest.findOne({ where: { contactNo } });
-  if (!guest) guest = await Guest.create({ contactNo });
-
-  const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
-
-  return await Emergency.create({
-    ...rest,
-    kebeleId: kebeleRecord.id,
-    subdivision,
-    street,
-    location,
-    mediaUrl,
     emergencyTypeId,
     categoryId,
     time,
-    mediaType:
-      mediaType ??
-      (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
-    guestId: guest.id,
-    status: "reported",
-    reporterType: "guest",
-  });
-};
+    kebele, // Kebele ID (String from Flutter)
+    subdivision,
+    street,
+    latitude, // String from Multipart
+    longitude, // String from Multipart
+    description,
+  } = emergencyData;
 
+  // 2. Strict Validation
+  if (!contactNo) throw new Error("Guest contact number is required");
+  if (!kebele || !subdivision)
+    throw new Error("Kebele ID and Subdivision are required");
+
+  // 3. Data Type Correction (Vital for Postgres & Multipart)
+  const cleanContactNo = String(contactNo).trim();
+  const parsedKebeleId = parseInt(kebele);
+  const latNum = latitude ? parseFloat(latitude) : null;
+  const lngNum = longitude ? parseFloat(longitude) : null;
+
+  if (isNaN(parsedKebeleId))
+    throw new Error("Kebele ID must be a valid number");
+
+  // 4. Structured Location Handling (Postgres JSONB)
+  const locationObj =
+    latNum !== null && lngNum !== null
+      ? { latitude: latNum, longitude: lngNum }
+      : null;
+
+  // 5. Atomic Transaction Start
+  // This uses the sequelize instance imported at the top
+  const transaction = await sequelize.transaction();
+
+  try {
+    // 6. Verify Kebele Exists
+    const kebeleRecord = await Kebele.findByPk(parsedKebeleId, { transaction });
+    if (!kebeleRecord)
+      throw new Error(`Kebele location not found (ID: ${parsedKebeleId})`);
+
+    // 7. Find or Create Guest
+    let guest = await Guest.findOne({
+      where: { contactNo: cleanContactNo },
+      transaction,
+    });
+
+    if (!guest) {
+      guest = await Guest.create(
+        { contactNo: cleanContactNo },
+        { transaction },
+      );
+    }
+
+    // 8. Media Metadata
+    const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
+    const finalMediaType =
+      mediaType ??
+      (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null);
+
+    // 9. Create Emergency Record
+    const emergency = await Emergency.create(
+      {
+        description: description || "",
+        kebeleId: kebeleRecord.id,
+        subdivision: subdivision,
+        street: street || null,
+        location: locationObj,
+        mediaUrl,
+        mediaType: finalMediaType,
+        // UUIDs stay as strings, Integers get parsed
+        emergencyTypeId: emergencyTypeId,
+        categoryId: categoryId || null,
+        // Ensure time is a proper Date object for Postgres DATE/TIMESTAMP columns
+        time: time ? new Date(time) : new Date(),
+        guestId: guest.id,
+        status: "reported",
+        reporterType: "guest",
+      },
+      { transaction },
+    );
+
+    // 10. Commit changes
+    await transaction.commit();
+    return emergency;
+  } catch (error) {
+    // Rollback if anything fails to prevent "orphan" guests or reports
+    if (transaction) await transaction.rollback();
+
+    // This will now show the SPECIFIC Postgres error in your terminal
+    console.error("CRITICAL SERVICE ERROR:", error.message);
+    throw error;
+  }
+};
 // =========================
 // CREATE USER EMERGENCY
 // =========================

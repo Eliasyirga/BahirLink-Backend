@@ -24,110 +24,36 @@ const emergencyTypeToAgencyType = {
 // Default EmergencyType ID for fallback
 const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
-/**
- * CREATE GUEST EMERGENCY (SERVICE)
- * Handles data type parsing, guest verification, and
- * atomic database insertion for BahirLink.
- */
-const createGuestEmergency = async (emergencyData, file) => {
-  // 1. Destructure incoming data
-  const {
-    contactNo,
-    mediaType,
-    emergencyTypeId,
-    categoryId,
-    time,
-    kebele, // Kebele ID (String from Flutter)
-    subdivision,
-    street,
-    latitude, // String from Multipart
-    longitude, // String from Multipart
-    description,
-  } = emergencyData;
+// ... existing imports
 
-  // 2. Strict Validation
-  if (!contactNo) throw new Error("Guest contact number is required");
-  if (!kebele || !subdivision)
-    throw new Error("Kebele ID and Subdivision are required");
-
-  // 3. Data Type Correction (Vital for Postgres & Multipart)
-  const cleanContactNo = String(contactNo).trim();
-  const parsedKebeleId = parseInt(kebele);
-  const latNum = latitude ? parseFloat(latitude) : null;
-  const lngNum = longitude ? parseFloat(longitude) : null;
-
-  if (isNaN(parsedKebeleId))
-    throw new Error("Kebele ID must be a valid number");
-
-  // 4. Structured Location Handling (Postgres JSONB)
-  const locationObj =
-    latNum !== null && lngNum !== null
-      ? { latitude: latNum, longitude: lngNum }
-      : null;
-
-  // 5. Atomic Transaction Start
-  // This uses the sequelize instance imported at the top
-  const transaction = await sequelize.transaction();
-
+const createGuestEmergency = async (data, file, transaction) => {
   try {
-    // 6. Verify Kebele Exists
-    const kebeleRecord = await Kebele.findByPk(parsedKebeleId, { transaction });
-    if (!kebeleRecord)
-      throw new Error(`Kebele location not found (ID: ${parsedKebeleId})`);
+    // 1. Prepare the data object
+    const emergencyData = { ...data };
 
-    // 7. Find or Create Guest
-    let guest = await Guest.findOne({
-      where: { contactNo: cleanContactNo },
+    // 2. STRIP DATE FROM ISO STRING (The Fix)
+    // If input is "2026-04-18T07:49:28.259", we keep "07:49:28.259"
+    if (emergencyData.time && emergencyData.time.includes("T")) {
+      emergencyData.time = emergencyData.time.split("T")[1];
+    }
+
+    // 3. Handle file path if it exists
+    if (file) {
+      emergencyData.mediaUrl = `/uploads/${file}`;
+    }
+
+    // 4. Create the record
+    const newEmergency = await Emergency.create(emergencyData, {
       transaction,
     });
 
-    if (!guest) {
-      guest = await Guest.create(
-        { contactNo: cleanContactNo },
-        { transaction },
-      );
-    }
-
-    // 8. Media Metadata
-    const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
-    const finalMediaType =
-      mediaType ??
-      (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null);
-
-    // 9. Create Emergency Record
-    const emergency = await Emergency.create(
-      {
-        description: description || "",
-        kebeleId: kebeleRecord.id,
-        subdivision: subdivision,
-        street: street || null,
-        location: locationObj,
-        mediaUrl,
-        mediaType: finalMediaType,
-        // UUIDs stay as strings, Integers get parsed
-        emergencyTypeId: emergencyTypeId,
-        categoryId: categoryId || null,
-        // Ensure time is a proper Date object for Postgres DATE/TIMESTAMP columns
-        time: time ? new Date(time) : new Date(),
-        guestId: guest.id,
-        status: "reported",
-        reporterType: "guest",
-      },
-      { transaction },
-    );
-
-    // 10. Commit changes
-    await transaction.commit();
-    return emergency;
+    return newEmergency;
   } catch (error) {
-    // Rollback if anything fails to prevent "orphan" guests or reports
-    if (transaction) await transaction.rollback();
-
-    // This will now show the SPECIFIC Postgres error in your terminal
-    console.error("CRITICAL SERVICE ERROR:", error.message);
+    // This will now catch other issues since the syntax error is gone
     throw error;
   }
 };
+
 // =========================
 // CREATE USER EMERGENCY
 // =========================

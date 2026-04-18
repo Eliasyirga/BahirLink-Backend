@@ -1,8 +1,19 @@
 const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models");
 
 /**
+ * REUSABLE INCLUDE CONFIGURATION
+ * Since Kebele is aliased as "lastSeenLocation" in models/index.js,
+ * we MUST use that alias here.
+ */
+const caseIncludes = [
+  { model: Agency, as: "agency", attributes: ["id", "name"] },
+  { model: CaseType, as: "caseType", attributes: ["id", "name"] },
+  { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
+  { model: Kebele, as: "lastSeenLocation", attributes: ["id", "name"] },
+];
+
+/**
  * Create a new case
- * Logic: Includes new Wanted/Missing attributes and auto-assigns Agency
  */
 const createCase = async (data) => {
   const {
@@ -16,7 +27,6 @@ const createCase = async (data) => {
     contactInfo,
     caseTypeId,
     responderTeamId,
-    // --- NEW ATTRIBUTES ---
     reward,
     priority,
     lastSeenDate,
@@ -34,7 +44,7 @@ const createCase = async (data) => {
 
   const assignedAgencyId = team.agencyId;
 
-  // 2. Create the case with all specialized attributes
+  // 2. Create the case
   const newCase = await Cases.create({
     fullName,
     age,
@@ -48,7 +58,6 @@ const createCase = async (data) => {
     agencyId: assignedAgencyId,
     responderTeamId: Number(responderTeamId),
     status: "pending",
-    // --- NEW FIELDS ---
     reward: reward || 0.0,
     priority: priority || "medium",
     lastSeenDate: lastSeenDate || null,
@@ -58,29 +67,18 @@ const createCase = async (data) => {
     isDangerous: isDangerous || false,
   });
 
-  // 3. Return the full object with associations
+  // 3. Return the full object with corrected aliases
   return await Cases.findByPk(newCase.id, {
-    include: [
-      { model: Agency, as: "agency", attributes: ["id", "name"] },
-      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
-      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
-      { model: Kebele, attributes: ["id", "name"] },
-    ],
+    include: caseIncludes,
   });
 };
 
 /**
- * Get all cases (Ordered by Priority and Date)
+ * Get all cases
  */
 const getAllCases = async () => {
   return await Cases.findAll({
-    include: [
-      { model: Agency, as: "agency", attributes: ["id", "name"] },
-      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
-      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
-      { model: Kebele, attributes: ["id", "name"] },
-    ],
-    // Sort by priority (if you want critical first) and then by date
+    include: caseIncludes,
     order: [
       ["priority", "DESC"],
       ["createdAt", "DESC"],
@@ -93,12 +91,7 @@ const getAllCases = async () => {
  */
 const getCaseById = async (id) => {
   const singleCase = await Cases.findByPk(id, {
-    include: [
-      { model: Agency, as: "agency", attributes: ["id", "name"] },
-      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
-      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
-      { model: Kebele, attributes: ["id", "name"] },
-    ],
+    include: caseIncludes,
   });
   if (!singleCase) throw new Error("Case not found");
   return singleCase;
@@ -110,19 +103,13 @@ const getCaseById = async (id) => {
 const getCasesByResponderTeam = async (responderTeamId) => {
   return await Cases.findAll({
     where: { responderTeamId },
-    include: [
-      { model: Agency, as: "agency", attributes: ["id", "name"] },
-      { model: CaseType, as: "caseType", attributes: ["id", "name"] },
-      { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
-      { model: Kebele, attributes: ["id", "name"] },
-    ],
+    include: caseIncludes,
     order: [["createdAt", "DESC"]],
   });
 };
 
 /**
  * Update case status
- * Logic: Allow transition to 'resolved' for closed cases
  */
 const updateCaseStatus = async (id, status) => {
   const singleCase = await Cases.findByPk(id);

@@ -29,7 +29,8 @@ const updateCrewRole = async (id, data) => {
   if (data.name) {
     // Check for uniqueness if name is being updated
     const existing = await CrewRole.findOne({ where: { name: data.name } });
-    if (existing && existing.id !== id) throw new Error("Role with this name already exists");
+    if (existing && existing.id !== id)
+      throw new Error("Role with this name already exists");
   }
 
   await role.update(data);
@@ -48,8 +49,25 @@ const deleteCrewRole = async (id) => {
   return { message: "Crew Role deleted successfully" };
 };
 
+const getAllCrewRoles = async () => {
+  const roles = await CrewRole.findAll({
+    order: [["createdAt", "DESC"]],
+  });
+
+  return roles;
+};
+const getCrewRoleById = async (id) => {
+  const role = await CrewRole.findByPk(id);
+
+  if (!role) throw new Error("Crew Role not found");
+
+  return role;
+};
+
 module.exports = {
   createCrewRole,
   updateCrewRole,
   deleteCrewRole,
+  getAllCrewRoles,
+  getCrewRoleById,
 };

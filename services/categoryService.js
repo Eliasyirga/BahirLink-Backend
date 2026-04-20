@@ -98,4 +98,5 @@ module.exports = {
   deleteCategory,
   getAllCategories,
   getCategoriesByEmergencyType,
+  updateCategory,
 };

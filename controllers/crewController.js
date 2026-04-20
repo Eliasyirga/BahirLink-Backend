@@ -1,15 +1,37 @@
-const { createCrew, updateCrew, deleteCrew } = require("../services/crewService");
+const {
+  createCrew,
+  updateCrew,
+  deleteCrew,
+  loginCrew,
+} = require("../services/crewService");
 
 /**
  * Create a Crew member
  */
 const createCrewHandler = async (req, res) => {
   try {
-    const { name, username, email, password, phone, status, responderTeamId, roleId } = req.body;
+    const {
+      name,
+      username,
+      email,
+      password,
+      phone,
+      status,
+      responderTeamId,
+      roleId,
+    } = req.body;
 
-    if (!name || !username || !email || !password || !responderTeamId || !roleId) {
+    if (
+      !name ||
+      !username ||
+      !email ||
+      !password ||
+      !responderTeamId ||
+      !roleId
+    ) {
       return res.status(400).json({
-        message: "Name, username, email, password, responderTeamId, and roleId are required",
+        message:
+          "Name, username, email, password, responderTeamId, and roleId are required",
       });
     }
 
@@ -67,8 +89,27 @@ const deleteCrewHandler = async (req, res) => {
   }
 };
 
+const loginCrewHandler = async (req, res) => {
+  try {
+    const result = await crewService.loginCrew(req.body);
+
+    return res.status(200).json({
+      success: true,
+      message: "Crew login successful",
+      token: result.token,
+      crew: result.crew,
+    });
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: error.message || "Login failed",
+    });
+  }
+};
+
 module.exports = {
   createCrewHandler,
   updateCrewHandler,
   deleteCrewHandler,
+  loginCrewHandler,
 };

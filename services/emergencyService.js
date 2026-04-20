@@ -34,7 +34,8 @@ const createGuestEmergency = async (emergencyData, file) => {
     categoryId,
     time,
     kebele, // kebele ID
-    location,
+    location,      // ================= 4. CREW LOGIN =================
+
     subdivision,
     street,
     latitude,

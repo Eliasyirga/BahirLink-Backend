@@ -5,6 +5,7 @@ const {
   createCrewHandler,
   updateCrewHandler,
   deleteCrewHandler,
+  loginCrewHandler,
 } = require("../controllers/crewController");
 
 // Create a new Crew member
@@ -15,5 +16,7 @@ router.put("/:id", updateCrewHandler);
 
 // Delete a Crew member by ID
 router.delete("/:id", deleteCrewHandler);
+
+router.post("/login", loginCrewHandler);
 
 module.exports = router;

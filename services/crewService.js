@@ -1,13 +1,29 @@
 const Crew = require("../models/Crew");
 const bcrypt = require("bcryptjs");
-
+const jwt = require("jsonwebtoken");
 
 const createCrew = async (data) => {
-  const { name, username, email, password, phone, status, responderTeamId, roleId } = data;
+  const {
+    name,
+    username,
+    email,
+    password,
+    phone,
+    status,
+    responderTeamId,
+    roleId,
+  } = data;
 
-  if (!name || !username || !email || !password || !responderTeamId || !roleId) {
+  if (
+    !name ||
+    !username ||
+    !email ||
+    !password ||
+    !responderTeamId ||
+    !roleId
+  ) {
     throw new Error(
-      "Name, username, email, password, responderTeamId, and roleId are required"
+      "Name, username, email, password, responderTeamId, and roleId are required",
     );
   }
 
@@ -32,7 +48,6 @@ const createCrew = async (data) => {
 
   return crew;
 };
-
 
 const updateCrew = async (id, data) => {
   const crew = await Crew.findByPk(id);
@@ -59,7 +74,6 @@ const updateCrew = async (id, data) => {
   return crew;
 };
 
-
 const deleteCrew = async (id) => {
   const crew = await Crew.findByPk(id);
   if (!crew) throw new Error("Crew member not found");
@@ -68,8 +82,54 @@ const deleteCrew = async (id) => {
   return { message: "Crew member deleted successfully" };
 };
 
+const loginCrew = async (data) => {
+  const { email, password } = data;
+
+  if (!email || !password) {
+    throw new Error("Email and password are required");
+  }
+
+  const crew = await Crew.findOne({
+    where: { email },
+  });
+
+  if (!crew) {
+    throw new Error("Invalid credentials");
+  }
+
+  const isMatch = await bcrypt.compare(password, crew.password);
+
+  if (!isMatch) {
+    throw new Error("Invalid credentials");
+  }
+
+  const token = jwt.sign(
+    {
+      id: crew.id,
+      role: "crew",
+      responderTeamId: crew.responderTeamId,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" },
+  );
+
+  return {
+    token,
+    crew: {
+      id: crew.id,
+      name: crew.name,
+      username: crew.username,
+      email: crew.email,
+      roleId: crew.roleId,
+      responderTeamId: crew.responderTeamId,
+      status: crew.status,
+    },
+  };
+};
+
 module.exports = {
   createCrew,
   updateCrew,
   deleteCrew,
+  loginCrew,
 };

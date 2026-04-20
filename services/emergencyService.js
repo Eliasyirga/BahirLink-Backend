@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const {
+  sequelize,
   Emergency,
 
   EmergencyType,
@@ -23,62 +24,32 @@ const emergencyTypeToAgencyType = {
 // Default EmergencyType ID for fallback
 const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
-// =========================
-// CREATE GUEST EMERGENCY
-// =========================
-const createGuestEmergency = async (emergencyData, file) => {
-  let {
-    contactNo,
-    mediaType,
-    emergencyTypeId = DEFAULT_EMERGENCY_TYPE_ID,
-    categoryId,
-    time,
-    kebele, // kebele ID
-    location,      // ================= 4. CREW LOGIN =================
+const createGuestEmergency = async (data, file, transaction) => {
+  try {
+    // 1. Prepare the data object
+    const emergencyData = { ...data };
 
-    subdivision,
-    street,
-    latitude,
-    longitude,
-    ...rest
-  } = emergencyData;
+    // 2. STRIP DATE FROM ISO STRING (The Fix)
+    // If input is "2026-04-18T07:49:28.259", we keep "07:49:28.259"
+    if (emergencyData.time && emergencyData.time.includes("T")) {
+      emergencyData.time = emergencyData.time.split("T")[1];
+    }
 
-  if (!location && latitude != null && longitude != null) {
-    location = { latitude, longitude };
+    // 3. Handle file path if it exists
+    if (file) {
+      emergencyData.mediaUrl = `/uploads/${file}`;
+    }
+
+    // 4. Create the record
+    const newEmergency = await Emergency.create(emergencyData, {
+      transaction,
+    });
+
+    return newEmergency;
+  } catch (error) {
+    // This will now catch other issues since the syntax error is gone
+    throw error;
   }
-
-  if (!contactNo) throw new Error("Guest contact number is required");
-  contactNo = String(contactNo).trim();
-  if (!kebele || !subdivision)
-    throw new Error("Kebele ID and Subdivision are required");
-
-  // Verify kebele exists
-  const kebeleRecord = await Kebele.findByPk(kebele);
-  if (!kebeleRecord) throw new Error("Invalid kebele ID");
-
-  // Find or create guest
-  let guest = await Guest.findOne({ where: { contactNo } });
-  if (!guest) guest = await Guest.create({ contactNo });
-
-  const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
-
-  return await Emergency.create({
-    ...rest,
-    kebeleId: kebeleRecord.id,
-    subdivision,
-    street,
-    location,
-    mediaUrl,
-    emergencyTypeId,
-    categoryId,
-    time,
-    mediaType:
-      mediaType ??
-      (file ? (file.mimetype.startsWith("video") ? "video" : "photo") : null),
-    guestId: guest.id,
-    status: "reported",
-    reporterType: "guest",
-  });
 };
 
 // =========================

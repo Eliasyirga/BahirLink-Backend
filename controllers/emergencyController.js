@@ -14,13 +14,43 @@ const {
 // =========================
 const createGuestEmergencyHandler = async (req, res) => {
   try {
+    // 1. Log incoming data for debugging (helpful for Flutter Web development)
+    console.log("Incoming Guest Emergency Report:", {
+      body: req.body,
+      file: req.file ? req.file.filename : "No file attached",
+    });
+
+    // 2. Call the service
+    // Ensure createGuestEmergency is the updated version that handles parseFloat for lat/lng
     const emergency = await createGuestEmergency(req.body, req.file);
-    res.status(201).json({ success: true, data: emergency });
+
+    // 3. Return successful response
+    return res.status(201).json({
+      success: true,
+      message: "Emergency reported successfully",
+      data: emergency,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    // 4. Detailed Error Logging
+    // This will show up in your Node.js console/terminal
+    console.error("CRITICAL ERROR in createGuestEmergencyHandler:");
+    console.error("Error Message:", error.message);
+    console.error("Stack Trace:", error.stack);
+
+    // 5. Categorize the error
+    // If it's a validation error (like missing fields), we return 400
+    // Otherwise, we return 500
+    const statusCode =
+      error.message.includes("required") || error.message.includes("Invalid")
+        ? 400
+        : 500;
+
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "An internal server error occurred",
+    });
   }
 };
-
 // =========================
 // CREATE USER EMERGENCY
 // =========================

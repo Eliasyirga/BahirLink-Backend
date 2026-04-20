@@ -1,18 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const jwt = require("jsonwebtoken"); // Added JWT for verification
+const jwt = require("jsonwebtoken");
 const emergencyController = require("../controllers/emergencyController");
 const upload = require("../middleware/upload");
 
 /**
  * 🛡️ verifyToken Middleware
- * This extracts the Bearer token and verifies it using your JWT_SECRET
  */
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    console.log("❌ No token or invalid format");
     return res
       .status(401)
       .json({ success: false, message: "Unauthorized: No token provided" });
@@ -22,10 +20,9 @@ const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // Attach user data to request
+    req.user = decoded;
     next();
   } catch (err) {
-    console.log("❌ Token verification failed:", err.message);
     return res
       .status(401)
       .json({
@@ -35,28 +32,61 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// --- CREATE ROUTES ---
+// ==========================================
+// 🚨 CREATE EMERGENCY
+// ==========================================
 
-// 🚨 PROTECTED: Now uses the verifyToken middleware defined above
+// PROTECTED: Authenticated User Reporting
 router.post(
   "/users/:userId",
   verifyToken,
-  upload.single("media"),
+  upload.single("media"), // Matches the 'media' key from Flutter
   emergencyController.createUserEmergencyHandler,
 );
 
-// 🔓 PUBLIC: Guests (No token needed)
+// PUBLIC: Guest Reporting (Used by GuestEmergencyReportPage)
 router.post(
   "/guests",
-  upload.single("media"),
+  upload.single("media"), // Matches the 'media' key from Flutter
   emergencyController.createGuestEmergencyHandler,
 );
 
-// --- UPDATE & DELETE ROUTES ---
+// ==========================================
+// 🔍 FETCHING ROUTES
+// ==========================================
 
+// PUBLIC: Get status of emergencies (Users or Guests)
+// Note: If you want guests to see ONLY their reports, consider adding a phone-number check
+router.get("/:userOrGuestId", emergencyController.getEmergenciesHandler);
+
+// PROTECTED: Admin only access
+router.get(
+  "/admin/all",
+  verifyToken,
+  emergencyController.getAllEmergenciesAdmin,
+);
+
+// TEAM/AGENCY: Usually these should be protected so random people can't see active emergencies
+router.get(
+  "/responder-team/:responderTeamId",
+  verifyToken,
+  emergencyController.getEmergenciesForResponderTeamHandler,
+);
+
+router.get(
+  "/agency/:agencyId/emergencies",
+  verifyToken,
+  emergencyController.getEmergenciesByAgencyHandler,
+);
+
+// ==========================================
+// 🛠️ UPDATE & DELETE
+// ==========================================
+
+// PROTECTED: Updates and Deletions should ALWAYS be authenticated
 router.put(
   "/:userOrGuestId/:id",
-  verifyToken, // Added protection here too as these usually require login
+  verifyToken,
   upload.single("media"),
   emergencyController.updateEmergencyHandler,
 );
@@ -65,26 +95,6 @@ router.delete(
   "/:userOrGuestId/:id",
   verifyToken,
   emergencyController.deleteEmergencyHandler,
-);
-
-// --- FETCHING ROUTES ---
-
-router.get("/:userOrGuestId", emergencyController.getEmergenciesHandler);
-
-router.get(
-  "/responder-team/:responderTeamId",
-  emergencyController.getEmergenciesForResponderTeamHandler,
-);
-
-router.get(
-  "/agency/:agencyId/emergencies",
-  emergencyController.getEmergenciesByAgencyHandler,
-);
-
-router.get(
-  "/admin/all",
-  verifyToken,
-  emergencyController.getAllEmergenciesAdmin,
 );
 
 module.exports = router;

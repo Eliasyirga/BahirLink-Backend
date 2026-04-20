@@ -1,75 +1,106 @@
 const { Service, ServiceType, ServiceCategory, User } = require("../models");
 
+/**
+ * REUSABLE INCLUDE CONFIG
+ */
+const serviceIncludes = [
+  {
+    model: ServiceType,
+    as: "serviceType",
+    attributes: ["id", "name"],
+  },
+  {
+    model: ServiceCategory,
+    as: "serviceCategory",
+    attributes: ["id", "name"],
+  },
+  {
+    model: User,
+    as: "citizen",
+    attributes: ["id", "fullName", "email"],
+  },
+];
+
+// ✅ CREATE SERVICE
 const createService = async (data, userIdFromParams, file) => {
   let mediaUrl = null;
 
-  // ✅ FIX: Check if the middleware successfully created a filename
   if (file && file.filename) {
-    // We don't include 'public' in the URL because it's usually the static root
     mediaUrl = `/uploads/${file.filename}`;
   }
 
+  // Parse IDs safely
+  const serviceTypeId = data.serviceTypeId
+    ? parseInt(data.serviceTypeId)
+    : null;
+  const serviceCategoryId = data.serviceCategoryId
+    ? parseInt(data.serviceCategoryId)
+    : null;
+  const citizenId = parseInt(userIdFromParams || data.citizenId);
+
+  // Parse Location safely
+  let finalLocation = data.location;
+  if (data.latitude && data.longitude) {
+    finalLocation = {
+      latitude: parseFloat(data.latitude),
+      longitude: parseFloat(data.longitude),
+    };
+  }
+
+  /**
+   * ✅ FIX: Handling Unique Constraint on 'name'
+   * To prevent the 'duplicate key' error, we append a timestamp
+   * if a name is provided, or generate a unique default.
+   */
+  const uniqueName = data.name
+    ? `${data.name} (${Date.now()})`
+    : `Service Request ${Date.now()}`;
+
   const service = await Service.create({
-    name: data.name || "Service Request",
+    name: uniqueName,
     description: data.description,
     kebeleId: data.kebeleId ? parseInt(data.kebeleId) : null,
-    serviceTypeId: data.serviceTypeId ? parseInt(data.serviceTypeId) : null,
-    serviceCategoryId: data.serviceCategoryId
-      ? parseInt(data.serviceCategoryId)
-      : null,
-    citizenId: parseInt(userIdFromParams || data.citizenId),
+    serviceTypeId,
+    serviceCategoryId,
+    citizenId,
     subdivision: data.subdivision,
     street: data.street,
-    location:
-      data.latitude && data.longitude
-        ? {
-            latitude: parseFloat(data.latitude),
-            longitude: parseFloat(data.longitude),
-          }
-        : data.location,
-    mediaUrl: mediaUrl, // ✅ This will now be "/uploads/171328492-image.jpg"
+    location: finalLocation,
+    mediaUrl: mediaUrl,
     mediaType: data.mediaType || (file ? "photo" : null),
     status: "pending",
-    time: data.time,
+    time: data.time || new Date().toLocaleTimeString("it-IT"), // Fallback to HH:mm:ss
   });
 
+  // Return with associations
   return await Service.findByPk(service.id, {
-    include: ["ServiceType", "ServiceCategory"], // Use your association names
+    include: serviceIncludes,
   });
 };
+
 // ✅ UPDATE SERVICE
 const updateService = async (serviceId, updates) => {
-  // If updates come from a multipart form, parse IDs if they exist
   const processedUpdates = { ...updates };
+
   if (updates.serviceTypeId)
     processedUpdates.serviceTypeId = parseInt(updates.serviceTypeId);
   if (updates.serviceCategoryId)
     processedUpdates.serviceCategoryId = parseInt(updates.serviceCategoryId);
 
-  const [rowsUpdated, updatedServices] = await Service.update(
-    processedUpdates,
-    {
-      where: { id: serviceId },
-      returning: true,
-    },
-  );
+  const service = await Service.findByPk(serviceId);
+  if (!service) throw new Error("Service not found");
 
-  if (rowsUpdated === 0) throw new Error("Service not found");
+  await service.update(processedUpdates);
 
   return await Service.findByPk(serviceId, {
-    include: [ServiceType, ServiceCategory],
+    include: serviceIncludes,
   });
 };
 
 // ✅ GET ALL SERVICES
 const getAllServices = async () => {
   return await Service.findAll({
-    include: [
-      { model: ServiceType },
-      { model: ServiceCategory },
-      // Note: Make sure the association name in your model matches "User" or "Citizen"
-      { model: User, as: "citizen", attributes: ["id", "fullName", "email"] },
-    ],
+    include: serviceIncludes,
     order: [["createdAt", "DESC"]],
   });
 };
@@ -78,34 +109,20 @@ const getAllServices = async () => {
 const getServicesByType = async (serviceTypeId) => {
   return await Service.findAll({
     where: { serviceTypeId: parseInt(serviceTypeId) },
-    include: [
-      { model: ServiceType },
-      { model: ServiceCategory },
-      { model: User, as: "citizen", attributes: ["id", "fullName", "email"] },
-    ],
+    include: serviceIncludes,
+    order: [["createdAt", "DESC"]],
   });
 };
 
-// ✅ GET SERVICES BY USER (citizenId)
+// ✅ GET SERVICES BY USER
 const getServicesByUser = async (citizenId) => {
   const parsedId = parseInt(citizenId);
-
-  if (isNaN(parsedId)) {
-    throw new Error("Invalid User ID provided");
-  }
+  if (isNaN(parsedId)) throw new Error("Invalid User ID provided");
 
   return await Service.findAll({
     where: { citizenId: parsedId },
-    include: [
-      { model: ServiceType },
-      { model: ServiceCategory },
-      {
-        model: User,
-        as: "citizen",
-        attributes: ["id", "fullName", "email"],
-      },
-    ],
-    order: [["createdAt", "DESC"]], // Show newest reports first
+    include: serviceIncludes,
+    order: [["createdAt", "DESC"]],
   });
 };
 
@@ -115,7 +132,7 @@ const deleteService = async (serviceId) => {
   if (!service) throw new Error("Service not found");
 
   await service.destroy();
-  return true;
+  return { success: true, message: "Service deleted successfully" };
 };
 
 module.exports = {

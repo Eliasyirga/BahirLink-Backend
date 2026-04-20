@@ -1,5 +1,5 @@
-// models/index.js
 const { sequelize } = require("../config/db");
+
 // =========================
 // IMPORT MODELS
 // =========================
@@ -22,6 +22,7 @@ const Service = require("./Service");
 const Kebele = require("./Kebele");
 const CaseReport = require("./CaseReport");
 const ResponderTeamKebele = require("./ResponderTeamKebele");
+
 // =========================
 // USER / GUEST RELATIONSHIPS
 // =========================
@@ -56,10 +57,7 @@ Category.belongsTo(EmergencyType, {
   as: "emergencyType",
 });
 
-Category.hasMany(Emergency, {
-  foreignKey: "categoryId",
-  as: "emergencies",
-});
+Category.hasMany(Emergency, { foreignKey: "categoryId", as: "emergencies" });
 Emergency.belongsTo(Category, {
   foreignKey: "categoryId",
   as: "category",
@@ -67,7 +65,7 @@ Emergency.belongsTo(Category, {
 });
 
 // =========================
-// EMERGENCY TYPE ↔ AGENCY TYPE (many-to-many)
+// EMERGENCY TYPE ↔ AGENCY TYPE (M:M)
 // =========================
 EmergencyType.belongsToMany(AgencyType, {
   through: "EmergencyTypeAgencyTypes",
@@ -85,157 +83,115 @@ AgencyType.belongsToMany(EmergencyType, {
 // =========================
 // EMERGENCY ↔ AGENCY
 // =========================
-Agency.hasMany(Emergency, {
-  foreignKey: "agencyId",
-  as: "emergencies",
-});
+Agency.hasMany(Emergency, { foreignKey: "agencyId", as: "emergencies" });
+Emergency.belongsTo(Agency, { foreignKey: "agencyId", as: "agency" });
 
-Emergency.belongsTo(Agency, {
-  foreignKey: "agencyId",
-  as: "agency",
-});
-// =========================
-// AGENCY STRUCTURE
-// =========================
-Agency.belongsTo(AgencyType, {
-  foreignKey: "agencyTypeId",
-  as: "agencyType",
-});
-AgencyType.hasMany(Agency, {
-  foreignKey: "agencyTypeId",
-  as: "agencies",
-});
+Agency.belongsTo(AgencyType, { foreignKey: "agencyTypeId", as: "agencyType" });
+AgencyType.hasMany(Agency, { foreignKey: "agencyTypeId", as: "agencies" });
 
 // =========================
-// RESPONDER TEAM
+// RESPONDER TEAMS & CREW
 // =========================
-Agency.hasMany(ResponderTeam, {
-  foreignKey: "agencyId",
-  as: "responderTeams",
-});
-ResponderTeam.belongsTo(Agency, {
-  foreignKey: "agencyId",
-  as: "agency",
-});
+Agency.hasMany(ResponderTeam, { foreignKey: "agencyId", as: "responderTeams" });
+ResponderTeam.belongsTo(Agency, { foreignKey: "agencyId", as: "agency" });
 
-// =========================
-// CREW
-// =========================
-ResponderTeam.hasMany(Crew, {
-  foreignKey: "responderTeamId",
-  as: "crews",
-});
+ResponderTeam.hasMany(Crew, { foreignKey: "responderTeamId", as: "crews" });
 Crew.belongsTo(ResponderTeam, {
   foreignKey: "responderTeamId",
   as: "responderTeam",
 });
 
-CrewRole.hasMany(Crew, {
-  foreignKey: "roleId",
-  as: "crews",
-});
-Crew.belongsTo(CrewRole, {
-  foreignKey: "roleId",
-  as: "role",
-});
+CrewRole.hasMany(Crew, { foreignKey: "roleId", as: "crews" });
+Crew.belongsTo(CrewRole, { foreignKey: "roleId", as: "role" });
 
 // =========================
-// CASES
+// CASES & REPORTS
 // =========================
-Agency.hasMany(Cases, {
-  foreignKey: "agencyId",
-  as: "cases",
-});
-Cases.belongsTo(Agency, {
-  foreignKey: "agencyId",
-  as: "agency",
-});
+Agency.hasMany(Cases, { foreignKey: "agencyId", as: "cases" });
+Cases.belongsTo(Agency, { foreignKey: "agencyId", as: "agency" });
 
-CaseType.hasMany(Cases, {
-  foreignKey: "caseTypeId",
-  as: "cases",
-});
-Cases.belongsTo(CaseType, {
-  foreignKey: "caseTypeId",
-  as: "caseType",
-});
+CaseType.hasMany(Cases, { foreignKey: "caseTypeId", as: "cases" });
+Cases.belongsTo(CaseType, { foreignKey: "caseTypeId", as: "caseType" });
 
-ResponderTeam.hasMany(Cases, {
-  foreignKey: "responderTeamId",
-  as: "cases",
-});
+ResponderTeam.hasMany(Cases, { foreignKey: "responderTeamId", as: "cases" });
 Cases.belongsTo(ResponderTeam, {
   foreignKey: "responderTeamId",
   as: "responderTeam",
 });
 
-// =========================
-// CASE REPORTS (Update this section)
-// =========================
 Cases.hasMany(CaseReport, { foreignKey: "caseId", as: "reports" });
-CaseReport.belongsTo(Cases, { foreignKey: "caseId", as: "case" }); // Added 'as'
+CaseReport.belongsTo(Cases, { foreignKey: "caseId", as: "case" });
 
 CaseType.hasMany(CaseReport, { foreignKey: "caseTypeId", as: "reports" });
-CaseReport.belongsTo(CaseType, { foreignKey: "caseTypeId", as: "caseType" }); // Added 'as'
+CaseReport.belongsTo(CaseType, { foreignKey: "caseTypeId", as: "caseType" });
 
 Kebele.hasMany(CaseReport, { foreignKey: "kebeleId", as: "reports" });
-CaseReport.belongsTo(Kebele, { foreignKey: "kebeleId", as: "kebele" }); // Added 'as'
+CaseReport.belongsTo(Kebele, { foreignKey: "kebeleId", as: "kebele" });
 
-ServiceType.hasMany(ServiceCategory, { foreignKey: "serviceTypeId" });
-ServiceCategory.belongsTo(ServiceType, { foreignKey: "serviceTypeId" });
+// =========================
+// PUBLIC SERVICES
+// =========================
+ServiceType.hasMany(ServiceCategory, {
+  foreignKey: "serviceTypeId",
+  as: "categories",
+});
+ServiceCategory.belongsTo(ServiceType, {
+  foreignKey: "serviceTypeId",
+  as: "serviceType",
+});
 
-// A User can have many Services
-User.hasMany(Service, { foreignKey: "citizenId" });
-
-// Each Service belongs to a User (optional)
 User.hasMany(Service, { foreignKey: "citizenId", as: "services" });
 Service.belongsTo(User, { foreignKey: "citizenId", as: "citizen" });
 
-// ServiceType -> Service (one-to-many)
-ServiceType.hasMany(Service, { foreignKey: "serviceTypeId" });
-Service.belongsTo(ServiceType, { foreignKey: "serviceTypeId" });
+ServiceType.hasMany(Service, { foreignKey: "serviceTypeId", as: "services" });
+Service.belongsTo(ServiceType, {
+  foreignKey: "serviceTypeId",
+  as: "serviceType",
+});
 
-// ServiceCategory -> Service (one-to-many)
-ServiceCategory.hasMany(Service, { foreignKey: "serviceCategoryId" });
-Service.belongsTo(ServiceCategory, { foreignKey: "serviceCategoryId" });
+ServiceCategory.hasMany(Service, {
+  foreignKey: "serviceCategoryId",
+  as: "services",
+});
+Service.belongsTo(ServiceCategory, {
+  foreignKey: "serviceCategoryId",
+  as: "serviceCategory",
+});
 
-// 🔹 Relations
-Kebele.hasMany(Cases, { foreignKey: "lastSeenLocationId" });
-Cases.belongsTo(Kebele, { foreignKey: "lastSeenLocationId" });
-
-// Associations
-Cases.hasMany(CaseReport, { foreignKey: "caseId" });
-CaseReport.belongsTo(Cases, { foreignKey: "caseId" });
-
-CaseType.hasMany(CaseReport, { foreignKey: "caseTypeId" });
-CaseReport.belongsTo(CaseType, { foreignKey: "caseTypeId" });
+// =========================
+// GEOGRAPHIC RELATIONSHIPS
+// =========================
+Kebele.hasMany(Cases, { foreignKey: "lastSeenLocationId", as: "cases" });
+Cases.belongsTo(Kebele, {
+  foreignKey: "lastSeenLocationId",
+  as: "lastSeenLocation",
+});
 
 Emergency.belongsTo(Kebele, {
-  foreignKey: "kebeleId", // column in Emergency table
-  as: "kebele", // optional alias for easier include
+  foreignKey: "kebeleId",
+  as: "kebele",
   onUpdate: "CASCADE",
   onDelete: "RESTRICT",
 });
-Kebele.hasMany(Emergency, {
-  foreignKey: "kebeleId",
-  as: "emergencies", // optional alias for easier include
-});
+Kebele.hasMany(Emergency, { foreignKey: "kebeleId", as: "emergencies" });
 
 ResponderTeam.belongsToMany(Kebele, {
   through: ResponderTeamKebele,
   foreignKey: "responderTeamId",
   as: "kebeles",
 });
-
 Kebele.belongsToMany(ResponderTeam, {
   through: ResponderTeamKebele,
   foreignKey: "kebeleId",
   as: "teams",
 });
+
 // =========================
 // EXPORTS
 // =========================
+// CRITICAL: We must export the sequelize instance so services can use Transactions
 module.exports = {
+  sequelize,
   Guest,
   Emergency,
   Message,

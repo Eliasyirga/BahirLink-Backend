@@ -1,41 +1,58 @@
-const Category = require("../models/ServiceCategory");
+const ServiceCategory = require("../models/ServiceCategory");
 const ServiceType = require("../models/ServiceType");
+
+/**
+ * REUSABLE INCLUDE CONFIG
+ * Ensures consistency across all fetch functions
+ */
+const serviceTypeInclude = {
+  model: ServiceType,
+  as: "serviceType", // Ensure this matches your models/index.js association
+  attributes: ["id", "name"],
+};
 
 // ✅ CREATE CATEGORY
 const createCategory = async ({ name, description, serviceTypeId }) => {
-  // Make sure the ServiceType exists
+  // Validate ServiceType exists
   const serviceType = await ServiceType.findByPk(serviceTypeId);
   if (!serviceType) throw new Error("ServiceType not found");
 
-  const category = await Category.create({ name, description, serviceTypeId });
+  // Use ServiceCategory (not Category)
+  const category = await ServiceCategory.create({
+    name,
+    description,
+    serviceTypeId,
+  });
   return category;
 };
 
 // ✅ GET ALL CATEGORIES
 const getAllCategories = async () => {
-  const categories = await Category.findAll({
-    include: [
-      {
-        model: ServiceType,
-        attributes: ["id", "name"],
-      },
-    ],
+  return await ServiceCategory.findAll({
+    include: [serviceTypeInclude],
+    order: [["name", "ASC"]],
   });
-  return categories;
 };
 
 // ✅ GET CATEGORY BY ID
 const getCategoryById = async (categoryId) => {
-  const category = await Category.findByPk(categoryId, {
-    include: [
-      {
-        model: ServiceType,
-        attributes: ["id", "name"],
-      },
-    ],
+  const category = await ServiceCategory.findByPk(categoryId, {
+    include: [serviceTypeInclude],
   });
   if (!category) throw new Error("Category not found");
   return category;
+};
+
+// ✅ GET CATEGORIES BY SERVICE TYPE
+const getCategoriesByServiceType = async (serviceTypeId) => {
+  const serviceType = await ServiceType.findByPk(serviceTypeId);
+  if (!serviceType) throw new Error("ServiceType not found");
+
+  return await ServiceCategory.findAll({
+    where: { serviceTypeId },
+    include: [serviceTypeInclude],
+    order: [["name", "ASC"]],
+  });
 };
 
 // ✅ UPDATE CATEGORY
@@ -45,41 +62,19 @@ const updateCategory = async (categoryId, updates) => {
     if (!serviceType) throw new Error("ServiceType not found");
   }
 
-  const [_, updatedCategories] = await Category.update(updates, {
-    where: { id: categoryId },
-    returning: true,
-  });
+  const category = await ServiceCategory.findByPk(categoryId);
+  if (!category) throw new Error("Category not found");
 
-  if (!updatedCategories[0]) throw new Error("Category not found");
-  return updatedCategories[0];
+  return await category.update(updates);
 };
 
 // ✅ DELETE CATEGORY
 const deleteCategory = async (categoryId) => {
-  const category = await Category.findByPk(categoryId);
+  const category = await ServiceCategory.findByPk(categoryId);
   if (!category) throw new Error("Category not found");
 
   await category.destroy();
-  return true;
-};
-const getCategoriesByServiceType = async (serviceTypeId) => {
-  // Check if the service type exists first (Optional, but good for error handling)
-  const serviceType = await ServiceType.findByPk(serviceTypeId);
-  if (!serviceType) throw new Error("ServiceType not found");
-
-  const categories = await Category.findAll({
-    where: { serviceTypeId: serviceTypeId },
-    include: [
-      {
-        model: ServiceType,
-        attributes: ["id", "name"],
-      },
-    ],
-    // Optional: Sort alphabetically
-    order: [["name", "ASC"]],
-  });
-
-  return categories;
+  return { success: true, message: "Category deleted successfully" };
 };
 
 module.exports = {

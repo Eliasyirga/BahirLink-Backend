@@ -233,7 +233,7 @@ const getEmergenciesForResponderTeam = async (responderTeamId) => {
         attributes: ["id", "name"],
       },
       {
-        model: Category, // 🔥 ADD THIS
+        model: Category,
         as: "category",
         attributes: ["id", "name"],
       },

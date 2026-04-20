@@ -206,9 +206,6 @@ const getEmergenciesByAgency = async (agencyId) => {
   return emergencies;
 };
 
-// =========================
-// GET EMERGENCIES FOR A RESONDER TEAM
-// =========================
 const getEmergenciesForResponderTeam = async (responderTeamId) => {
   const emergencies = await Emergency.findAll({
     include: [

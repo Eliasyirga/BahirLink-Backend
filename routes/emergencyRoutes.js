@@ -23,12 +23,10 @@ const verifyToken = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
-    return res
-      .status(401)
-      .json({
-        success: false,
-        message: "Unauthorized: Invalid or expired token",
-      });
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized: Invalid or expired token",
+    });
   }
 };
 
@@ -55,6 +53,11 @@ router.post(
 // 🔍 FETCHING ROUTES
 // ==========================================
 
+router.get(
+  "/detail/:id",
+  verifyToken,
+  emergencyController.getEmergencyByIdHandler,
+);
 // PUBLIC: Get status of emergencies (Users or Guests)
 // Note: If you want guests to see ONLY their reports, consider adding a phone-number check
 router.get("/:userOrGuestId", emergencyController.getEmergenciesHandler);

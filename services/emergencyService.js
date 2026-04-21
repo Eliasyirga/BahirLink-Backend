@@ -299,12 +299,74 @@ const getAllEmergenciesForAdmin = async () => {
   }
 };
 
+// =========================
+// GET SINGLE EMERGENCY BY ID
+// =========================
+const getEmergencyById = async (id) => {
+  try {
+    const emergency = await Emergency.findByPk(id, {
+      include: [
+        {
+          model: EmergencyType,
+          as: "emergencyType",
+          attributes: ["id", "name", "description"],
+        },
+        {
+          model: Category,
+          as: "category",
+          attributes: ["id", "name"],
+        },
+        {
+          model: Kebele,
+          as: "kebele",
+          attributes: ["id", "name"],
+        },
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "fullName", "email", "phone"],
+        },
+        {
+          model: Guest,
+          as: "guest",
+          attributes: ["id", "contactNo"],
+        },
+      ],
+    });
+
+    if (!emergency) return null;
+
+    // Optional: Format the object similarly to how you did for Admin
+    // This ensures the frontend gets clean "reporterName" and "kebele" strings
+    const formattedData = {
+      ...emergency.toJSON(), // Spread all original fields (description, location, etc.)
+      reporterName: emergency.user
+        ? emergency.user.fullName
+        : emergency.guest?.contactNo || "Anonymous Guest",
+      reporterPhone: emergency.user
+        ? emergency.user.phone
+        : emergency.guest?.contactNo,
+      // Ensure location is parsed correctly for the map
+      location:
+        typeof emergency.location === "string"
+          ? JSON.parse(emergency.location)
+          : emergency.location,
+    };
+
+    return formattedData;
+  } catch (err) {
+    console.error("❌ Error in getEmergencyById:", err);
+    throw err;
+  }
+};
+
 module.exports = {
   createGuestEmergency,
   createUserEmergency,
   updateEmergency,
   deleteEmergency,
   getEmergencies,
+  getEmergencyById,
   getEmergenciesForResponderTeam,
   getEmergenciesByAgency,
   getAllEmergenciesForAdmin,

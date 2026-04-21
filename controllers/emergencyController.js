@@ -191,12 +191,46 @@ const getAllEmergenciesAdmin = async (req, res) => {
   }
 };
 
+// =========================
+// GET SINGLE EMERGENCY BY ID
+// =========================
+const getEmergencyByIdHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // You need to make sure 'getEmergencyById' exists in your emergencyService.js
+    // If you don't have it, you can often use your Sequelize/Mongoose model directly:
+    // const emergency = await Emergency.findByPk(id, { include: [{ all: true }] });
+
+    const emergency = await getEmergencyById(id); // Ensure this is exported from your service
+
+    if (!emergency) {
+      return res.status(404).json({
+        success: false,
+        message: "Incident not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: emergency,
+    });
+  } catch (error) {
+    console.error("Error fetching single emergency:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   createGuestEmergencyHandler,
   createUserEmergencyHandler,
   updateEmergencyHandler,
   deleteEmergencyHandler,
   getEmergenciesHandler,
+  getEmergencyByIdHandler,
   getEmergenciesForResponderTeamHandler,
   getEmergenciesByAgencyHandler,
 

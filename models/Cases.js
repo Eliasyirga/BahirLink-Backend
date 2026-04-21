@@ -19,10 +19,8 @@ const Cases = sequelize.define(
       allowNull: false,
     },
 
-    // --- NEW ATTRIBUTES FOR WANTED/MISSING ---
-
     reward: {
-      type: DataTypes.DECIMAL(10, 2), // Supports large amounts like 10000.00
+      type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
       defaultValue: 0.0,
     },
@@ -37,28 +35,25 @@ const Cases = sequelize.define(
       allowNull: true,
     },
 
-    // Physical Identifiers (Crucial for Wanted/Missing)
     height: {
-      type: DataTypes.STRING, // e.g., "175cm" or "5'9"
+      type: DataTypes.STRING,
       allowNull: true,
     },
 
     weight: {
-      type: DataTypes.STRING, // e.g., "70kg"
+      type: DataTypes.STRING,
       allowNull: true,
     },
 
     distinctiveFeatures: {
-      type: DataTypes.TEXT, // Tattoos, scars, glasses, etc.
+      type: DataTypes.TEXT,
       allowNull: true,
     },
 
     isDangerous: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false, // Specifically for "Wanted" cases
+      defaultValue: false,
     },
-
-    // --- EXISTING ATTRIBUTES ---
 
     age: DataTypes.INTEGER,
 

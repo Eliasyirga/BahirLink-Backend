@@ -92,6 +92,16 @@ const Emergency = sequelize.define(
       onDelete: "SET NULL",
       onUpdate: "CASCADE",
     },
+    emergedId: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // important (not all emergencies are merged)
+      references: {
+        model: "emerged",
+        key: "id",
+      },
+      onDelete: "SET NULL",
+      onUpdate: "CASCADE",
+    },
 
     time: {
       type: DataTypes.TIME,

@@ -8,29 +8,44 @@ const caseIncludes = [
 ];
 
 const createCase = async (data) => {
-  // 1. Destructure for validation
-  const { responderTeamId, caseTypeId, lastSeenLocationId, ...rest } = data;
+  // 1. Convert IDs to Numbers immediately to ensure DB lookups and storage work
+  const rTeamId = data.responderTeamId ? Number(data.responderTeamId) : null;
+  const cTypeId = data.caseTypeId ? Number(data.caseTypeId) : null;
+  const lLocationId = data.lastSeenLocationId
+    ? Number(data.lastSeenLocationId)
+    : null;
 
-  // 2. Verify the Team exists (Mechanical necessity for agencyId)
-  const team = await ResponderTeam.findByPk(responderTeamId);
-  if (!team) {
-    throw new Error(`Responder Team ID ${responderTeamId} not found.`);
+  // 2. Verify the Team exists
+  if (!rTeamId) {
+    throw new Error("Responder Team ID is required.");
   }
 
-  // 3. Create Case with strict type mapping
+  const team = await ResponderTeam.findByPk(rTeamId);
+  if (!team) {
+    throw new Error(`Responder Team ID ${rTeamId} not found.`);
+  }
+
+  // 3. Clean the rest of the data (remove the raw strings so they don't conflict)
+  const { responderTeamId, caseTypeId, lastSeenLocationId, agencyId, ...rest } =
+    data;
+
   try {
     const newCase = await Cases.create({
       ...rest,
-      responderTeamId: Number(responderTeamId),
-      caseTypeId: Number(caseTypeId),
-      agencyId: team.agencyId, // Pull from DB to ensure validity
-      lastSeenLocationId: lastSeenLocationId
-        ? Number(lastSeenLocationId)
-        : null,
+      // Use the guaranteed numeric values
+      responderTeamId: rTeamId,
+      caseTypeId: cTypeId,
+      agencyId: team.agencyId, // Pulled directly from the verified team
+      lastSeenLocationId: lLocationId,
+      // Ensure other numeric fields from 'rest' are also cast
+      age: rest.age ? Number(rest.age) : null,
+      reward: rest.reward ? Number(rest.reward) : 0,
+      height: rest.height ? Number(rest.height) : null,
+      weight: rest.weight ? Number(rest.weight) : null,
       status: "pending",
     });
 
-    // 4. Return with all associated models (Kebele, Agency, etc.)
+    // 4. Return with associated models
     return await Cases.findByPk(newCase.id, { include: { all: true } });
   } catch (dbError) {
     console.error("Sequelize DB Error:", dbError);

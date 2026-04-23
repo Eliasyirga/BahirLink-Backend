@@ -3,30 +3,44 @@ const { Cases, CaseType, Kebele, CaseReport } = require("../models"); // Ensure 
 
 const createCase = async (req, res) => {
   try {
-    // Check for critical missing fields before calling service
-    if (!req.body.fullName || !req.body.caseTypeId) {
+    // 1. Critical Validation
+    if (
+      !req.body.fullName ||
+      !req.body.caseTypeId ||
+      !req.body.responderTeamId
+    ) {
       return res
         .status(400)
-        .json({ message: "Full Name and Case Type are required." });
+        .json({
+          message: "Full Name, Case Type, and Responder Team are required.",
+        });
     }
 
+    // 2. Data Transformation (Fixing Numeric/Boolean storage)
     const data = {
       ...req.body,
-      // Force conversion of strings to types PostgreSQL expects
+      // Fix: Convert strings from FormData into numbers or null
       age: req.body.age ? parseInt(req.body.age) : null,
-      caseTypeId: parseInt(req.body.caseTypeId),
-      responderTeamId: parseInt(req.body.responderTeamId || 1),
+      height: req.body.height ? parseFloat(req.body.height) : null,
+      weight: req.body.weight ? parseFloat(req.body.weight) : null,
       reward: req.body.reward ? parseFloat(req.body.reward) : 0.0,
 
-      // Correct boolean handling for FormData strings
+      // Foreign Keys
+      caseTypeId: parseInt(req.body.caseTypeId),
+      responderTeamId: parseInt(req.body.responderTeamId),
+      lastSeenLocationId: req.body.lastSeenLocationId
+        ? parseInt(req.body.lastSeenLocationId)
+        : null,
+
+      // Boolean fix
       isDangerous:
         req.body.isDangerous === "true" || req.body.isDangerous === true,
 
-      // File path logic
+      // File handling
       mediaUrl: req.file ? `/uploads/${req.file.filename}` : null,
       mediaType: req.file ? "photo" : null,
 
-      // Date handling
+      // Date parsing
       lastSeenDate: req.body.lastSeenDate
         ? new Date(req.body.lastSeenDate)
         : null,
@@ -35,10 +49,10 @@ const createCase = async (req, res) => {
     const newCase = await casesService.createCase(data);
     res.status(201).json(newCase);
   } catch (error) {
-    console.error("Add Case Controller Error:", error);
-    res.status(400).json({
-      message: error.message || "Failed to register case.",
-    });
+    console.error("Controller Error:", error);
+    res
+      .status(400)
+      .json({ message: error.message || "Failed to register case." });
   }
 };
 const getAllCases = async (req, res) => {

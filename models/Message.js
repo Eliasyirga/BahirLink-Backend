@@ -10,19 +10,14 @@ const Message = sequelize.define(
       primaryKey: true,
     },
 
-    emergencyId: {
+    chatId: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: "emergencies",
+        model: "chats",
         key: "id",
       },
       onDelete: "CASCADE",
-    },
-
-    senderType: {
-      type: DataTypes.ENUM("user", "guest", "system"),
-      allowNull: false,
     },
 
     senderId: {
@@ -31,13 +26,7 @@ const Message = sequelize.define(
     },
 
     senderRole: {
-      type: DataTypes.ENUM(
-        "guest",
-        "responder",
-        "dispatcher",
-        "admin",
-        "system",
-      ),
+      type: DataTypes.STRING,
       allowNull: false,
     },
 
@@ -51,10 +40,25 @@ const Message = sequelize.define(
       allowNull: false,
       defaultValue: "text",
     },
+
+    isRead: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+
+    attachmentUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     tableName: "messages",
     timestamps: true,
+    indexes: [
+      {
+        fields: ["chatId"],
+      },
+    ],
   },
 );
 

@@ -1,88 +1,54 @@
-const { Message, User, Emergency} = require("../models");
-const { canAccessEmergency } = require("../utils/emergencyAccess");
+const MessageService = require("../services/messageService");
 
-const onlineUsers = {
-  guest: new Set(),
-  admin: new Set(),
-  responder: new Set(),
-  user: new Set(),
-};
+module.exports = (io, socket) => {
+  // ======================
+  // JOIN CHAT ROOM
+  // ======================
+  socket.on("joinChat", (chatId) => {
+    if (!chatId) return;
 
-function chatSocket(io, socket) {
-  console.log(
-    `User connected: ${socket.identity.id} (${socket.identity.role})`,
-  );
+    socket.join(chatId);
+  });
 
-  onlineUsers[socket.identity.role].add(socket.identity.id);
+  // ======================
+  // SEND MESSAGE
+  // ======================
+  socket.on("sendMessage", async (data) => {
+    try {
+      const { chatId, message } = data;
 
-  socket.on("chat:join", async ({ emergencyId }) => {
-    const canJoin =
-      socket.identity.role === "guest"
-        ? await canAccessEmergency(socket.identity.id, emergencyId)
-        : ["admin", "responder"].includes(socket.identity.role);
+      if (!chatId || !message) return;
 
-    if (!canJoin) return;
+      const newMessage = await MessageService.createMessage({
+        chatId,
+        senderId: socket.identity.id,
+        senderRole: socket.identity.role,
+        message,
+      });
 
-    socket.join(`emergency_${emergencyId}`);
+      io.to(chatId).emit("newMessage", newMessage);
+    } catch (err) {
+      socket.emit("error", {
+        message: err.message,
+      });
+    }
+  });
 
-    io.to(`emergency_${emergencyId}`).emit("chat:new", {
-      senderRole: "system",
-      message: `${socket.identity.role} ${socket.identity.name} joined the chat`,
-      emergencyId,
-      createdAt: new Date(),
+  // ======================
+  // TYPING INDICATOR
+  // ======================
+  socket.on("typing", (chatId) => {
+    if (!chatId) return;
+
+    socket.to(chatId).emit("typing", {
+      user: socket.identity,
     });
   });
 
-  socket.on("chat:send", async ({ emergencyId, message, type = "text" }) => {
-    if (!message?.trim()) return;
-    const emergency = await Emergency.findByPk(emergencyId);
-    if (!emergency) return;
-
-    const isReporter =
-      emergency.reporterType === socket.identity.type &&
-      emergency.reporterId === socket.identity.id;
-
-    const isResponder = emergency.assignedResponderId === socket.identity.id;
-
-    const canSend =
-      ["admin"].includes(socket.identity.role) || isReporter || isResponder;
-
-    if (!canSend) return;
-
-    const savedMessage = await Message.create({
-      emergencyId,
-      senderId: socket.identity.type === "guest" ? null : socket.identity.id,
-      senderRole: socket.identity.role,
-      senderType: socket.identity.type,
-      message,
-      type,
-    });
-
-    io.to(`emergency_${emergencyId}`).emit("chat:new", {
-      id: savedMessage.id,
-      emergencyId,
-      senderId: socket.identity.id,
-      senderRole: socket.identity.role,
-      senderType: socket.identity.type,
-      message: savedMessage.message,
-      type: savedMessage.type,
-      createdAt: savedMessage.createdAt,
-    });
-  });
-
-  socket.on("chat:typing", ({ emergencyId }) => {
-    socket.to(`emergency_${emergencyId}`).emit("chat:typing", {
-      userId: socket.identity.id,
-      senderRole: socket.identity.role,
-    });
-  });
-
+  // ======================
+  // DISCONNECT
+  // ======================
   socket.on("disconnect", () => {
-    console.log(
-      `User disconnected: ${socket.identity.id} (${socket.identity.role})`,
-    );
-    onlineUsers[socket.identity.role].delete(socket.identity.id);
+    console.log("Disconnected:", socket.identity);
   });
-}
-
-module.exports = chatSocket;
+};

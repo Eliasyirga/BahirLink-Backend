@@ -23,6 +23,7 @@ const Kebele = require("./Kebele");
 const CaseReport = require("./CaseReport");
 const ResponderTeamKebele = require("./ResponderTeamKebele");
 const Emerged = require("./Emerged");
+const Chat = require("./Chat");
 
 // =========================
 // USER / GUEST RELATIONSHIPS
@@ -195,6 +196,15 @@ Emergency.belongsTo(Emerged, {
   foreignKey: "emergedId",
 });
 
+Chat.hasMany(Message, {
+  foreignKey: "chatId",
+  as: "messages",
+});
+
+Message.belongsTo(Chat, {
+  foreignKey: "chatId",
+});
+
 // =========================
 // EXPORTS
 // =========================
@@ -221,4 +231,5 @@ module.exports = {
   Kebele,
   ResponderTeamKebele,
   Emerged,
+  Chat,
 };

@@ -1,10 +1,5 @@
 const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models");
 
-/**
- * REUSABLE INCLUDE CONFIGURATION
- * Since Kebele is aliased as "lastSeenLocation" in models/index.js,
- * we MUST use that alias here.
- */
 const caseIncludes = [
   { model: Agency, as: "agency", attributes: ["id", "name"] },
   { model: CaseType, as: "caseType", attributes: ["id", "name"] },
@@ -12,70 +7,36 @@ const caseIncludes = [
   { model: Kebele, as: "lastSeenLocation", attributes: ["id", "name"] },
 ];
 
-/**
- * Create a new case
- */
 const createCase = async (data) => {
-  const {
-    fullName,
-    age,
-    gender,
-    description,
-    lastSeenLocationId,
-    mediaUrl,
-    mediaType,
-    contactInfo,
-    caseTypeId,
-    responderTeamId,
-    reward,
-    priority,
-    lastSeenDate,
-    height,
-    weight,
-    distinctiveFeatures,
-    isDangerous,
-  } = data;
+  // 1. Destructure for validation
+  const { responderTeamId, caseTypeId, lastSeenLocationId, ...rest } = data;
 
-  // 1. Validate the Responder Team and extract their Agency ID
+  // 2. Verify the Team exists (Mechanical necessity for agencyId)
   const team = await ResponderTeam.findByPk(responderTeamId);
   if (!team) {
-    throw new Error(`Responder Team with ID ${responderTeamId} not found.`);
+    throw new Error(`Responder Team ID ${responderTeamId} not found.`);
   }
 
-  const assignedAgencyId = team.agencyId;
+  // 3. Create Case with strict type mapping
+  try {
+    const newCase = await Cases.create({
+      ...rest,
+      responderTeamId: Number(responderTeamId),
+      caseTypeId: Number(caseTypeId),
+      agencyId: team.agencyId, // Pull from DB to ensure validity
+      lastSeenLocationId: lastSeenLocationId
+        ? Number(lastSeenLocationId)
+        : null,
+      status: "pending",
+    });
 
-  // 2. Create the case
-  const newCase = await Cases.create({
-    fullName,
-    age,
-    gender,
-    description,
-    lastSeenLocationId: lastSeenLocationId || null,
-    mediaUrl: mediaUrl || null,
-    mediaType: mediaType || null,
-    contactInfo: contactInfo || null,
-    caseTypeId: Number(caseTypeId),
-    agencyId: assignedAgencyId,
-    responderTeamId: Number(responderTeamId),
-    status: "pending",
-    reward: reward || 0.0,
-    priority: priority || "medium",
-    lastSeenDate: lastSeenDate || null,
-    height: height || null,
-    weight: weight || null,
-    distinctiveFeatures: distinctiveFeatures || null,
-    isDangerous: isDangerous || false,
-  });
-
-  // 3. Return the full object with corrected aliases
-  return await Cases.findByPk(newCase.id, {
-    include: caseIncludes,
-  });
+    // 4. Return with all associated models (Kebele, Agency, etc.)
+    return await Cases.findByPk(newCase.id, { include: { all: true } });
+  } catch (dbError) {
+    console.error("Sequelize DB Error:", dbError);
+    throw new Error(`Database Error: ${dbError.message}`);
+  }
 };
-
-/**
- * Get all cases
- */
 const getAllCases = async () => {
   return await Cases.findAll({
     include: caseIncludes,

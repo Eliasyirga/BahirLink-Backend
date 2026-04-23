@@ -4,9 +4,6 @@ const jwt = require("jsonwebtoken");
 const emergencyController = require("../controllers/emergencyController");
 const upload = require("../middleware/upload");
 
-/**
- * 🛡️ verifyToken Middleware
- */
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -30,46 +27,33 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// ==========================================
-// 🚨 CREATE EMERGENCY
-// ==========================================
-
-// PROTECTED: Authenticated User Reporting
 router.post(
   "/users/:userId",
   verifyToken,
-  upload.single("media"), // Matches the 'media' key from Flutter
+  upload.single("media"),
   emergencyController.createUserEmergencyHandler,
 );
 
-// PUBLIC: Guest Reporting (Used by GuestEmergencyReportPage)
 router.post(
   "/guests",
-  upload.single("media"), // Matches the 'media' key from Flutter
+  upload.single("media"),
   emergencyController.createGuestEmergencyHandler,
 );
-
-// ==========================================
-// 🔍 FETCHING ROUTES
-// ==========================================
 
 router.get(
   "/detail/:id",
   verifyToken,
   emergencyController.getEmergencyByIdHandler,
 );
-// PUBLIC: Get status of emergencies (Users or Guests)
-// Note: If you want guests to see ONLY their reports, consider adding a phone-number check
+
 router.get("/:userOrGuestId", emergencyController.getEmergenciesHandler);
 
-// PROTECTED: Admin only access
 router.get(
   "/admin/all",
   verifyToken,
   emergencyController.getAllEmergenciesAdmin,
 );
 
-// TEAM/AGENCY: Usually these should be protected so random people can't see active emergencies
 router.get(
   "/responder-team/:responderTeamId",
   verifyToken,
@@ -82,11 +66,6 @@ router.get(
   emergencyController.getEmergenciesByAgencyHandler,
 );
 
-// ==========================================
-// 🛠️ UPDATE & DELETE
-// ==========================================
-
-// PROTECTED: Updates and Deletions should ALWAYS be authenticated
 router.put(
   "/:userOrGuestId/:id",
   verifyToken,

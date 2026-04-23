@@ -3,41 +3,44 @@ const { Cases, CaseType, Kebele, CaseReport } = require("../models"); // Ensure 
 
 const createCase = async (req, res) => {
   try {
-    // 1. Manually build and cast data
+    // Check for critical missing fields before calling service
+    if (!req.body.fullName || !req.body.caseTypeId) {
+      return res
+        .status(400)
+        .json({ message: "Full Name and Case Type are required." });
+    }
+
     const data = {
-      fullName: req.body.fullName,
-      description: req.body.description,
-      gender: req.body.gender,
+      ...req.body,
+      // Force conversion of strings to types PostgreSQL expects
       age: req.body.age ? parseInt(req.body.age) : null,
       caseTypeId: parseInt(req.body.caseTypeId),
-      lastSeenLocationId: req.body.lastSeenLocationId
-        ? parseInt(req.body.lastSeenLocationId)
-        : null,
       responderTeamId: parseInt(req.body.responderTeamId || 1),
-      agencyId: parseInt(req.body.agencyId), // Ensure agencyId is passed if required
+      reward: req.body.reward ? parseFloat(req.body.reward) : 0.0,
+
+      // Correct boolean handling for FormData strings
+      isDangerous:
+        req.body.isDangerous === "true" || req.body.isDangerous === true,
+
+      // File path logic
       mediaUrl: req.file ? `/uploads/${req.file.filename}` : null,
       mediaType: req.file ? "photo" : null,
-      contactInfo: req.body.contactInfo || null,
-      reward: req.body.reward ? parseFloat(req.body.reward) : 0.0,
-      priority: req.body.priority || "medium",
+
+      // Date handling
       lastSeenDate: req.body.lastSeenDate
         ? new Date(req.body.lastSeenDate)
         : null,
-      height: req.body.height || null,
-      weight: req.body.weight || null,
-      distinctiveFeatures: req.body.distinctiveFeatures || null,
-      isDangerous:
-        req.body.isDangerous === "true" || req.body.isDangerous === true,
     };
 
     const newCase = await casesService.createCase(data);
     res.status(201).json(newCase);
   } catch (error) {
-    console.error("Controller Error:", error);
-    res.status(400).json({ message: error.message });
+    console.error("Add Case Controller Error:", error);
+    res.status(400).json({
+      message: error.message || "Failed to register case.",
+    });
   }
 };
-
 const getAllCases = async (req, res) => {
   try {
     const cases = await casesService.getAllCases();

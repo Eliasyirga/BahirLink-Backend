@@ -27,6 +27,7 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+// --- CREATE ---
 router.post(
   "/users/:userId",
   verifyToken,
@@ -40,10 +41,18 @@ router.post(
   emergencyController.createGuestEmergencyHandler,
 );
 
+// --- READ ---
 router.get(
   "/detail/:id",
   verifyToken,
   emergencyController.getEmergencyByIdHandler,
+);
+
+// NEW: This matches the frontend call: axios.patch(.../api/emergencies/${targetId}/status)
+router.patch(
+  "/:id/status",
+  verifyToken,
+  emergencyController.updateEmergencyStatusHandler,
 );
 
 router.get("/:userOrGuestId", emergencyController.getEmergenciesHandler);
@@ -66,6 +75,7 @@ router.get(
   emergencyController.getEmergenciesByAgencyHandler,
 );
 
+// --- UPDATE & DELETE ---
 router.put(
   "/:userOrGuestId/:id",
   verifyToken,

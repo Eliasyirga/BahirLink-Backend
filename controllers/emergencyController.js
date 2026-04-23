@@ -7,6 +7,7 @@ const {
   getEmergenciesForResponderTeam,
   getEmergenciesByAgency,
   getAllEmergenciesForAdmin,
+  updateEmergencyStatus,
 } = require("../services/emergencyService");
 
 // =========================
@@ -223,6 +224,33 @@ const getEmergencyByIdHandler = async (req, res) => {
     });
   }
 };
+const updateEmergencyStatusHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, report } = req.body;
+
+    if (!status) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Status is required" });
+    }
+
+    // This calls the specific service function that doesn't check for citizenId
+    const emergency = await updateEmergencyStatus(id, status, report);
+
+    return res.status(200).json({
+      success: true,
+      message: "Status updated successfully",
+      data: emergency,
+    });
+  } catch (error) {
+    console.error("❌ Status Update Error:", error);
+    return res.status(error.message.includes("not found") ? 404 : 500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 module.exports = {
   createGuestEmergencyHandler,
@@ -233,6 +261,6 @@ module.exports = {
   getEmergencyByIdHandler,
   getEmergenciesForResponderTeamHandler,
   getEmergenciesByAgencyHandler,
-
   getAllEmergenciesAdmin,
+  updateEmergencyStatusHandler,
 };

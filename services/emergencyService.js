@@ -360,6 +360,22 @@ const getEmergencyById = async (id) => {
   }
 };
 
+const updateEmergencyStatus = async (emergencyId, status, report = null) => {
+  const emergency = await Emergency.findByPk(emergencyId);
+
+  if (!emergency) {
+    throw new Error("Emergency record not found in database");
+  }
+
+  // Update the fields
+  emergency.status = status;
+  if (report) {
+    emergency.report = report; // Ensure your Model has a 'report' column
+  }
+
+  return await emergency.save();
+};
+
 module.exports = {
   createGuestEmergency,
   createUserEmergency,
@@ -370,4 +386,5 @@ module.exports = {
   getEmergenciesForResponderTeam,
   getEmergenciesByAgency,
   getAllEmergenciesForAdmin,
+  updateEmergencyStatus,
 };

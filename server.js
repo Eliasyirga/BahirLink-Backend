@@ -29,6 +29,7 @@ const serviceTypeRoutes = require("./routes/serviceTypeRoutes");
 const serviceCategoryRoutes = require("./routes/serviceCategoryRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
 const caseReportsRoutes = require("./routes/caseReportsRoutes");
+const emergedRoutes = require("./routes/emergedRoutes");
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.use("/api/serviceType", serviceTypeRoutes);
 app.use("/api/serviceCategory", serviceCategoryRoutes);
 app.use("/api/service", serviceRoutes);
 app.use("/api/caseReports", caseReportsRoutes);
+app.use("/api/emerged", emergedRoutes);
 
 const PORT = process.env.PORT || 5000;
 

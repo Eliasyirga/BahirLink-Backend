@@ -34,9 +34,6 @@ module.exports = (io, socket) => {
     }
   });
 
-  // ======================
-  // TYPING INDICATOR
-  // ======================
   socket.on("typing", (chatId) => {
     if (!chatId) return;
 

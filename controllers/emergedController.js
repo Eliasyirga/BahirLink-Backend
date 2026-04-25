@@ -5,94 +5,121 @@ const {
   deleteEmerged,
 } = require("../services/emergedService");
 
-/**
- * POST /api/emerged/merge
- * Merge emergencies into one group
- */
+// ===============================
+// 🔥 MERGE EMERGENCIES
+// ===============================
 const mergeEmergencies = async (req, res) => {
   try {
     const { mainId, mergeIds } = req.body;
 
-    const result = await createEmergedFromEmergencies(mainId, mergeIds);
+    if (!mainId) {
+      return res.status(400).json({
+        success: false,
+        message: "mainId is required",
+      });
+    }
 
-    res.status(201).json({
+    const result = await createEmergedFromEmergencies(mainId, mergeIds || []);
+
+    return res.status(201).json({
       success: true,
       message: "Emergencies merged successfully",
       data: result,
     });
   } catch (err) {
-    res.status(400).json({
+    console.error("MERGE ERROR:", err); // 🔥 important for debugging
+
+    return res.status(500).json({
       success: false,
       message: err.message,
     });
   }
 };
 
-/**
- * GET /api/emerged
- * Get all merged groups (ONE ROW VIEW)
- */
+// ===============================
+// 📥 GET ALL MERGED GROUPS
+// ===============================
 const getEmergedHandler = async (req, res) => {
   try {
     const data = await getAllEmerged();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
+      count: data.length,
       data,
     });
   } catch (err) {
-    res.status(500).json({
+    console.error("GET EMERGED ERROR:", err);
+
+    return res.status(500).json({
       success: false,
       message: err.message,
     });
   }
 };
 
-/**
- * PUT /api/emerged/:id
- * Update merged group info
- */
+// ===============================
+// ✏️ UPDATE MERGED GROUP
+// ===============================
 const updateEmergedHandler = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Merged group id is required",
+      });
+    }
+
     const updated = await updateEmerged(id, req.body);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Merged group updated successfully",
       data: updated,
     });
   } catch (err) {
-    res.status(400).json({
+    console.error("UPDATE EMERGED ERROR:", err);
+
+    return res.status(400).json({
       success: false,
       message: err.message,
     });
   }
 };
 
-/**
- * DELETE /api/emerged/:id
- * Delete merged group and unlink emergencies
- */
+// ===============================
+// 🗑️ DELETE MERGED GROUP
+// ===============================
 const deleteEmergedHandler = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Merged group id is required",
+      });
+    }
+
     const result = await deleteEmerged(id);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: result.message,
     });
   } catch (err) {
-    res.status(400).json({
+    console.error("DELETE EMERGED ERROR:", err);
+
+    return res.status(400).json({
       success: false,
       message: err.message,
     });
   }
 };
 
+// ===============================
 module.exports = {
   mergeEmergencies,
   getEmergedHandler,

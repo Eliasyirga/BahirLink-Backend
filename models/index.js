@@ -190,10 +190,12 @@ Kebele.belongsToMany(ResponderTeam, {
 
 Emerged.hasMany(Emergency, {
   foreignKey: "emergedId",
+  as: "emergencies",
 });
 
 Emergency.belongsTo(Emerged, {
   foreignKey: "emergedId",
+  as: "emerged",
 });
 
 Chat.hasMany(Message, {

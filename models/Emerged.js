@@ -10,6 +10,7 @@ const Emerged = sequelize.define(
       primaryKey: true,
     },
 
+    // Optional summary of the merged incident
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -39,6 +40,12 @@ const Emerged = sequelize.define(
       allowNull: true,
     },
 
+    // Cached value (NOT source of truth)
+    reportCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 1,
+    },
+
     status: {
       type: DataTypes.ENUM("reported", "in_progress", "resolved"),
       defaultValue: "reported",
@@ -47,6 +54,13 @@ const Emerged = sequelize.define(
   {
     tableName: "emerged",
     timestamps: true,
+
+    // 🔥 Performance improvement
+    indexes: [
+      {
+        fields: ["kebeleId"],
+      },
+    ],
   },
 );
 

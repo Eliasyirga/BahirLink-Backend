@@ -1,18 +1,12 @@
 const MessageService = require("../services/messageService");
 
 module.exports = (io, socket) => {
-  // ======================
-  // JOIN CHAT ROOM
-  // ======================
   socket.on("joinChat", (chatId) => {
     if (!chatId) return;
 
     socket.join(chatId);
   });
 
-  // ======================
-  // SEND MESSAGE
-  // ======================
   socket.on("sendMessage", async (data) => {
     try {
       const { chatId, message } = data;
@@ -42,9 +36,6 @@ module.exports = (io, socket) => {
     });
   });
 
-  // ======================
-  // DISCONNECT
-  // ======================
   socket.on("disconnect", () => {
     console.log("Disconnected:", socket.identity);
   });

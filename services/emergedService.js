@@ -1,49 +1,77 @@
 const { Emergency, Emerged, sequelize } = require("../models");
+const { Op } = require("sequelize");
 
-/**
- * MERGE emergencies into one group
- */
-const createEmergedFromEmergencies = async (mainId, mergeIds) => {
+// ===============================
+// 🔥 CREATE / MERGE EMERGENCIES
+// ===============================
+const createEmergedFromEmergencies = async (mainId, mergeIds = []) => {
   const transaction = await sequelize.transaction();
 
   try {
     const allIds = [...new Set([mainId, ...mergeIds])];
 
-    const main = await Emergency.findByPk(mainId, { transaction });
-    if (!main) throw new Error("Main emergency not found");
-
     const emergencies = await Emergency.findAll({
-      where: { id: allIds },
+      where: { id: { [Op.in]: allIds } },
       transaction,
     });
 
-    if (emergencies.length === 0) {
-      throw new Error("No emergencies found to merge");
+    // ❌ validate existence
+    if (!emergencies.length) {
+      throw new Error("No emergencies found");
     }
 
-    const invalid = emergencies.some((e) => e.kebeleId !== main.kebeleId);
-    if (invalid) {
+    if (emergencies.length !== allIds.length) {
+      throw new Error("Some emergencies not found");
+    }
+
+    const main = emergencies.find((e) => e.id === mainId);
+    if (!main) throw new Error("Main emergency not found");
+
+    // ❌ ensure same kebele
+    const invalidKebele = emergencies.some((e) => e.kebeleId !== main.kebeleId);
+
+    if (invalidKebele) {
       throw new Error("Cannot merge emergencies from different kebeles");
     }
 
-    const alreadyMerged = emergencies.some((e) => e.emergedId);
-    if (alreadyMerged) {
-      throw new Error("Some emergencies are already merged");
+    // 🔍 prevent merging different groups
+    const groupIds = [
+      ...new Set(emergencies.map((e) => e.emergedId).filter(Boolean)),
+    ];
+
+    if (groupIds.length > 1) {
+      throw new Error("Cannot merge emergencies from different groups");
     }
 
-    const emerged = await Emerged.create(
-      {
-        description: main.description,
-        kebeleId: main.kebeleId,
-        subdivision: main.subdivision,
-        street: main.street,
-        location: main.location,
-        status: "reported",
-        reportedCount: allIds.length,
-      },
-      { transaction },
-    );
+    const existingGroupId = groupIds[0];
 
+    let emerged;
+
+    if (existingGroupId) {
+      // ✅ ADD TO EXISTING GROUP
+      emerged = await Emerged.findByPk(existingGroupId, {
+        transaction,
+      });
+
+      if (!emerged) {
+        throw new Error("Existing merged group not found");
+      }
+    } else {
+      // ✅ CREATE NEW GROUP
+      emerged = await Emerged.create(
+        {
+          description: main.description,
+          kebeleId: main.kebeleId,
+          subdivision: main.subdivision,
+          street: main.street,
+          location: main.location,
+          status: "reported",
+        },
+        { transaction },
+      );
+    }
+
+    // 🔗 link emergencies
     await Emergency.update(
       { emergedId: emerged.id },
       {
@@ -53,7 +81,6 @@ const createEmergedFromEmergencies = async (mainId, mergeIds) => {
     );
 
     await transaction.commit();
-
     return emerged;
   } catch (err) {
     await transaction.rollback();
@@ -61,37 +88,50 @@ const createEmergedFromEmergencies = async (mainId, mergeIds) => {
   }
 };
 
-/**
- * GET all merged groups (for UI one-row display)
- */
+// ===============================
+// 📥 GET ALL EMERGED GROUPS
+// ===============================
 const getAllEmerged = async () => {
   const groups = await Emerged.findAll({
+    include: [
+      {
+        model: Emergency,
+        as: "emergencies",
+        attributes: ["id", "description", "citizenId", "guestId", "createdAt"],
+      },
+    ],
     order: [["createdAt", "DESC"]],
   });
 
-  return Promise.all(
-    groups.map(async (group) => {
-      const count = await Emergency.count({
-        where: { emergedId: group.id },
-      });
+  return groups.map((group) => {
+    const emergencies = group.emergencies || [];
 
-      return {
-        id: group.id,
-        description: group.description,
-        kebeleId: group.kebeleId,
-        subdivision: group.subdivision,
-        street: group.street,
-        location: group.location,
-        status: group.status,
-        reportedCount: count,
-      };
-    }),
-  );
+    return {
+      id: group.id,
+      description: group.description,
+      kebeleId: group.kebeleId,
+      subdivision: group.subdivision,
+      street: group.street,
+      location: group.location,
+      status: group.status,
+
+      // 🔢 SINGLE SOURCE OF TRUTH
+      reportCount: emergencies.length,
+
+      // 👇 UNIQUE REPORTERS ONLY
+      reporters: [...new Set(emergencies.map((e) => e.citizenId || e.guestId))],
+
+      // 👇 ALL DESCRIPTIONS
+      descriptions: emergencies.map((e) => e.description),
+
+      emergencies,
+    };
+  });
 };
 
-/**
- * UPDATE merged group (Emerged)
- */
+// ===============================
+// ✏️ UPDATE EMERGED GROUP
+// ===============================
 const updateEmerged = async (id, data) => {
   const group = await Emerged.findByPk(id);
 
@@ -104,9 +144,9 @@ const updateEmerged = async (id, data) => {
   return group;
 };
 
-/**
- * DELETE merged group + unlink emergencies
- */
+// ===============================
+// 🗑️ DELETE EMERGED GROUP
+// ===============================
 const deleteEmerged = async (id) => {
   const transaction = await sequelize.transaction();
 
@@ -117,16 +157,18 @@ const deleteEmerged = async (id) => {
       throw new Error("Merged group not found");
     }
 
-    // 🔥 unlink emergencies first
+    // 🔥 unlink emergencies safely
     await Emergency.update(
-      { emergedId: null },
+      {
+        emergedId: null,
+        status: "reported",
+      },
       {
         where: { emergedId: id },
         transaction,
       },
     );
 
-    // delete group
     await group.destroy({ transaction });
 
     await transaction.commit();
@@ -138,6 +180,7 @@ const deleteEmerged = async (id) => {
   }
 };
 
+// ===============================
 module.exports = {
   createEmergedFromEmergencies,
   getAllEmerged,

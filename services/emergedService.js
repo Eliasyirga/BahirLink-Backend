@@ -129,9 +129,6 @@ const getAllEmerged = async () => {
   });
 };
 
-// ===============================
-// ✏️ UPDATE EMERGED GROUP
-// ===============================
 const updateEmerged = async (id, data) => {
   const group = await Emerged.findByPk(id);
 

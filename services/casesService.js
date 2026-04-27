@@ -1,5 +1,8 @@
 const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models");
 
+/**
+ * Standardized associations for consistent data retrieval
+ */
 const caseIncludes = [
   { model: Agency, as: "agency", attributes: ["id", "name"] },
   { model: CaseType, as: "caseType", attributes: ["id", "name"] },
@@ -7,51 +10,62 @@ const caseIncludes = [
   { model: Kebele, as: "lastSeenLocation", attributes: ["id", "name"] },
 ];
 
+/**
+ * Create a new case with strict type casting
+ */
 const createCase = async (data) => {
-  // 1. Convert IDs to Numbers immediately to ensure DB lookups and storage work
+  // 1. Mandatory Validation: Responder Team is the backbone of the case
   const rTeamId = data.responderTeamId ? Number(data.responderTeamId) : null;
-  const cTypeId = data.caseTypeId ? Number(data.caseTypeId) : null;
-  const lLocationId = data.lastSeenLocationId
-    ? Number(data.lastSeenLocationId)
-    : null;
-
-  // 2. Verify the Team exists
-  if (!rTeamId) {
-    throw new Error("Responder Team ID is required.");
-  }
+  if (!rTeamId) throw new Error("Responder Team ID is required.");
 
   const team = await ResponderTeam.findByPk(rTeamId);
-  if (!team) {
-    throw new Error(`Responder Team ID ${rTeamId} not found.`);
-  }
+  if (!team) throw new Error(`Responder Team ID ${rTeamId} not found.`);
 
-  // 3. Clean the rest of the data (remove the raw strings so they don't conflict)
-  const { responderTeamId, caseTypeId, lastSeenLocationId, agencyId, ...rest } =
-    data;
+  // 2. Extract and sanitize input data
+  const {
+    caseTypeId,
+    lastSeenLocationId,
+    age,
+    reward,
+    height,
+    weight,
+    isDangerous,
+    ...rest
+  } = data;
 
   try {
     const newCase = await Cases.create({
       ...rest,
-      // Use the guaranteed numeric values
+      // Foreign Keys
       responderTeamId: rTeamId,
-      caseTypeId: cTypeId,
-      agencyId: team.agencyId, // Pulled directly from the verified team
-      lastSeenLocationId: lLocationId,
-      // Ensure other numeric fields from 'rest' are also cast
-      age: rest.age ? Number(rest.age) : null,
-      reward: rest.reward ? Number(rest.reward) : 0,
-      height: rest.height ? Number(rest.height) : null,
-      weight: rest.weight ? Number(rest.weight) : null,
+      agencyId: team.agencyId, // Auto-synced from team
+      caseTypeId: caseTypeId ? Number(caseTypeId) : null,
+      lastSeenLocationId: lastSeenLocationId
+        ? Number(lastSeenLocationId)
+        : null,
+
+      // Biometrics & Numbers (Explicitly cast to handle strings from FormData)
+      age: age && age !== "" ? Number(age) : null,
+      reward: reward && reward !== "" ? Number(reward) : 0,
+      height: height && height !== "" ? Number(height) : null,
+      weight: weight && weight !== "" ? Number(weight) : null,
+
+      // Flags & Default Status
+      isDangerous: isDangerous === "true" || isDangerous === true,
       status: "pending",
     });
 
-    // 4. Return with associated models
-    return await Cases.findByPk(newCase.id, { include: { all: true } });
+    // 3. Return fully populated object
+    return await getCaseById(newCase.id);
   } catch (dbError) {
-    console.error("Sequelize DB Error:", dbError);
+    console.error("Sequelize Creation Error:", dbError);
     throw new Error(`Database Error: ${dbError.message}`);
   }
 };
+
+/**
+ * Get all cases with sorting (Priority then Date)
+ */
 const getAllCases = async () => {
   return await Cases.findAll({
     include: caseIncludes,
@@ -69,12 +83,12 @@ const getCaseById = async (id) => {
   const singleCase = await Cases.findByPk(id, {
     include: caseIncludes,
   });
-  if (!singleCase) throw new Error("Case not found");
+  if (!singleCase) throw new Error("Case record not found in system.");
   return singleCase;
 };
 
 /**
- * Get all cases for a specific Responder Team
+ * Get all cases assigned to a specific team
  */
 const getCasesByResponderTeam = async (responderTeamId) => {
   return await Cases.findAll({
@@ -85,34 +99,30 @@ const getCasesByResponderTeam = async (responderTeamId) => {
 };
 
 /**
- * Update case status
+ * Update case status with validation
  */
 const updateCaseStatus = async (id, status) => {
-  const singleCase = await Cases.findByPk(id);
-  if (!singleCase) throw new Error("Case not found");
-
   const validStatuses = ["pending", "approved", "rejected", "resolved"];
   if (!validStatuses.includes(status)) {
-    throw new Error(
-      `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
-    );
+    throw new Error(`Invalid status deployment: ${status}`);
   }
 
-  singleCase.status = status;
-  await singleCase.save();
+  const singleCase = await Cases.findByPk(id);
+  if (!singleCase) throw new Error("Case not found.");
 
-  return singleCase;
+  await singleCase.update({ status });
+  return await getCaseById(id);
 };
 
 /**
- * Delete a case
+ * Permanently remove a case
  */
 const deleteCase = async (id) => {
   const singleCase = await Cases.findByPk(id);
-  if (!singleCase) throw new Error("Case not found");
+  if (!singleCase) throw new Error("Case not found.");
 
   await singleCase.destroy();
-  return { message: "Case deleted successfully" };
+  return { message: "Case successfully purged from registry" };
 };
 
 module.exports = {

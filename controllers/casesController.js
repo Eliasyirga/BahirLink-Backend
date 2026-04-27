@@ -1,130 +1,129 @@
 const casesService = require("../services/casesService");
-const { Cases, CaseType, Kebele, CaseReport } = require("../models"); // Ensure models are imported correctly
+const { Cases, CaseType, Kebele, CaseReport } = require("../models");
 
+/**
+ * Handle new case deployment via multipart/form-data
+ */
 const createCase = async (req, res) => {
   try {
+    const {
+      fullName,
+      caseTypeId,
+      responderTeamId,
+      height,
+      weight,
+      age,
+      reward,
+    } = req.body;
+
     // 1. Critical Validation
-    if (
-      !req.body.fullName ||
-      !req.body.caseTypeId ||
-      !req.body.responderTeamId
-    ) {
-      return res
-        .status(400)
-        .json({
-          message: "Full Name, Case Type, and Responder Team are required.",
-        });
+    if (!fullName || !caseTypeId || !responderTeamId) {
+      return res.status(400).json({
+        message:
+          "Deployment failed: Full Name, Case Type, and Responder Team are required.",
+      });
     }
 
-    // 2. Data Transformation (Fixing Numeric/Boolean storage)
-    const data = {
+    // 2. Data Preparation & Strict Casting
+    const caseData = {
       ...req.body,
-      // Fix: Convert strings from FormData into numbers or null
-      age: req.body.age ? parseInt(req.body.age) : null,
-      height: req.body.height ? parseFloat(req.body.height) : null,
-      weight: req.body.weight ? parseFloat(req.body.weight) : null,
-      reward: req.body.reward ? parseFloat(req.body.reward) : 0.0,
+      // Ensure numeric fields are numbers or null (not empty strings)
+      height: height && height !== "" ? parseFloat(height) : null,
+      weight: weight && weight !== "" ? parseFloat(weight) : null,
+      age: age && age !== "" ? parseInt(age, 10) : null,
+      reward: reward && reward !== "" ? parseFloat(reward) : 0,
 
-      // Foreign Keys
-      caseTypeId: parseInt(req.body.caseTypeId),
-      responderTeamId: parseInt(req.body.responderTeamId),
+      // Ensure IDs are integers
+      caseTypeId: parseInt(caseTypeId, 10),
+      responderTeamId: parseInt(responderTeamId, 10),
       lastSeenLocationId: req.body.lastSeenLocationId
-        ? parseInt(req.body.lastSeenLocationId)
+        ? parseInt(req.body.lastSeenLocationId, 10)
         : null,
 
-      // Boolean fix
-      isDangerous:
-        req.body.isDangerous === "true" || req.body.isDangerous === true,
-
-      // File handling
+      // Media Handling
       mediaUrl: req.file ? `/uploads/${req.file.filename}` : null,
       mediaType: req.file ? "photo" : null,
-
-      // Date parsing
-      lastSeenDate: req.body.lastSeenDate
-        ? new Date(req.body.lastSeenDate)
-        : null,
     };
 
-    const newCase = await casesService.createCase(data);
+    const newCase = await casesService.createCase(caseData);
     res.status(201).json(newCase);
   } catch (error) {
-    console.error("Controller Error:", error);
+    console.error("Controller Error [createCase]:", error);
     res
       .status(400)
       .json({ message: error.message || "Failed to register case." });
   }
 };
+
+/**
+ * Retrieve all registered cases
+ */
 const getAllCases = async (req, res) => {
   try {
     const cases = await casesService.getAllCases();
     res.status(200).json(cases);
   } catch (error) {
+    console.error("Controller Error [getAllCases]:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
+/**
+ * Fetch granular case intelligence
+ */
 const getCaseById = async (req, res) => {
   try {
-    // Using aliases defined in your associations file:
-    // Kebele -> lastSeenLocation
-    // CaseReport -> reports
-    const caseData = await Cases.findByPk(req.params.id, {
-      include: [
-        { model: CaseType, as: "caseType" },
-        { model: Kebele, as: "lastSeenLocation" },
-        {
-          model: CaseReport,
-          as: "reports",
-          include: [{ model: Kebele, as: "kebele" }],
-        },
-      ],
-    });
-
-    if (!caseData) return res.status(404).json({ message: "Case not found" });
-    res.json(caseData);
+    const { id } = req.params;
+    const caseData = await casesService.getCaseById(id);
+    res.status(200).json(caseData);
   } catch (error) {
-    console.error("Fetch Detail Error:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Controller Error [getCaseById]:", error);
+    res.status(404).json({ message: error.message });
   }
 };
 
+/**
+ * Update case operational status
+ */
 const updateCaseStatus = async (req, res) => {
   try {
-    const { status } = req.body;
     const { id } = req.params;
+    const { status } = req.body;
 
-    // Direct update via Sequelize
-    const [updated] = await Cases.update({ status }, { where: { id } });
+    if (!status)
+      return res.status(400).json({ message: "Status value is required." });
 
-    if (updated === 0)
-      return res.status(404).json({ message: "Case not found" });
-    res.json({ message: "Status updated successfully" });
+    const result = await casesService.updateCaseStatus(id, status);
+    res.json({ message: "Status updated successfully", data: result });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+/**
+ * Filter cases by tactical responder team
+ */
 const getCasesByResponderTeam = async (req, res) => {
   try {
     const { responderTeamId } = req.params;
-
     let cases;
     if (responderTeamId === "all") {
       cases = await casesService.getAllCases();
     } else {
       cases = await casesService.getCasesByResponderTeam(
-        parseInt(responderTeamId),
+        parseInt(responderTeamId, 10),
       );
     }
-
     res.status(200).json(cases);
   } catch (error) {
-    console.error("Fetch Team Cases Error:", error);
+    console.error("Controller Error [getCasesByResponderTeam]:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
+/**
+ * Terminate a case record
+ */
 const deleteCase = async (req, res) => {
   try {
     const result = await casesService.deleteCase(req.params.id);

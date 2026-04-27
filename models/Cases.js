@@ -36,12 +36,12 @@ const Cases = sequelize.define(
     },
 
     height: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER, // Stores whole numbers (e.g., 180)
       allowNull: true,
     },
 
     weight: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER, // Stores whole numbers (e.g., 75)
       allowNull: true,
     },
 

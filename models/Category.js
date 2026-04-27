@@ -9,17 +9,16 @@ const Category = sequelize.define(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
+
     name: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
-    type: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
+
+    // ❌ REMOVED: type (not needed in DB, generated dynamically)
+
     emergencyTypeId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER, // must match emergency_types.id
       allowNull: false,
       references: {
         model: "emergency_types",
@@ -31,6 +30,13 @@ const Category = sequelize.define(
   {
     tableName: "categories",
     timestamps: true,
+
+    indexes: [
+      {
+        unique: true,
+        fields: ["name", "emergencyTypeId"], // same name allowed in different types
+      },
+    ],
   },
 );
 

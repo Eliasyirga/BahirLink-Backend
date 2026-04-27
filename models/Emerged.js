@@ -10,15 +10,16 @@ const Emerged = sequelize.define(
       primaryKey: true,
     },
 
-    // Optional summary of the merged incident
-    description: {
+    // 👤 optional responder-written summary
+    summary: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
 
+    // 📍 grouping reference
     kebeleId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: "kebeles",
         key: "id",
@@ -27,7 +28,7 @@ const Emerged = sequelize.define(
 
     subdivision: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
 
     street: {
@@ -35,31 +36,31 @@ const Emerged = sequelize.define(
       allowNull: true,
     },
 
+    // 🧭 optional for future smart grouping (distance/NLP)
     location: {
       type: DataTypes.JSON,
       allowNull: true,
     },
 
-    // Cached value (NOT source of truth)
-    reportCount: {
-      type: DataTypes.INTEGER,
-      defaultValue: 1,
-    },
-
+    // ⚡ lifecycle of grouped case
     status: {
       type: DataTypes.ENUM("reported", "in_progress", "resolved"),
       defaultValue: "reported",
+    },
+
+    // 🔢 optional cached value (performance)
+    reportCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
     },
   },
   {
     tableName: "emerged",
     timestamps: true,
 
-    // 🔥 Performance improvement
     indexes: [
-      {
-        fields: ["kebeleId"],
-      },
+      { fields: ["kebeleId"] },
+      { fields: ["status"] },
     ],
   },
 );

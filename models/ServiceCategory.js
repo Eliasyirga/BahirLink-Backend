@@ -24,6 +24,8 @@ const ServiceCategory = sequelize.define(
         model: "service_types",
         key: "id",
       },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
     },
   },
   {

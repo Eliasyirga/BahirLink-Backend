@@ -1,12 +1,13 @@
 const {
   createEmergedFromEmergencies,
   getAllEmerged,
+  getUnassignedEmergencies,
   updateEmerged,
   deleteEmerged,
 } = require("../services/emergedService");
 
 // ===============================
-// 🔥 MERGE EMERGENCIES
+// 🔗 MERGE EMERGENCIES
 // ===============================
 const mergeEmergencies = async (req, res) => {
   try {
@@ -19,17 +20,33 @@ const mergeEmergencies = async (req, res) => {
       });
     }
 
-    const result = await createEmergedFromEmergencies(mainId, mergeIds || []);
+    const safeMergeIds = Array.isArray(mergeIds) ? mergeIds : [];
+
+    // 🔒 SAFE ACCESS
+    const kebeleId = req.user?.kebeleId;
+
+    if (!kebeleId) {
+      return res.status(401).json({
+        success: false,
+        message: "kebeleId not found in request user",
+      });
+    }
+
+    const result = await createEmergedFromEmergencies(
+      mainId,
+      safeMergeIds,
+      kebeleId,
+    );
 
     return res.status(201).json({
       success: true,
-      message: "Emergencies merged successfully",
+      message: "Emergencies grouped successfully",
       data: result,
     });
   } catch (err) {
-    console.error("MERGE ERROR:", err); // 🔥 important for debugging
+    console.error("MERGE ERROR:", err);
 
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
       message: err.message,
     });
@@ -37,11 +54,20 @@ const mergeEmergencies = async (req, res) => {
 };
 
 // ===============================
-// 📥 GET ALL MERGED GROUPS
+// 📥 GET GROUPED
 // ===============================
 const getEmergedHandler = async (req, res) => {
   try {
-    const data = await getAllEmerged();
+    const kebeleId = req.user?.kebeleId;
+
+    if (!kebeleId) {
+      return res.status(401).json({
+        success: false,
+        message: "kebeleId missing",
+      });
+    }
+
+    const data = await getAllEmerged(kebeleId);
 
     return res.status(200).json({
       success: true,
@@ -53,13 +79,44 @@ const getEmergedHandler = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: err.message,
+      message: "Failed to fetch grouped emergencies",
     });
   }
 };
 
 // ===============================
-// ✏️ UPDATE MERGED GROUP
+// 🟡 GET UNASSIGNED
+// ===============================
+const getUnassignedHandler = async (req, res) => {
+  try {
+    const kebeleId = req.user?.kebeleId;
+
+    if (!kebeleId) {
+      return res.status(401).json({
+        success: false,
+        message: "kebeleId missing",
+      });
+    }
+
+    const data = await getUnassignedEmergencies(kebeleId);
+
+    return res.status(200).json({
+      success: true,
+      count: data.length,
+      data,
+    });
+  } catch (err) {
+    console.error("GET UNASSIGNED ERROR:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch unassigned emergencies",
+    });
+  }
+};
+
+// ===============================
+// ✏️ UPDATE GROUP
 // ===============================
 const updateEmergedHandler = async (req, res) => {
   try {
@@ -68,15 +125,24 @@ const updateEmergedHandler = async (req, res) => {
     if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Merged group id is required",
+        message: "Group id is required",
       });
     }
 
-    const updated = await updateEmerged(id, req.body);
+    const kebeleId = req.user?.kebeleId;
+
+    if (!kebeleId) {
+      return res.status(401).json({
+        success: false,
+        message: "kebeleId missing",
+      });
+    }
+
+    const updated = await updateEmerged(id, req.body, kebeleId);
 
     return res.status(200).json({
       success: true,
-      message: "Merged group updated successfully",
+      message: "Group updated successfully",
       data: updated,
     });
   } catch (err) {
@@ -90,7 +156,7 @@ const updateEmergedHandler = async (req, res) => {
 };
 
 // ===============================
-// 🗑️ DELETE MERGED GROUP
+// 🗑️ DELETE GROUP
 // ===============================
 const deleteEmergedHandler = async (req, res) => {
   try {
@@ -99,11 +165,20 @@ const deleteEmergedHandler = async (req, res) => {
     if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Merged group id is required",
+        message: "Group id is required",
       });
     }
 
-    const result = await deleteEmerged(id);
+    const kebeleId = req.user?.kebeleId;
+
+    if (!kebeleId) {
+      return res.status(401).json({
+        success: false,
+        message: "kebeleId missing",
+      });
+    }
+
+    const result = await deleteEmerged(id, kebeleId);
 
     return res.status(200).json({
       success: true,
@@ -123,6 +198,7 @@ const deleteEmergedHandler = async (req, res) => {
 module.exports = {
   mergeEmergencies,
   getEmergedHandler,
+  getUnassignedHandler,
   updateEmergedHandler,
   deleteEmergedHandler,
 };

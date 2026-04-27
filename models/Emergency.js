@@ -72,7 +72,7 @@ const Emergency = sequelize.define(
     },
 
     emergencyTypeId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER, // ✅ FIXED
       allowNull: true,
       references: {
         model: "emergency_types",

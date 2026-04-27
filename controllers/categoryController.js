@@ -8,37 +8,63 @@ const {
 
 const createCategoryHandler = async (req, res) => {
   try {
-    const { name, type, emergencyTypeId } = req.body;
+    const { name, emergencyTypeId } = req.body;
 
-    if (!name || !type || !emergencyTypeId) {
+    // validation
+    if (!name || !emergencyTypeId) {
       return res
         .status(400)
-        .json({ message: "name, type, and emergencyTypeId are required" });
+        .json({ message: "name and emergencyTypeId are required" });
     }
 
-    const category = await createCategory({ name, type, emergencyTypeId });
-    return res.status(201).json(category);
+    const category = await createCategory({
+      name,
+      emergencyTypeId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: category,
+    });
   } catch (err) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
 const deleteCategoryHandler = async (req, res) => {
   try {
     const { id } = req.params;
+
     const result = await deleteCategory(id);
-    return res.status(200).json(result);
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
   } catch (err) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
 const getAllCategoriesHandler = async (req, res) => {
   try {
     const categories = await getAllCategories();
-    return res.status(200).json(categories);
+
+    return res.status(200).json({
+      success: true,
+      data: categories,
+    });
   } catch (err) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
@@ -48,9 +74,15 @@ const getCategoriesByTypeHandler = async (req, res) => {
 
     const categories = await getCategoriesByEmergencyType(emergencyTypeId);
 
-    return res.status(200).json(categories);
+    return res.status(200).json({
+      success: true,
+      data: categories,
+    });
   } catch (err) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
@@ -70,7 +102,7 @@ const updateCategoryHandler = async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      error: err.message,
+      message: err.message,
     });
   }
 };

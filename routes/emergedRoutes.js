@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   mergeEmergencies,
   getEmergedHandler,
+  getUnassignedHandler,
   updateEmergedHandler,
   deleteEmergedHandler,
 } = require("../controllers/emergedController");
@@ -11,6 +12,8 @@ const {
 router.post("/merge", mergeEmergencies);
 
 router.get("/", getEmergedHandler);
+
+router.get("/unassigned", getUnassignedHandler);
 
 router.put("/:id", updateEmergedHandler);
 

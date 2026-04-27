@@ -2,7 +2,7 @@ const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 const Cases = require("./Cases");
 const CaseType = require("./CaseType");
-const Kebele = require("./Kebele"); 
+const Kebele = require("./Kebele");
 
 const CaseReport = sequelize.define(
   "CaseReport",

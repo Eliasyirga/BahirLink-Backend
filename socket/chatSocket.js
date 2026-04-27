@@ -1,42 +1,60 @@
-const MessageService = require("../services/messageService");
+const messageService = require("../services/messageService");
 
 module.exports = (io, socket) => {
-  socket.on("joinChat", (chatId) => {
-    if (!chatId) return;
+  // 1. Join a room based on the Emergency ID
+  socket.on("join_emergency", (emergencyId) => {
+    if (!emergencyId) return;
 
-    socket.join(chatId);
+    socket.join(`room_${emergencyId}`);
+    console.log(`Socket ${socket.id} joined room_${emergencyId}`);
   });
 
-  socket.on("sendMessage", async (data) => {
+  // 2. Handle sending messages
+  socket.on("send_message", async (data) => {
     try {
-      const { chatId, message } = data;
+      const { emergencyId, text } = data;
 
-      if (!chatId || !message) return;
+      // Extract sender info from the socket identity (from your socketAuth middleware)
+      const senderId = socket.identity.id;
+      const senderRole = socket.identity.role; // 'citizen' or 'responder'
 
-      const newMessage = await MessageService.createMessage({
-        chatId,
-        senderId: socket.identity.id,
-        senderRole: socket.identity.role,
-        message,
+      if (!emergencyId || !text) return;
+
+      // Use the service to save message and check activation status
+      const { message, statusChanged } = await messageService.saveMessage({
+        emergencyId,
+        senderId,
+        senderRole,
+        text,
       });
 
-      io.to(chatId).emit("newMessage", newMessage);
+      // Broadcast the new message to everyone in the room
+      io.to(`room_${emergencyId}`).emit("receive_message", message);
+
+      // If the responder just activated the chat, notify the Flutter app to unlock
+      if (statusChanged) {
+        io.to(`room_${emergencyId}`).emit("chat_activated", {
+          isEnabled: true,
+        });
+      }
     } catch (err) {
-      socket.emit("error", {
+      // This sends the "Chat not yet initiated" error back to the citizen if they try to type first
+      socket.emit("error_alert", {
         message: err.message,
       });
     }
   });
 
-  socket.on("typing", (chatId) => {
-    if (!chatId) return;
-
-    socket.to(chatId).emit("typing", {
-      user: socket.identity,
+  // 3. Optional: Real-time typing indicators
+  socket.on("typing", (emergencyId) => {
+    if (!emergencyId) return;
+    socket.to(`room_${emergencyId}`).emit("typing_indicator", {
+      senderId: socket.identity.id,
+      role: socket.identity.role,
     });
   });
 
   socket.on("disconnect", () => {
-    console.log("Disconnected:", socket.identity);
+    console.log("Disconnected:", socket.identity.name || socket.identity.id);
   });
 };

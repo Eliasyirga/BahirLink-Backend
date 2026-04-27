@@ -23,7 +23,6 @@ const Kebele = require("./Kebele");
 const CaseReport = require("./CaseReport");
 const ResponderTeamKebele = require("./ResponderTeamKebele");
 const Emerged = require("./Emerged");
-const Chat = require("./Chat");
 
 // =========================
 // USER / GUEST RELATIONSHIPS
@@ -35,8 +34,9 @@ User.hasMany(Emergency, { foreignKey: "citizenId", as: "emergencies" });
 Emergency.belongsTo(User, { foreignKey: "citizenId", as: "user" });
 
 // =========================
-// EMERGENCY CORE
+// EMERGENCY CORE (Chat Logic)
 // =========================
+// This replaces the old Chat model logic by linking messages directly to an Emergency
 Emergency.hasMany(Message, { foreignKey: "emergencyId", as: "messages" });
 Message.belongsTo(Emergency, { foreignKey: "emergencyId", as: "emergency" });
 
@@ -198,19 +198,9 @@ Emergency.belongsTo(Emerged, {
   as: "emerged",
 });
 
-Chat.hasMany(Message, {
-  foreignKey: "chatId",
-  as: "messages",
-});
-
-Message.belongsTo(Chat, {
-  foreignKey: "chatId",
-});
-
 // =========================
 // EXPORTS
 // =========================
-// CRITICAL: We must export the sequelize instance so services can use Transactions
 module.exports = {
   sequelize,
   Guest,
@@ -233,5 +223,4 @@ module.exports = {
   Kebele,
   ResponderTeamKebele,
   Emerged,
-  Chat,
 };

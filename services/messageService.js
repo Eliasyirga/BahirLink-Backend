@@ -1,82 +1,52 @@
 const Message = require("../models/Message");
+const Emergency = require("../models/Emergency");
 
-/**
- * ✅ Create message
- */
-const createMessage = async (data) => {
-  const { chatId, senderId, senderRole, message, type, attachmentUrl } = data;
+class MessageService {
+  /**
+   * Saves a message and handles the "Responder-First" activation logic.
+   */
+  async saveMessage({ emergencyId, senderId, senderRole, text }) {
+    const emergency = await Emergency.findByPk(emergencyId);
 
-  if (!chatId || !message || !senderRole) {
-    throw new Error("chatId, message, and senderRole are required");
+    if (!emergency) {
+      throw new Error("Emergency record not found.");
+    }
+
+    // 1. Logic: Block citizen if chat isn't enabled by responder yet
+    if (senderRole === "citizen" && !emergency.isChatEnabled) {
+      throw new Error("Chat not yet initiated by a responder.");
+    }
+
+    // 2. Logic: If responder sends a message, activate the chat for the user
+    let statusChanged = false;
+    if (senderRole === "responder" && !emergency.isChatEnabled) {
+      await emergency.update({ isChatEnabled: true });
+      statusChanged = true;
+    }
+
+    // 3. Create the message
+    const message = await Message.create({
+      emergencyId,
+      senderId,
+      senderRole,
+      text,
+    });
+
+    // Return statusChanged so the controller/socket knows whether to alert the Flutter app
+    return { message, statusChanged };
   }
 
-  return await Message.create({
-    chatId,
-    senderId,
-    senderRole,
-    message,
-    type: type || "text",
-    attachmentUrl: attachmentUrl || null,
-  });
-};
-
-/**
- * 📥 Get messages by chatId
- */
-const getMessagesByChat = async (chatId) => {
-  if (!chatId) {
-    throw new Error("chatId is required");
+  /**
+   * Fetches history.
+   * RENAMED to getHistory to match what your Controller is calling.
+   */
+  async getHistory(emergencyId) {
+    return await Message.findAll({
+      where: { emergencyId },
+      order: [["createdAt", "ASC"]],
+      // Include timestamps to show message time in Flutter/React
+    });
   }
+}
 
-  return await Message.findAll({
-    where: { chatId },
-    order: [["createdAt", "ASC"]],
-  });
-};
-
-/**
- * ✏️ Update message
- */
-const updateMessage = async (messageId, data) => {
-  if (!messageId) {
-    throw new Error("messageId is required");
-  }
-
-  const message = await Message.findByPk(messageId);
-
-  if (!message) {
-    throw new Error("Message not found");
-  }
-
-  return await message.update({
-    message: data.message ?? message.message,
-    attachmentUrl: data.attachmentUrl ?? message.attachmentUrl,
-    type: data.type ?? message.type,
-  });
-};
-
-/**
- * ❌ Delete message
- */
-const deleteMessage = async (messageId) => {
-  if (!messageId) {
-    throw new Error("messageId is required");
-  }
-
-  const message = await Message.findByPk(messageId);
-
-  if (!message) {
-    throw new Error("Message not found");
-  }
-
-  await message.destroy();
-
-  return { message: "Message deleted successfully" };
-};
-
-module.exports = {
-  createMessage,
-  getMessagesByChat,
-  updateMessage,
-  deleteMessage,
-};
+module.exports = new MessageService();

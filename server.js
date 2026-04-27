@@ -27,10 +27,9 @@ const serviceCategoryRoutes = require("./routes/serviceCategoryRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
 const caseReportsRoutes = require("./routes/caseReportsRoutes");
 const emergedRoutes = require("./routes/emergedRoutes");
-const messageRoutes = require("./routes/messageRoutes");
-const chatRoutes = require("./routes/chatRoutes");
+const messageRoutes = require("./routes/messageRoutes"); // Consistently using Message
 
-// Socket
+// Socket logic & Middleware
 const chatSocket = require("./socket/chatSocket");
 const socketAuth = require("./middleware/socketAuth");
 
@@ -38,9 +37,10 @@ const app = express();
 
 /**
  * ======================
- * CORS CONFIG
+ * EXPRESS MIDDLEWARE
  * ======================
  */
+app.use(express.json());
 app.use(
   cors({
     origin: /http:\/\/localhost:\d+/,
@@ -48,57 +48,42 @@ app.use(
   }),
 );
 
-/**
- * ======================
- * HTTP + SOCKET SERVER
- * ======================
- */
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+app.use("/public", express.static("public"));
+
 const server = http.createServer(app);
 
+/**
+ * ======================
+ * SOCKET.IO SETUP
+ * ======================
+ */
 const io = new Server(server, {
   cors: {
     origin: "*",
   },
 });
 
-/**
- * ======================
- * SOCKET MIDDLEWARE
- * ======================
- */
+// Authenticate socket connections (User vs Guest)
 io.use(socketAuth);
 
-/**
- * ======================
- * SOCKET CONNECTION
- * ======================
- */
 io.on("connection", (socket) => {
-  console.log("CONNECTED:", socket.identity);
+  console.log(`CONNECTED: ${socket.identity.name} (${socket.identity.role})`);
 
+  // Pass the socket to the handler
   chatSocket(io, socket);
 });
-
-/**
- * ======================
- * EXPRESS MIDDLEWARE
- * ======================
- */
-app.use(express.json());
-
-app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
-app.use("/public", express.static("public"));
 
 /**
  * ======================
  * HEALTH CHECK
  * ======================
  */
-app.get("/", (req, res) => res.send("Backend is running!"));
+app.get("/", (req, res) => res.send("BahirLink Backend is running!"));
 
 /**
  * ======================
- * ROUTES
+ * REST ROUTES
  * ======================
  */
 app.use("/api/users", userRoutes);
@@ -119,8 +104,7 @@ app.use("/api/serviceCategory", serviceCategoryRoutes);
 app.use("/api/service", serviceRoutes);
 app.use("/api/caseReports", caseReportsRoutes);
 app.use("/api/emerged", emergedRoutes);
-app.use("/api/message", messageRoutes);
-app.use("/api/chat", chatRoutes);
+app.use("/api/message", messageRoutes); // Centralized messaging endpoint
 
 /**
  * ======================
@@ -131,10 +115,14 @@ const PORT = process.env.PORT || 5000;
 
 connectDB()
   .then(() => {
+    // Alter: true will update your Neon DB with the new 'isChatEnabled' column
     return sequelize.sync({ alter: true });
   })
   .then(() => {
-    console.log("All models synced to PostgreSQL (Neon)");
+    console.log("Database models synchronized.");
     server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
-  .catch((err) => console.error("PostgreSQL connection error:", err));
+  .catch((err) => {
+    console.error("Database initialization failed:", err);
+    process.exit(1);
+  });

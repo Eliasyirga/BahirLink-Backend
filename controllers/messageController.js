@@ -1,50 +1,23 @@
-const MessageService = require("../services/messageService");
+const messageService = require("../services/messageService");
 
 /**
- * ✅ Create a message
- * POST /messages
+ * GET /api/message/:emergencyId
+ * Fetch chat history for a specific emergency incident.
  */
-const createMessageHndler = async (req, res) => {
+exports.getEmergencyMessages = async (req, res) => {
   try {
-    const { chatId, message, type, attachmentUrl } = req.body;
+    const { emergencyId } = req.params;
 
-    const newMessage = await MessageService.createMessage({
-      chatId,
-      senderId: req.user.id, // from auth middleware
-      senderRole: req.user.role,
-      message,
-      type,
-      attachmentUrl,
-    });
+    // Calls getHistory from MessageService
+    const messages = await messageService.getHistory(emergencyId);
 
-    return res.status(201).json({
+    res.status(200).json({
       success: true,
-      data: newMessage,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * 📥 Get all messages in a chat
- * GET /chats/:chatId/messages
- */
-const getMessagesByChatHandler = async (req, res) => {
-  try {
-    const { chatId } = req.params;
-
-    const messages = await MessageService.getMessagesByChat(chatId);
-
-    return res.status(200).json({
-      success: true,
+      count: messages.length,
       data: messages,
     });
   } catch (error) {
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -52,52 +25,41 @@ const getMessagesByChatHandler = async (req, res) => {
 };
 
 /**
- * ✏️ Update a message
- * PUT /messages/:id
+ * POST /api/message
+ * Fallback REST endpoint for sending messages.
  */
-const updateMessageHandler = async (req, res) => {
+exports.postMessage = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { emergencyId, text, senderRole } = req.body;
 
-    const updatedMessage = await MessageService.updateMessage(id, req.body);
+    // Safety check: ensure auth middleware has populated req.user
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required. User ID not found.",
+      });
+    }
 
-    return res.status(200).json({
+    const senderId = req.user.id;
+
+    const result = await messageService.saveMessage({
+      emergencyId,
+      senderId,
+      senderRole,
+      text,
+    });
+
+    res.status(201).json({
       success: true,
-      data: updatedMessage,
+      data: result.message,
+      // Useful for front-end to know if the UI should now be unlocked
+      chatActivated: result.statusChanged,
     });
   } catch (error) {
-    return res.status(500).json({
+    // This will catch the "Chat not yet initiated" error from the Service
+    res.status(400).json({
       success: false,
       message: error.message,
     });
   }
-};
-
-/**
- * ❌ Delete a message
- * DELETE /messages/:id
- */
-const deleteMessageHandler = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await MessageService.deleteMessage(id);
-
-    return res.status(200).json({
-      success: true,
-      ...result,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-module.exports = {
-  createMessageHndler,
-  getMessagesByChatHandler,
-  updateMessageHandler,
-  deleteMessageHandler,
 };

@@ -1,35 +1,14 @@
 const express = require("express");
 const router = express.Router();
+const messageController = require("../controllers/messageController");
+const { verifyToken } = require("../middleware/auth"); // Destructure the specific function
 
-const {
-  createMessageHndler,
-  getMessagesByChatHandler,
-  updateMessageHandler,
-  deleteMessageHandler,
-} = require("../controllers/messageController");
-
-// ======================
-// ✅ CREATE MESSAGE
-// POST /api/messages
-// ======================
-router.post("/", createMessageHndler);
-
-// ======================
-// 📥 GET MESSAGES BY CHAT
-// GET /api/messages/chats/:chatId/messages
-// ======================
-router.get("/chats/:chatId/messages", getMessagesByChatHandler);
-
-// ======================
-// ✏️ UPDATE MESSAGE
-// PUT /api/messages/:id
-// ======================
-router.put("/:id", updateMessageHandler);
-
-// ======================
-// ❌ DELETE MESSAGE
-// DELETE /api/messages/:id
-// ======================
-router.delete("/:id", deleteMessageHandler);
+// Use verifyToken here
+router.get(
+  "/:emergencyId",
+  verifyToken,
+  messageController.getEmergencyMessages,
+);
+router.post("/", verifyToken, messageController.postMessage);
 
 module.exports = router;

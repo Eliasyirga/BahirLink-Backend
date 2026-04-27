@@ -11,13 +11,21 @@ module.exports = async (socket, next) => {
       const user = await User.findByPk(payload.id);
       if (!user) return next(new Error("User not found"));
 
+      // Mapping role to match your MessageService logic ('citizen' or 'responder')
+      // If user.role is 'admin' or 'responder', we treat them as 'responder'
+      const mappedRole =
+        user.role === "admin" || user.role === "responder"
+          ? "responder"
+          : "citizen";
+
       socket.identity = {
         type: "user",
         id: user.id,
-        role: user.role,        
+        role: mappedRole, // This is what saveMessage({ senderRole }) uses
         name: user.name,
       };
 
+      console.log(`Socket Authenticated: ${user.name} as ${mappedRole}`);
       return next();
     }
 
@@ -28,15 +36,16 @@ module.exports = async (socket, next) => {
       socket.identity = {
         type: "guest",
         id: guest.id,
-        role: "guest",
+        role: "citizen", // Guests are always treated as citizens/reporters
         name: guest.name || "Guest",
       };
 
       return next();
     }
 
-    return next(new Error("Unauthorized"));
+    return next(new Error("Unauthorized: No credentials provided"));
   } catch (err) {
+    console.error("Socket Auth Error:", err.message);
     return next(new Error("Authentication failed"));
   }
 };

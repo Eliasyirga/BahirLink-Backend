@@ -1,11 +1,15 @@
 const { EmergencyType, Category } = require("../models");
 
+/**
+ * CREATE Emergency Type
+ */
 const createEmergencyType = async (data) => {
   try {
     const emergencyType = await EmergencyType.create({
       name: data.name,
       description: data.description || null,
     });
+
     return emergencyType;
   } catch (err) {
     console.error("Error creating EmergencyType:", err);
@@ -13,11 +17,15 @@ const createEmergencyType = async (data) => {
   }
 };
 
+/**
+ * DELETE Emergency Type
+ */
 const deleteEmergencyType = async (id) => {
   try {
     const deleted = await EmergencyType.destroy({
       where: { id },
     });
+
     return deleted > 0;
   } catch (err) {
     console.error("Error deleting EmergencyType:", err);
@@ -25,6 +33,9 @@ const deleteEmergencyType = async (id) => {
   }
 };
 
+/**
+ * GET ALL Emergency Types (with categories)
+ */
 const getAllEmergencyTypes = async () => {
   try {
     const emergencyTypes = await EmergencyType.findAll({
@@ -32,11 +43,12 @@ const getAllEmergencyTypes = async () => {
         {
           model: Category,
           as: "categories",
-          attributes: ["id", "name", "type"],
+          attributes: ["id", "name"], // ✅ FIXED (removed "type")
         },
       ],
       order: [["name", "ASC"]],
     });
+
     return emergencyTypes;
   } catch (err) {
     console.error("Error fetching EmergencyTypes:", err);

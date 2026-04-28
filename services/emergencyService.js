@@ -26,28 +26,57 @@ const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
 const createGuestEmergency = async (data, file, transaction) => {
   try {
-    // 1. Prepare the data object
     const emergencyData = { ...data };
 
-    // 2. STRIP DATE FROM ISO STRING (The Fix)
-    // If input is "2026-04-18T07:49:28.259", we keep "07:49:28.259"
-    if (emergencyData.time && emergencyData.time.includes("T")) {
+    // =========================
+    // 🔥 DEVICE ID (KEEP IT!)
+    // =========================
+    // do NOT delete deviceId anymore if you want tracking
+    if (!emergencyData.deviceId) {
+      emergencyData.deviceId = null;
+    }
+
+    // =========================
+    // 🔥 KEBELE FIX (IMPORTANT)
+    // =========================
+    if (emergencyData.kebeleId || emergencyData.kebele) {
+      emergencyData.kebeleId = parseInt(
+        emergencyData.kebeleId || emergencyData.kebele,
+      );
+      delete emergencyData.kebele;
+    }
+
+    // =========================
+    // 🔥 LOCATION FIX
+    // =========================
+    if (emergencyData.latitude && emergencyData.longitude) {
+      emergencyData.location = {
+        latitude: parseFloat(emergencyData.latitude),
+        longitude: parseFloat(emergencyData.longitude),
+      };
+
+      delete emergencyData.latitude;
+      delete emergencyData.longitude;
+    }
+
+    // =========================
+    // 🔥 TIME FIX
+    // =========================
+    if (emergencyData.time?.includes("T")) {
       emergencyData.time = emergencyData.time.split("T")[1];
     }
 
-    // 3. Handle file path if it exists
+    // =========================
+    // 🔥 FILE FIX
+    // =========================
     if (file) {
-      emergencyData.mediaUrl = `/uploads/${file}`;
+      emergencyData.mediaUrl = `/uploads/${file.filename}`;
     }
 
-    // 4. Create the record
-    const newEmergency = await Emergency.create(emergencyData, {
-      transaction,
-    });
+    console.log("🔥 FINAL GUEST EMERGENCY:", emergencyData);
 
-    return newEmergency;
+    return await Emergency.create(emergencyData, { transaction });
   } catch (error) {
-    // This will now catch other issues since the syntax error is gone
     throw error;
   }
 };
@@ -375,6 +404,37 @@ const updateEmergencyStatus = async (emergencyId, status, report = null) => {
 
   return await emergency.save();
 };
+const getEmergenciesByDeviceId = async (deviceId) => {
+  if (!deviceId) throw new Error("deviceId is required");
+
+  const emergencies = await Emergency.findAll({
+    where: { deviceId },
+    include: [
+      { model: EmergencyType, as: "emergencyType", attributes: ["id", "name"] },
+      { model: Category, as: "category", attributes: ["id", "name"] },
+      { model: Kebele, as: "kebele", attributes: ["id", "name"] },
+      { model: User, as: "user", attributes: ["id", "fullName"] },
+      { model: Guest, as: "guest", attributes: ["id", "contactNo"] },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+
+  return emergencies.map((e) => ({
+    id: e.id,
+    emergencyType: e.emergencyType?.name || null,
+    category: e.category?.name || null,
+    kebele: e.kebele?.name || null,
+    subdivision: e.subdivision,
+    street: e.street,
+    status: e.status,
+
+    reporterType: e.user ? "user" : "guest",
+    reporterName: e.user ? e.user.fullName : e.guest?.contactNo || "Guest",
+
+    deviceId: e.deviceId,
+    createdAt: e.createdAt,
+  }));
+};
 
 module.exports = {
   createGuestEmergency,
@@ -387,4 +447,5 @@ module.exports = {
   getEmergenciesByAgency,
   getAllEmergenciesForAdmin,
   updateEmergencyStatus,
+  getEmergenciesByDeviceId,
 };

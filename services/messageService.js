@@ -1,52 +1,95 @@
 const Message = require("../models/Message");
 const Emergency = require("../models/Emergency");
+const User = require("../models/User");
+const ResponderTeam = require("../models/ResponderTeam");
 
-class MessageService {
-  /**
-   * Saves a message and handles the "Responder-First" activation logic.
-   */
-  async saveMessage({ emergencyId, senderId, senderRole, text }) {
+/**
+ * Save message with emergency chat rules
+ */
+const saveMessage = async ({ emergencyId, senderId, senderType, text }) => {
+  try {
+    console.log("🔥 SAVE MESSAGE INPUT:", {
+      emergencyId,
+      senderId,
+      senderType,
+      text,
+    });
+
     const emergency = await Emergency.findByPk(emergencyId);
 
     if (!emergency) {
       throw new Error("Emergency record not found.");
     }
 
-    // 1. Logic: Block citizen if chat isn't enabled by responder yet
-    if (senderRole === "citizen" && !emergency.isChatEnabled) {
+    let sender = null;
+
+    // 🔥 resolve sender safely
+    if (senderType === "user") {
+      sender = await User.findByPk(senderId);
+    } else if (senderType === "responderTeam") {
+      sender = await ResponderTeam.findByPk(senderId);
+    } else {
+      throw new Error("Invalid senderType provided.");
+    }
+
+    if (!sender) {
+      throw new Error(`Sender not found in ${senderType} table.`);
+    }
+
+    let statusChanged = false;
+
+    // 🚨 BLOCK USER IF CHAT NOT ENABLED
+    if (
+      senderType === "user" &&
+      sender.role === "citizen" &&
+      !emergency.isChatEnabled
+    ) {
       throw new Error("Chat not yet initiated by a responder.");
     }
 
-    // 2. Logic: If responder sends a message, activate the chat for the user
-    let statusChanged = false;
-    if (senderRole === "responder" && !emergency.isChatEnabled) {
+    // 🚨 ENABLE CHAT ON FIRST RESPONDER MESSAGE
+    if (senderType === "responderTeam" && !emergency.isChatEnabled) {
       await emergency.update({ isChatEnabled: true });
       statusChanged = true;
     }
 
-    // 3. Create the message
+    // 💾 CREATE MESSAGE
     const message = await Message.create({
       emergencyId,
       senderId,
-      senderRole,
+      senderType,
       text,
     });
 
-    // Return statusChanged so the controller/socket knows whether to alert the Flutter app
-    return { message, statusChanged };
-  }
+    console.log("✅ MESSAGE SAVED:", message.id);
 
-  /**
-   * Fetches history.
-   * RENAMED to getHistory to match what your Controller is calling.
-   */
-  async getHistory(emergencyId) {
-    return await Message.findAll({
+    return { message, statusChanged };
+  } catch (error) {
+    console.error("❌ SERVICE ERROR:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get chat history
+ */
+const getHistory = async (emergencyId) => {
+  try {
+    const messages = await Message.findAll({
       where: { emergencyId },
       order: [["createdAt", "ASC"]],
-      // Include timestamps to show message time in Flutter/React
     });
-  }
-}
 
-module.exports = new MessageService();
+    console.log(`📩 Loaded ${messages.length} messages`);
+
+    return messages;
+  } catch (error) {
+    console.error("❌ HISTORY ERROR:", error);
+    throw error;
+  }
+};
+
+module.exports = {
+  saveMessage,
+  getHistory,
+};

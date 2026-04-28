@@ -54,6 +54,10 @@ router.patch(
   verifyToken,
   emergencyController.updateEmergencyStatusHandler,
 );
+router.get(
+  "/device/:deviceId",
+  emergencyController.getEmergenciesByDeviceIdHandler,
+);
 
 router.get("/:userOrGuestId", emergencyController.getEmergenciesHandler);
 

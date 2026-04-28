@@ -8,6 +8,7 @@ const {
   getEmergenciesByAgency,
   getAllEmergenciesForAdmin,
   updateEmergencyStatus,
+  getEmergenciesByDeviceId, // ✅ ADD THIS
 } = require("../services/emergencyService");
 
 // =========================
@@ -251,6 +252,32 @@ const updateEmergencyStatusHandler = async (req, res) => {
     });
   }
 };
+const getEmergenciesByDeviceIdHandler = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: "deviceId is required",
+      });
+    }
+
+    const emergencies = await getEmergenciesByDeviceId(deviceId);
+
+    return res.status(200).json({
+      success: true,
+      data: emergencies,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching emergencies by deviceId:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 module.exports = {
   createGuestEmergencyHandler,
@@ -263,4 +290,5 @@ module.exports = {
   getEmergenciesByAgencyHandler,
   getAllEmergenciesAdmin,
   updateEmergencyStatusHandler,
+  getEmergenciesByDeviceIdHandler,
 };

@@ -102,6 +102,10 @@ const Emergency = sequelize.define(
       onDelete: "SET NULL",
       onUpdate: "CASCADE",
     },
+    deviceId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
 
     time: {
       type: DataTypes.TIME,

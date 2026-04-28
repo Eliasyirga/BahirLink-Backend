@@ -1,51 +1,39 @@
 const jwt = require("jsonwebtoken");
-const { User, Guest } = require("../models");
+const { User } = require("../models");
 
 module.exports = async (socket, next) => {
   try {
-    const { token, guestId } = socket.handshake.auth;
+    let { token } = socket.handshake.auth;
+    if (!token) return next(new Error("No token provided"));
 
-    if (token) {
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
+    // Clean the token if it has "Bearer " prefix
+    if (token.startsWith("Bearer ")) token = token.slice(7);
 
-      const user = await User.findByPk(payload.id);
-      if (!user) return next(new Error("User not found"));
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Mapping role to match your MessageService logic ('citizen' or 'responder')
-      // If user.role is 'admin' or 'responder', we treat them as 'responder'
-      const mappedRole =
+    // This is the line failing: find the Responder by the ID in their token
+    const user = await User.findByPk(payload.id);
+
+    if (!user) {
+      console.error(
+        `Socket Auth Failed: User ID ${payload.id} not found in DB.`,
+      );
+      return next(new Error("User not found - please log in again"));
+    }
+
+    // Attach identity for use in chatSocket.js
+    socket.identity = {
+      id: user.id,
+      role:
         user.role === "admin" || user.role === "responder"
           ? "responder"
-          : "citizen";
+          : "citizen",
+      name: user.name,
+    };
 
-      socket.identity = {
-        type: "user",
-        id: user.id,
-        role: mappedRole, // This is what saveMessage({ senderRole }) uses
-        name: user.name,
-      };
-
-      console.log(`Socket Authenticated: ${user.name} as ${mappedRole}`);
-      return next();
-    }
-
-    if (guestId) {
-      const guest = await Guest.findByPk(guestId);
-      if (!guest) return next(new Error("Guest not found"));
-
-      socket.identity = {
-        type: "guest",
-        id: guest.id,
-        role: "citizen", // Guests are always treated as citizens/reporters
-        name: guest.name || "Guest",
-      };
-
-      return next();
-    }
-
-    return next(new Error("Unauthorized: No credentials provided"));
+    next();
   } catch (err) {
     console.error("Socket Auth Error:", err.message);
-    return next(new Error("Authentication failed"));
+    next(new Error("Authentication failed"));
   }
 };

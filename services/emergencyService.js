@@ -28,17 +28,10 @@ const createGuestEmergency = async (data, file, transaction) => {
   try {
     const emergencyData = { ...data };
 
-    // =========================
-    // 🔥 DEVICE ID (KEEP IT!)
-    // =========================
-    // do NOT delete deviceId anymore if you want tracking
-    if (!emergencyData.deviceId) {
-      emergencyData.deviceId = null;
-    }
+    // Device tracking
+    emergencyData.deviceId = emergencyData.deviceId || null;
 
-    // =========================
-    // 🔥 KEBELE FIX (IMPORTANT)
-    // =========================
+    // Kebele fix
     if (emergencyData.kebeleId || emergencyData.kebele) {
       emergencyData.kebeleId = parseInt(
         emergencyData.kebeleId || emergencyData.kebele,
@@ -46,36 +39,46 @@ const createGuestEmergency = async (data, file, transaction) => {
       delete emergencyData.kebele;
     }
 
-    // =========================
-    // 🔥 LOCATION FIX
-    // =========================
+    // Validation
+    if (!emergencyData.kebeleId) {
+      throw new Error("kebeleId is required");
+    }
+
+    // Location fix
     if (emergencyData.latitude && emergencyData.longitude) {
       emergencyData.location = {
         latitude: parseFloat(emergencyData.latitude),
         longitude: parseFloat(emergencyData.longitude),
       };
-
       delete emergencyData.latitude;
       delete emergencyData.longitude;
     }
 
-    // =========================
-    // 🔥 TIME FIX
-    // =========================
-    if (emergencyData.time?.includes("T")) {
-      emergencyData.time = emergencyData.time.split("T")[1];
-    }
+    // Time fix (safe)
+    if (emergencyData.time) {
+      const d = new Date(emergencyData.time);
 
-    // =========================
-    // 🔥 FILE FIX
-    // =========================
+      emergencyData.time = [
+        String(d.getHours()).padStart(2, "0"),
+        String(d.getMinutes()).padStart(2, "0"),
+        String(d.getSeconds()).padStart(2, "0"),
+      ].join(":");
+    }
+    // File
     if (file) {
       emergencyData.mediaUrl = `/uploads/${file.filename}`;
     }
 
+    // IMPORTANT defaults
+    emergencyData.reporterType = "guest";
+    emergencyData.status = "reported";
+
     console.log("🔥 FINAL GUEST EMERGENCY:", emergencyData);
 
-    return await Emergency.create(emergencyData, { transaction });
+    return await Emergency.create(
+      emergencyData,
+      transaction ? { transaction } : {},
+    );
   } catch (error) {
     throw error;
   }

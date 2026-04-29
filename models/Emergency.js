@@ -111,6 +111,25 @@ const Emergency = sequelize.define(
       type: DataTypes.TIME,
       allowNull: true,
     },
+
+    // Chat is enabled only after responder initiates.
+    isChatEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    chatInitiatedByResponderTeamId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "responder_teams",
+        key: "id",
+      },
+    },
+    chatInitiatedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     tableName: "emergencies",

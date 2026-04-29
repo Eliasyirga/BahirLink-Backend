@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { User } = require("../models");
+const { User, ResponderTeam } = require("../models");
 
 module.exports = async (socket, next) => {
   try {
@@ -11,24 +11,31 @@ module.exports = async (socket, next) => {
 
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // This is the line failing: find the Responder by the ID in their token
-    const user = await User.findByPk(payload.id);
+    // Support both citizen/admin users and responder teams.
+    // - Citizen/admin tokens are issued for `User`
+    // - Responder dashboard tokens are issued for `ResponderTeam` (role: "responder")
+    const isResponderTeamToken = payload.role === "responder";
+    const identityRecord = isResponderTeamToken
+      ? await ResponderTeam.findByPk(payload.id)
+      : await User.findByPk(payload.id);
 
-    if (!user) {
+    if (!identityRecord) {
       console.error(
-        `Socket Auth Failed: User ID ${payload.id} not found in DB.`,
+        `Socket Auth Failed: id ${payload.id} (role=${payload.role}) not found in DB.`,
       );
-      return next(new Error("User not found - please log in again"));
+      return next(new Error("Account not found - please log in again"));
     }
 
     // Attach identity for use in chatSocket.js
     socket.identity = {
-      id: user.id,
-      role:
-        user.role === "admin" || user.role === "responder"
+      id: identityRecord.id,
+      senderType: isResponderTeamToken ? "responderTeam" : "user",
+      role: isResponderTeamToken
+        ? "responder"
+        : identityRecord.role === "admin" || identityRecord.role === "responder"
           ? "responder"
           : "citizen",
-      name: user.name,
+      name: identityRecord.name || identityRecord.fullName || identityRecord.email,
     };
 
     next();

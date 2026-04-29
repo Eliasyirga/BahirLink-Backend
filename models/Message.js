@@ -16,6 +16,20 @@ const Message = sequelize.define(
       references: { model: "emergencies", key: "id" },
     },
 
+    // The citizen involved in this emergency chat (for easy filtering/auditing)
+    citizenId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: { model: "users", key: "id" },
+    },
+
+    // The responder team engaged in this chat (set once chat is initiated)
+    responderTeamId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: "responder_teams", key: "id" },
+    },
+
     // 🔥 NEW: who sent it (important fix)
     senderType: {
       type: DataTypes.ENUM("user", "responderTeam"),
@@ -28,9 +42,20 @@ const Message = sequelize.define(
       allowNull: false,
     },
 
+    messageType: {
+      type: DataTypes.ENUM("text", "audio"),
+      allowNull: false,
+      defaultValue: "text",
+    },
+
     text: {
       type: DataTypes.TEXT,
-      allowNull: false,
+      allowNull: true,
+    },
+
+    audioUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

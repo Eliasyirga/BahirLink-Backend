@@ -23,6 +23,7 @@ const Kebele = require("./Kebele");
 const CaseReport = require("./CaseReport");
 const ResponderTeamKebele = require("./ResponderTeamKebele");
 const Emerged = require("./Emerged");
+const FinalReport = require("./FinalReport");
 
 // =========================
 // USER / GUEST RELATIONSHIPS
@@ -198,6 +199,16 @@ Emergency.belongsTo(Emerged, {
   as: "emerged",
 });
 
+Emergency.hasOne(FinalReport, {
+  foreignKey: "emergencyId",
+  as: "finalReport",
+});
+
+FinalReport.belongsTo(Emergency, {
+  foreignKey: "emergencyId",
+  as: "emergency",
+});
+
 // =========================
 // EXPORTS
 // =========================
@@ -223,4 +234,5 @@ module.exports = {
   Kebele,
   ResponderTeamKebele,
   Emerged,
+  FinalReport,
 };

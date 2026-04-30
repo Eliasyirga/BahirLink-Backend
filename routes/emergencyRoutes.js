@@ -79,7 +79,7 @@ router.get(
   emergencyController.getEmergenciesByAgencyHandler,
 );
 
-// --- UPDATE & DELETE ---
+
 router.put(
   "/:userOrGuestId/:id",
   verifyToken,

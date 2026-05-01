@@ -31,6 +31,7 @@ const messageRoutes = require("./routes/messageRoutes");
 
 // --- Socket logic & Middleware ---
 const chatSocket = require("./socket/chatSocket");
+const videoCallSocket = require("./socket/videoCallSocket");
 const socketAuth = require("./middleware/socketAuth");
 
 const app = express();
@@ -55,6 +56,7 @@ io.on("connection", (socket) => {
     `📡 Socket Connected: ${socket.identity.name} [${socket.identity.role}]`,
   );
   chatSocket(io, socket);
+  videoCallSocket(io, socket);
 });
 
 /**

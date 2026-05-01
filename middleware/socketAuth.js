@@ -1,15 +1,47 @@
 const jwt = require("jsonwebtoken");
 const { User, ResponderTeam } = require("../models");
 
+function normalizeToken(rawToken) {
+  if (rawToken == null) return null;
+
+  // Socket.io auth payloads should be strings; guard against objects/arrays.
+  if (typeof rawToken !== "string") return null;
+
+  let token = rawToken.trim();
+  if (!token) return null;
+
+  // Remove accidental wrapping quotes: '"abc"' or "'abc'"
+  token = token.replace(/^["'](.+)["']$/, "$1").trim();
+
+  // Accept "Bearer <token>" (any casing, any whitespace)
+  token = token.replace(/^Bearer\s+/i, "").trim();
+
+  // Common bugs from client storage issues
+  if (token === "null" || token === "undefined") return null;
+
+  return token || null;
+}
+
+function extractSocketToken(socket) {
+  const authToken = normalizeToken(socket?.handshake?.auth?.token);
+  if (authToken) return { token: authToken, source: "handshake.auth.token" };
+
+  const headerToken = normalizeToken(socket?.handshake?.headers?.authorization);
+  if (headerToken)
+    return { token: headerToken, source: "handshake.headers.authorization" };
+
+  const queryToken = normalizeToken(socket?.handshake?.query?.token);
+  if (queryToken) return { token: queryToken, source: "handshake.query.token" };
+
+  return null;
+}
+
 module.exports = async (socket, next) => {
   try {
-    let { token } = socket.handshake.auth;
-    if (!token) return next(new Error("No token provided"));
+    const res = extractSocketToken(socket);
+    if (!res?.token) return next(new Error("No token provided"));
 
-    // Clean the token if it has "Bearer " prefix
-    if (token.startsWith("Bearer ")) token = token.slice(7);
-
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(res.token, process.env.JWT_SECRET);
 
     // Support both citizen/admin users and responder teams.
     // - Citizen/admin tokens are issued for `User`
@@ -40,7 +72,11 @@ module.exports = async (socket, next) => {
 
     next();
   } catch (err) {
-    console.error("Socket Auth Error:", err.message);
+    const msg = err?.message || "unknown";
+    console.error("Socket Auth Error:", msg);
+    if (msg === "jwt malformed") {
+      return next(new Error("Invalid token format"));
+    }
     next(new Error("Authentication failed"));
   }
 };

@@ -89,11 +89,8 @@ const updateEmergencyHandler = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
-};
+}
 
-// =========================
-// DELETE EMERGENCY
-// =========================
 const deleteEmergencyHandler = async (req, res) => {
   try {
     const { id } = req.params;

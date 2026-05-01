@@ -28,6 +28,7 @@ const serviceRoutes = require("./routes/serviceRoutes");
 const caseReportsRoutes = require("./routes/caseReportsRoutes");
 const emergedRoutes = require("./routes/emergedRoutes");
 const messageRoutes = require("./routes/messageRoutes");
+const finalReportRoutes = require("./routes/finalReportRoutes");
 
 // --- Socket logic & Middleware ---
 const chatSocket = require("./socket/chatSocket");
@@ -104,6 +105,7 @@ app.use("/api/service", serviceRoutes);
 app.use("/api/caseReports", caseReportsRoutes);
 app.use("/api/emerged", emergedRoutes);
 app.use("/api/message", messageRoutes);
+app.use("/api/finalReport", finalReportRoutes);
 
 /**
  * ======================
@@ -132,7 +134,7 @@ connectDB()
     return sequelize.sync({ alter: true });
   })
   .then(() => {
-    console.log("✅ Database Synced to Neon.");
+    console.log(" Database Synced to Neon.");
     server.listen(PORT, () =>
       console.log(`🚀 Server navigating on port ${PORT}`),
     );

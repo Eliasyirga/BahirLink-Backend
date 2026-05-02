@@ -10,7 +10,6 @@ const FinalReport = sequelize.define(
       primaryKey: true,
     },
 
-    // 🔗 Link to Emergency
     emergencyId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -23,7 +22,6 @@ const FinalReport = sequelize.define(
       onUpdate: "CASCADE",
     },
 
-    // 👤 Original Reporter Info (Automated)
     reporterType: {
       type: DataTypes.ENUM("user", "guest"),
       allowNull: false,
@@ -40,20 +38,16 @@ const FinalReport = sequelize.define(
       allowNull: true,
     },
 
-    // 🚑 Responder (The staff member closing the case)
     responderId: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
 
-    // 🧠 Manual Input Attributes
     incidentSummary: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
 
-<<<<<<< HEAD
-=======
     injuredCount: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
@@ -64,37 +58,20 @@ const FinalReport = sequelize.define(
       defaultValue: 0,
     },
 
-    // 📸 Media & Location Snapshots
     media: {
       type: DataTypes.JSON,
       allowNull: true,
       defaultValue: [],
     },
 
->>>>>>> 2d1f39e (updated)
     location: {
       type: DataTypes.JSON,
       allowNull: true,
     },
 
-<<<<<<< HEAD
-=======
-    // 📊 Lifecycle Status
->>>>>>> 2d1f39e (updated)
     status: {
-      // Added 'verified' and 'archived' so your service functions don't crash
-      type: DataTypes.ENUM("resolved", "verified", "archived"),
+      type: DataTypes.ENUM("resolved"),
       defaultValue: "resolved",
-    },
-
-    // 🛡️ Verification Tracking
-    verifiedBy: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    verifiedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
     },
   },
   {

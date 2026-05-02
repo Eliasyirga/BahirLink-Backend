@@ -7,6 +7,13 @@ const { Emergency } = require("../models");
  * (offer/answer/ICE) between peers in an emergency room.
  */
 const videoCallSocket = (io, socket) => {
+  // Every authenticated connection joins an identity room so we can target a
+  // specific user/responder without relying on volatile socket IDs.
+  const identityRoom = socket?.identity
+    ? `identity_${socket.identity.senderType}_${socket.identity.id}`
+    : null;
+  if (identityRoom) socket.join(identityRoom);
+
   const ensureCallRoom = async ({ emergencyId }) => {
     if (!emergencyId) {
       socket.emit("call:error", { message: "emergencyId is required." });
@@ -34,6 +41,48 @@ const videoCallSocket = (io, socket) => {
     return { roomName, emergency };
   };
 
+  /**
+   * Responder initiates a call to the emergency reporter (citizen).
+   * This emits ONLY to that citizen's identity room.
+   *
+   * payload: { emergencyId }
+   */
+  socket.on("call:initiate", async ({ emergencyId }) => {
+    try {
+      if (socket.identity.role !== "responder") {
+        return socket.emit("call:error", { message: "Responder access required." });
+      }
+
+      const res = await ensureCallRoom({ emergencyId });
+      if (!res) return;
+
+      const { emergency } = res;
+      if (!emergency?.citizenId) {
+        return socket.emit("call:error", {
+          message: "Emergency has no citizenId (reporter) to call.",
+        });
+      }
+
+      const targetRoom = `identity_user_${Number(emergency.citizenId)}`;
+
+      // Send to the reporter only (all their active sockets).
+      io.to(targetRoom).emit("call:incoming", {
+        emergencyId: Number(emergencyId),
+        fromIdentity: socket.identity,
+        fromSocketId: socket.id,
+        toUserId: Number(emergency.citizenId),
+      });
+
+      socket.emit("call:initiated", {
+        emergencyId: Number(emergencyId),
+        toUserId: Number(emergency.citizenId),
+      });
+    } catch (err) {
+      console.error("call:initiate error:", err);
+      socket.emit("call:error", { message: "Failed to initiate call." });
+    }
+  });
+
   socket.on("call:join", async ({ emergencyId }) => {
     try {
       const res = await ensureCallRoom({ emergencyId });
@@ -58,6 +107,14 @@ const videoCallSocket = (io, socket) => {
     }
   });
 
+  const identityToRoom = (toIdentity) => {
+    if (!toIdentity) return null;
+    const senderType = toIdentity.senderType;
+    const id = toIdentity.id;
+    if (!senderType || id == null) return null;
+    return `identity_${senderType}_${Number(id)}`;
+  };
+
   const relayToRoom = async (eventName, payload) => {
     const emergencyId =
       payload?.emergencyId ?? socket.data.callEmergencyId ?? null;
@@ -65,6 +122,19 @@ const videoCallSocket = (io, socket) => {
     if (!res) return;
 
     const { roomName } = res;
+
+    // Prefer targeting an identity room for stable 1:1 delivery.
+    // payload.toIdentity: { senderType: "user"|"responderTeam", id: number }
+    const toIdentityRoom = identityToRoom(payload?.toIdentity);
+    if (toIdentityRoom) {
+      io.to(toIdentityRoom).emit(eventName, {
+        ...payload,
+        emergencyId: Number(emergencyId),
+        fromSocketId: socket.id,
+        fromIdentity: socket.identity,
+      });
+      return;
+    }
 
     // If client wants to send to a specific socket, do so; else broadcast to room.
     if (payload?.toSocketId) {
@@ -87,7 +157,7 @@ const videoCallSocket = (io, socket) => {
 
   socket.on("call:offer", async (payload) => {
     try {
-      // payload: { emergencyId, sdp, toSocketId? }
+      // payload: { emergencyId, sdp, toSocketId?, toIdentity? }
       if (!payload?.sdp) {
         return socket.emit("call:error", { message: "Missing offer sdp." });
       }
@@ -100,7 +170,7 @@ const videoCallSocket = (io, socket) => {
 
   socket.on("call:answer", async (payload) => {
     try {
-      // payload: { emergencyId, sdp, toSocketId? }
+      // payload: { emergencyId, sdp, toSocketId?, toIdentity? }
       if (!payload?.sdp) {
         return socket.emit("call:error", { message: "Missing answer sdp." });
       }
@@ -113,7 +183,7 @@ const videoCallSocket = (io, socket) => {
 
   socket.on("call:ice", async (payload) => {
     try {
-      // payload: { emergencyId, candidate, toSocketId? }
+      // payload: { emergencyId, candidate, toSocketId?, toIdentity? }
       if (!payload?.candidate) {
         return socket.emit("call:error", { message: "Missing ICE candidate." });
       }

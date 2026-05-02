@@ -37,8 +37,10 @@ function extractSocketToken(socket) {
 }
 
 module.exports = async (socket, next) => {
+  let tokenMeta = null;
   try {
     const res = extractSocketToken(socket);
+    tokenMeta = res ? { source: res.source, token: res.token } : null;
     if (!res?.token) return next(new Error("No token provided"));
 
     const payload = jwt.verify(res.token, process.env.JWT_SECRET);
@@ -73,7 +75,17 @@ module.exports = async (socket, next) => {
     next();
   } catch (err) {
     const msg = err?.message || "unknown";
-    console.error("Socket Auth Error:", msg);
+    const rawToken = tokenMeta?.token;
+    const tokenInfo = rawToken
+      ? {
+          source: tokenMeta?.source,
+          length: String(rawToken).length,
+          looksLikeJwt: String(rawToken).split(".").length === 3,
+          startsWithEy: String(rawToken).startsWith("ey"),
+        }
+      : { source: tokenMeta?.source ?? "none" };
+
+    console.error("Socket Auth Error:", msg, tokenInfo);
     if (msg === "jwt malformed") {
       return next(new Error("Invalid token format"));
     }

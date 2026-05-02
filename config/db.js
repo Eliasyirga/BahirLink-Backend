@@ -9,7 +9,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
       rejectUnauthorized: false,
     },
   },
-  logging: console.log, 
+  logging: false, // ✅ no more "Executing..." logs
 });
 
 const connectDB = async () => {

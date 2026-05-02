@@ -79,7 +79,6 @@ router.get(
   emergencyController.getEmergenciesByAgencyHandler,
 );
 
-
 router.put(
   "/:userOrGuestId/:id",
   verifyToken,

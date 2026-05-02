@@ -6,6 +6,9 @@ const {
   deleteEmerged,
 } = require("../services/emergedService");
 
+// 🔥 ADD THIS (YOU WERE MISSING IT)
+const { Emergency } = require("../models");
+
 // ===============================
 // 🔗 MERGE EMERGENCIES
 // ===============================
@@ -22,15 +25,18 @@ const mergeEmergencies = async (req, res) => {
 
     const safeMergeIds = Array.isArray(mergeIds) ? mergeIds : [];
 
-    // 🔒 SAFE ACCESS
-    const kebeleId = req.user?.kebeleId;
+    // 🔥 FETCH MAIN EMERGENCY (FIXED ERROR)
+    const mainEmergency = await Emergency.findByPk(mainId);
 
-    if (!kebeleId) {
-      return res.status(401).json({
+    if (!mainEmergency) {
+      return res.status(404).json({
         success: false,
-        message: "kebeleId not found in request user",
+        message: "Main emergency not found",
       });
     }
+
+    // 🔥 USE KEBELE FROM EMERGENCY (CORRECT DESIGN)
+    const kebeleId = mainEmergency.kebeleId;
 
     const result = await createEmergedFromEmergencies(
       mainId,
@@ -58,16 +64,7 @@ const mergeEmergencies = async (req, res) => {
 // ===============================
 const getEmergedHandler = async (req, res) => {
   try {
-    const kebeleId = req.user?.kebeleId;
-
-    if (!kebeleId) {
-      return res.status(401).json({
-        success: false,
-        message: "kebeleId missing",
-      });
-    }
-
-    const data = await getAllEmerged(kebeleId);
+    const data = await getAllEmerged(); // 🔥 no kebeleId
 
     return res.status(200).json({
       success: true,
@@ -83,7 +80,6 @@ const getEmergedHandler = async (req, res) => {
     });
   }
 };
-
 // ===============================
 // 🟡 GET UNASSIGNED
 // ===============================

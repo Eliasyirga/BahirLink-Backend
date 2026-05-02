@@ -1,8 +1,17 @@
-const { Emergency, Emerged, sequelize } = require("../models");
 const { Op } = require("sequelize");
+const {
+  sequelize,
+  Emergency,
+  Emerged,
+  EmergencyType,
+  Category,
+  Kebele,
+  User,
+  Guest,
+} = require("../models");
 
 // ===============================
-// 🔗 MERGE / CREATE GROUP
+// 🔗 MERGE EMERGENCIES (MANUAL)
 // ===============================
 const createEmergedFromEmergencies = async (
   mainId,
@@ -12,89 +21,72 @@ const createEmergedFromEmergencies = async (
   const transaction = await sequelize.transaction();
 
   try {
-    // ===============================
-    // ✅ normalize IDs (VERY IMPORTANT FIX)
-    // ===============================
     const allIds = [...new Set([mainId, ...mergeIds])]
-      .map((id) => Number(id))
-      .filter((id) => !isNaN(id));
+      .map(Number)
+      .filter(Boolean);
 
-    const mainIdNum = Number(mainId);
+    if (allIds.length === 0) {
+      throw new Error("No valid emergency IDs provided");
+    }
 
     const emergencies = await Emergency.findAll({
       where: { id: { [Op.in]: allIds } },
       transaction,
     });
 
-    if (!emergencies.length) {
-      throw new Error("No emergencies found");
-    }
-
     if (emergencies.length !== allIds.length) {
       throw new Error("Some emergencies not found");
     }
 
-    // ===============================
-    // ✅ find main emergency safely
-    // ===============================
-    const main = emergencies.find((e) => Number(e.id) === mainIdNum);
-
-    if (!main) {
-      throw new Error("Main emergency not found");
-    }
+    const main = emergencies.find((e) => e.id === Number(mainId));
+    if (!main) throw new Error("Main emergency not found");
 
     // ===============================
-    // 📍 SAME KEBELE RULE (source: Emergency)
+    // 📍 SAME KEBELE RULE
     // ===============================
-    const invalidKebele = emergencies.some(
-      (e) => Number(e.kebeleId) !== Number(main.kebeleId),
-    );
+    const sameKebele = emergencies.every((e) => e.kebeleId === main.kebeleId);
 
-    if (invalidKebele) {
+    if (!sameKebele) {
       throw new Error("Cannot merge emergencies from different kebeles");
     }
 
     // ===============================
-    // 🔒 responder restriction (optional but safe)
+    // ⚠️ SAME TYPE RULE (YOUR REQUIREMENT)
+    // ===============================
+    const sameType = emergencies.every(
+      (e) => e.emergencyTypeId === main.emergencyTypeId,
+    );
+
+    if (!sameType) {
+      throw new Error("Cannot merge different emergency types");
+    }
+
+    // ===============================
+    // 🔒 responder restriction (optional safety)
     // ===============================
     if (
-      responderKebeleId !== undefined &&
+      responderKebeleId &&
       Number(main.kebeleId) !== Number(responderKebeleId)
     ) {
-      throw new Error("Not allowed to merge outside assigned kebele");
+      throw new Error("Not allowed outside assigned kebele");
     }
 
     // ===============================
-    // 🔍 check existing groups safely
+    // 🔍 check existing group
     // ===============================
-    const groupIds = [
-      ...new Set(
-        emergencies
-          .map((e) => e.emergedId)
-          .filter(Boolean)
-          .map((id) => Number(id)),
-      ),
-    ];
-
-    if (groupIds.length > 1) {
-      throw new Error("Emergencies already belong to different groups");
-    }
+    const existingGroupId = emergencies.find((e) => e.emergedId)?.emergedId;
 
     let group;
 
-    // ===============================
-    // ♻️ reuse or create group
-    // ===============================
-    if (groupIds[0]) {
-      group = await Emerged.findByPk(groupIds[0], { transaction });
+    if (existingGroupId) {
+      group = await Emerged.findByPk(existingGroupId, { transaction });
 
-      if (!group) {
-        throw new Error("Existing group not found");
-      }
+      if (!group) throw new Error("Existing group not found");
     } else {
+      // 🆕 CREATE GROUP
       group = await Emerged.create(
         {
-          summary: main.description,
+          summary: main.description || "Grouped emergency case",
           kebeleId: main.kebeleId,
           subdivision: main.subdivision,
           street: main.street,
@@ -105,7 +97,7 @@ const createEmergedFromEmergencies = async (
     }
 
     // ===============================
-    // 🔗 link emergencies
+    // 🔗 LINK EMERGENCIES
     // ===============================
     await Emergency.update(
       { emergedId: group.id },
@@ -124,19 +116,23 @@ const createEmergedFromEmergencies = async (
 };
 
 // ===============================
-// 🟢 GET GROUPED EMERGENCIES
+// 📦 GET GROUPED EMERGENCIES
 // ===============================
-const getAllEmerged = async (kebeleId) => {
-  if (!kebeleId) throw new Error("kebeleId is required");
+const getAllEmerged = async (kebeleId = null) => {
+  const whereClause = kebeleId ? { kebeleId } : {};
 
   const groups = await Emerged.findAll({
-    where: { kebeleId },
+    where: whereClause,
     include: [
       {
         model: Emergency,
         as: "emergencies",
-        required: false,
-        attributes: ["id", "description", "citizenId", "guestId", "createdAt"],
+        include: [
+          { model: EmergencyType, as: "emergencyType" },
+          { model: Category, as: "category" },
+          { model: User, as: "user" },
+          { model: Guest, as: "guest" },
+        ],
       },
     ],
     order: [["createdAt", "DESC"]],
@@ -152,21 +148,24 @@ const getAllEmerged = async (kebeleId) => {
       subdivision: g.subdivision,
       street: g.street,
       status: g.status,
-
-      // ✅ always correct dynamic value
       reportCount: ems.length,
 
-      reporters: [...new Set(ems.map((e) => e.citizenId || e.guestId))],
-
-      descriptions: ems.map((e) => e.description),
-
-      emergencies: ems,
+      emergencies: ems.map((e) => ({
+        id: e.id,
+        emergencyType: e.emergencyType?.name || null,
+        category: e.category?.name || null,
+        description: e.description || null,
+        reporterType: e.user ? "user" : "guest",
+        reporterName: e.user ? e.user.fullName : e.guest?.contactNo || "Guest",
+        deviceId: e.deviceId,
+        status: e.status,
+        createdAt: e.createdAt,
+      })),
     };
   });
 };
-
 // ===============================
-// 🟡 GET UNASSIGNED EMERGENCIES
+// 🟡 UNASSIGNED EMERGENCIES
 // ===============================
 const getUnassignedEmergencies = async (kebeleId) => {
   if (!kebeleId) throw new Error("kebeleId is required");
@@ -186,11 +185,9 @@ const getUnassignedEmergencies = async (kebeleId) => {
 const updateEmerged = async (id, data, kebeleId) => {
   const group = await Emerged.findByPk(id);
 
-  if (!group) {
-    throw new Error("Group not found");
-  }
+  if (!group) throw new Error("Group not found");
 
-  if (kebeleId && Number(group.kebeleId) !== Number(kebeleId)) {
+  if (kebeleId && group.kebeleId !== kebeleId) {
     throw new Error("Not allowed to update this group");
   }
 
@@ -206,14 +203,13 @@ const deleteEmerged = async (id, kebeleId) => {
   try {
     const group = await Emerged.findByPk(id, { transaction });
 
-    if (!group) {
-      throw new Error("Group not found");
-    }
+    if (!group) throw new Error("Group not found");
 
-    if (kebeleId && Number(group.kebeleId) !== Number(kebeleId)) {
+    if (kebeleId && group.kebeleId !== kebeleId) {
       throw new Error("Not allowed to delete this group");
     }
 
+    // unlink emergencies
     await Emergency.update(
       { emergedId: null },
       {
@@ -222,10 +218,7 @@ const deleteEmerged = async (id, kebeleId) => {
       },
     );
 
-    await Emerged.destroy({
-      where: { id },
-      transaction,
-    });
+    await group.destroy({ transaction });
 
     await transaction.commit();
 
@@ -236,7 +229,6 @@ const deleteEmerged = async (id, kebeleId) => {
   }
 };
 
-// ===============================
 module.exports = {
   createEmergedFromEmergencies,
   getAllEmerged,

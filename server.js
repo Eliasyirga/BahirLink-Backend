@@ -131,13 +131,11 @@ const PORT = process.env.PORT || 5000;
 connectDB()
   .then(() => {
     // alter: true will now apply smoothly since you manually fixed 'cases' types
-    return sequelize.sync({ alter: true });
+    return sequelize.sync();
   })
   .then(() => {
     console.log(" Database Synced to Neon.");
-    server.listen(PORT, () =>
-      console.log(`🚀 Server navigating on port ${PORT}`),
-    );
+    server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => {
     console.error("🛑 Startup Failure:", err);

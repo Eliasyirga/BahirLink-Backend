@@ -120,13 +120,12 @@ const createUserEmergency = async (userId, emergencyData, file) => {
 
   const mediaUrl = file ? `/public/uploads/${file.filename}` : null;
 
-  // Sequelize will automatically stringify the 'location' object into the JSON column
   return await Emergency.create({
     ...rest,
     kebeleId: kebeleRecord.id,
     subdivision,
     street,
-    location, // Now a JS Object: { latitude: 11.3, longitude: 37.3 }
+    location,
     mediaUrl,
     emergencyTypeId,
     categoryId,
@@ -204,7 +203,6 @@ const getEmergencies = async (userOrGuestId, isGuest = false) => {
 // GET EMERGENCIES BY AGENCY
 // =========================
 const getEmergenciesByAgency = async (agencyId) => {
-  // 1️⃣ Find agency + its type
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
   });
@@ -315,15 +313,15 @@ const getAllEmergenciesForAdmin = async () => {
       street: e.street,
 
       reporterType: e.user ? "user" : "guest",
-
       reporterName: e.user
         ? e.user.fullName || "Registered User"
         : e.guest?.contactNo || "Guest",
 
+      deviceId: e.deviceId, // 🔥 THIS WAS MISSING
+
       status: e.status,
       createdAt: e.createdAt,
     }));
-
     return result;
   } catch (err) {
     console.error("❌ Error in getAllEmergenciesForAdmin:", err);

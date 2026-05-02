@@ -8,9 +8,9 @@ const {
   getEmergenciesByAgency,
   getAllEmergenciesForAdmin,
   updateEmergencyStatus,
-  getEmergenciesByDeviceId, // ✅ ADD THIS
+  getEmergenciesByDeviceId,
+  getEmergencyById, // ✅ ADD THIS
 } = require("../services/emergencyService");
-
 // =========================
 // CREATE GUEST EMERGENCY
 // =========================
@@ -89,7 +89,7 @@ const updateEmergencyHandler = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
-}
+};
 
 const deleteEmergencyHandler = async (req, res) => {
   try {

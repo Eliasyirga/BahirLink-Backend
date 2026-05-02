@@ -1,32 +1,26 @@
+// routes/finalReport.routes.js
+
 const express = require("express");
 const router = express.Router();
 
-const finalReportController = require("../controllers/finalReportController");
+const controller = require("../controllers/finalReportController");
 
-//
-// 🧾 CREATE FINAL REPORT
-// (usually triggered automatically when emergency is resolved)
-//
-router.post("/", finalReportController.createFinalReport);
+// CREATE
+router.post("/:emergencyId", controller.createFinalReport);
 
-//
-// 📄 GET ALL FINAL REPORTS
-//
-router.get("/", finalReportController.getAll);
+// UPDATE
+router.put("/:emergencyId", controller.updateFinalReport);
 
-//
-// 🔍 GET FINAL REPORT BY ID
-//
-router.get("/:id", finalReportController.getById);
+// VERIFY
+router.patch("/:emergencyId/verify", controller.verifyFinalReport);
 
-//
-// ✏️ UPDATE FINAL REPORT
-//
-router.put("/:id", finalReportController.update);
+// ARCHIVE
+router.patch("/:emergencyId/archive", controller.archiveFinalReport);
 
-//
-// ❌ DELETE FINAL REPORT
-//
-router.delete("/:id", finalReportController.remove);
+// GET ONE
+router.get("/:emergencyId", controller.getFinalReportByEmergency);
+
+// GET ALL
+router.get("/", controller.getAllFinalReports);
 
 module.exports = router;

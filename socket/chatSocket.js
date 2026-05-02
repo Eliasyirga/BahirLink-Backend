@@ -5,7 +5,9 @@ const chatSocket = (io, socket) => {
     try {
       const emergency = await Emergency.findByPk(emergencyId);
       if (!emergency) {
-        return socket.emit("error_alert", { message: "Incident record not found." });
+        return socket.emit("error_alert", {
+          message: "Incident record not found.",
+        });
       }
 
       // Citizens can only join their own emergency room
@@ -42,7 +44,9 @@ const chatSocket = (io, socket) => {
 
       const emergency = await Emergency.findByPk(emergencyId);
       if (!emergency) {
-        return socket.emit("error_alert", { message: "Incident record not found." });
+        return socket.emit("error_alert", {
+          message: "Incident record not found.",
+        });
       }
       if (!emergency.citizenId) {
         return socket.emit("error_alert", {
@@ -65,7 +69,10 @@ const chatSocket = (io, socket) => {
         });
       }
 
-      if (socket.identity.senderType === "responderTeam" && !emergency.isChatEnabled) {
+      if (
+        socket.identity.senderType === "responderTeam" &&
+        !emergency.isChatEnabled
+      ) {
         await emergency.update({
           isChatEnabled: true,
           chatInitiatedByResponderTeamId: socket.identity.id,
@@ -81,7 +88,9 @@ const chatSocket = (io, socket) => {
         citizenId: emergency.citizenId,
         responderTeamId:
           emergency.chatInitiatedByResponderTeamId ??
-          (socket.identity.senderType === "responderTeam" ? socket.identity.id : null),
+          (socket.identity.senderType === "responderTeam"
+            ? socket.identity.id
+            : null),
         senderId: socket.identity.id,
         senderType: socket.identity.senderType,
         messageType: cleanAudioUrl ? "audio" : "text",

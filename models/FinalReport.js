@@ -41,13 +41,11 @@ const FinalReport = sequelize.define(
       allowNull: true,
     },
 
-    // 📍 Location snapshot
     location: {
       type: DataTypes.JSON,
       allowNull: true,
     },
 
-    // 📊 Final report status
     status: {
       type: DataTypes.ENUM("resolved", "verified", "archived"),
       defaultValue: "resolved",

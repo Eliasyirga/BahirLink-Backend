@@ -1,24 +1,33 @@
 const express = require("express");
 const router = express.Router();
 
+// 1. Import the upload middleware
+const upload = require("../middleware/upload");
 const controller = require("../controllers/finalReportController");
 
-// CREATE
-router.post("/:emergencyId", controller.createFinalReport);
 
-// UPDATE
-router.put("/:emergencyId", controller.updateFinalReport);
+router.post(
+  "/:emergencyId",
+  upload.array("media"),
+  controller.createFinalReport,
+);
 
-// VERIFY
+
+router.put(
+  "/:emergencyId",
+  upload.array("media"),
+  controller.updateFinalReport,
+);
+
+router.get("/download/:emergencyId", controller.downloadPDFReport);
+
+
 router.patch("/:emergencyId/verify", controller.verifyFinalReport);
 
-// ARCHIVE
 router.patch("/:emergencyId/archive", controller.archiveFinalReport);
 
-// GET ONE
-router.get("/:emergencyId", controller.getFinalReportByEmergency);
+router.get("/:emergencyId", controller.getReportByEmergency);
 
-// GET ALL
-router.get("/", controller.getAllFinalReports);
+router.get("/", controller.getAllReports);
 
 module.exports = router;

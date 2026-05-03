@@ -209,6 +209,11 @@ FinalReport.belongsTo(Emergency, {
   as: "emergency",
 });
 
+FinalReport.belongsTo(ResponderTeam, {
+  foreignKey: "responderId", // This should match the column name in your final_reports table
+  as: "responder", // This MUST match the alias used in your controller's "include"
+});
+
 // =========================
 // EXPORTS
 // =========================

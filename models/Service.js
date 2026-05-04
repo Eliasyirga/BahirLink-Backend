@@ -20,18 +20,16 @@ const Service = sequelize.define(
       allowNull: true,
     },
 
-    // --- UPDATED KEBELE FIELD ---
     kebeleId: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: "kebeles", // This should match the tableName of your Kebele model
+        model: "kebeles",
         key: "id",
       },
-      onDelete: "RESTRICT", // Or "CASCADE" depending on your logic
+      onDelete: "RESTRICT",
       onUpdate: "CASCADE",
     },
-    // ----------------------------
 
     subdivision: {
       type: DataTypes.STRING,

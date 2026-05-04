@@ -1,7 +1,7 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
 const Agency = require("./Agency");
-const Kebele = require("./Kebele"); // import Kebele for association
+const Kebele = require("./Kebele"); 
 
 const ResponderTeam = sequelize.define(
   "ResponderTeam",

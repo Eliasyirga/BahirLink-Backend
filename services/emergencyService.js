@@ -17,7 +17,7 @@ const path = require("path");
 // Hard-coded mapping for agency types
 const emergencyTypeToAgencyType = {
   Crime: "Police",
-  Medical: "Health",
+  Health: "Health",
   Fire: "Fire",
 };
 

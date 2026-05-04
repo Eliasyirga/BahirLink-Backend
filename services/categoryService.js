@@ -130,10 +130,64 @@ const updateCategory = async (categoryId, data) => {
   };
 };
 
+const getCategoriesByAgencyId = async (agencyId) => {
+  const { Agency, AgencyType } = require("../models");
+
+  // 1. Fetch the agency with its type
+  const agency = await Agency.findByPk(agencyId, {
+    include: { model: AgencyType, as: "agencyType" },
+  });
+
+  if (!agency) throw new Error("Agency not found");
+
+  const agencyTypeName = agency.agencyType?.name;
+  if (!agencyTypeName) throw new Error("Agency has no type assigned");
+
+  // 2. Map agency type → emergency type name (mirrors your emergency service)
+  const agencyTypeToEmergencyType = {
+    Police: "Crime",
+    Health: "Health",
+    Fire: "Fire",
+    Ambulance: "Health",
+  };
+
+  const targetEmergencyTypeName = agencyTypeToEmergencyType[agencyTypeName];
+  if (!targetEmergencyTypeName)
+    throw new Error(`No emergency type mapped for agency type: ${agencyTypeName}`);
+
+  // 3. Find the matching EmergencyType record
+  const emergencyType = await EmergencyType.findOne({
+    where: { name: targetEmergencyTypeName },
+  });
+
+  if (!emergencyType)
+    throw new Error(`EmergencyType "${targetEmergencyTypeName}" not found in DB`);
+
+  // 4. Fetch categories for that emergency type
+  const categories = await Category.findAll({
+    where: { emergencyTypeId: emergencyType.id },
+    include: {
+      model: EmergencyType,
+      as: "emergencyType",
+      attributes: ["id", "name"],
+    },
+    order: [["name", "ASC"]],
+  });
+
+  return categories.map((cat) => ({
+    id: cat.id,
+    name: cat.name,
+    emergencyTypeId: cat.emergencyTypeId,
+    emergencyType: cat.emergencyType,
+    type: cat.emergencyType.name,
+  }));
+};
+
 module.exports = {
   createCategory,
   deleteCategory,
   getAllCategories,
   getCategoriesByEmergencyType,
+  getCategoriesByAgencyId,
   updateCategory,
 };

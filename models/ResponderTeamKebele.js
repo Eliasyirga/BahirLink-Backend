@@ -28,7 +28,7 @@ const ResponderTeamKebele = sequelize.define(
     indexes: [
       {
         unique: true,
-        fields: ["kebeleId", "agencyId"], 
+        fields: ["kebeleId", "agencyId"],
       },
     ],
   },

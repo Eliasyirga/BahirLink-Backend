@@ -14,5 +14,6 @@ router.put("/:id", serviceController.update);
 router.get("/all", serviceController.getAll);
 router.get("/user/:userId", serviceController.getByUser);
 router.delete("/:id", serviceController.delete);
+router.get("/agency/:agencyId", serviceController.getServicesByAgency);
 
 module.exports = router;

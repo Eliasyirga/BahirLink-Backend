@@ -1,4 +1,5 @@
 const Agency = require("../models/Agency");
+const AgencyType = require("../models/AgencyType");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
@@ -87,8 +88,17 @@ const getAllAgencies = async () => {
 };
 
 const loginAgency = async (email, password) => {
-  // 1️⃣ Find agency by email
-  const agency = await Agency.findOne({ where: { email } });
+  // 1️⃣ Find agency by email AND include the associated AgencyType
+  const agency = await Agency.findOne({
+    where: { email },
+    include: [
+      {
+        model: AgencyType,
+        as: "agencyType", // This MUST match the 'as' in your association definition
+      },
+    ],
+  });
+
   if (!agency) {
     throw new Error("Invalid email or password");
   }
@@ -100,12 +110,14 @@ const loginAgency = async (email, password) => {
   }
 
   // 3️⃣ Generate JWT token
+  // Added agencyTypeName to the payload so the frontend can check it easily from the token
   const token = jwt.sign(
     {
       id: agency.id,
       name: agency.name,
       email: agency.email,
       agencyTypeId: agency.agencyTypeId,
+      agencyTypeName: agency.agencyType?.name, // Extracting the name from the joined model
     },
     JWT_SECRET,
     { expiresIn: "1d" },
@@ -114,6 +126,8 @@ const loginAgency = async (email, password) => {
   // 4️⃣ Hide password before sending
   agency.password = undefined;
 
+  // The 'agency' object now contains:
+  // { id: ..., name: ..., agencyType: { id: ..., name: "Municipal" } }
   return { agency, token };
 };
 

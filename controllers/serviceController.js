@@ -101,3 +101,24 @@ exports.delete = async (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 };
+
+exports.getServicesByAgency = async (req, res) => {
+  try {
+    const { agencyId } = req.params;
+
+    if (!agencyId) {
+      return res.status(400).json({ message: "Agency ID is required" });
+    }
+
+    const services = await serviceService.getServicesByAgency(agencyId);
+
+    // Return empty array with 200 status if no services found (better for frontend mapping)
+    res.status(200).json(services || []);
+  } catch (error) {
+    console.error("Error in getServicesByAgency:", error);
+    res.status(500).json({
+      message: "Failed to fetch services for this agency",
+      error: error.message,
+    });
+  }
+};

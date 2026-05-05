@@ -1,10 +1,7 @@
 const ServiceCategory = require("../models/ServiceCategory");
 const ServiceType = require("../models/ServiceType");
+const { Agency, AgencyType } = require("../models"); // Import related models
 
-/**
- * REUSABLE INCLUDE CONFIG
- * Ensures consistency across all fetch functions
- */
 const serviceTypeInclude = {
   model: ServiceType,
   as: "serviceType", // Ensure this matches your models/index.js association
@@ -77,6 +74,55 @@ const deleteCategory = async (categoryId) => {
   return { success: true, message: "Category deleted successfully" };
 };
 
+// In your serviceCategoryService.js
+const getCategoriesByAgencyId = async (agencyId) => {
+  // 1. Fetch the agency with its type
+  const agency = await Agency.findByPk(agencyId, {
+    include: { model: AgencyType, as: "agencyType" },
+  });
+
+  if (!agency) throw new Error("Agency not found");
+
+  // Get the name (e.g., "Municipal", "Electric", "Water")
+  const agencyTypeName = agency.agencyType?.name;
+  if (!agencyTypeName) throw new Error("Agency has no type assigned");
+
+  // 2. Find the matching ServiceType record
+  // This assumes your ServiceType table has entries like "Municipal" or "Water"
+  const serviceType = await ServiceType.findOne({
+    where: { name: agencyTypeName },
+  });
+
+  if (!serviceType) {
+    // If no match is found, we log it and return empty to prevent the frontend from crashing
+    console.warn(
+      `⚠️ No ServiceType found in database matching AgencyType: "${agencyTypeName}"`,
+    );
+    return [];
+  }
+
+  // 3. Fetch categories belonging to that ServiceType
+  const categories = await ServiceCategory.findAll({
+    where: { serviceTypeId: serviceType.id },
+    include: [
+      {
+        model: ServiceType,
+        as: "serviceType",
+        attributes: ["id", "name"],
+      },
+    ],
+    order: [["name", "ASC"]],
+  });
+
+  // 4. Map the data to the format your frontend expects
+  return categories.map((cat) => ({
+    id: cat.id,
+    name: cat.name,
+    serviceTypeId: cat.serviceTypeId,
+    type: cat.serviceType?.name, // This allows the UI to display the type name
+  }));
+};
+
 module.exports = {
   createCategory,
   getAllCategories,
@@ -84,4 +130,5 @@ module.exports = {
   updateCategory,
   deleteCategory,
   getCategoriesByServiceType,
+  getCategoriesByAgencyId,
 };

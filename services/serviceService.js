@@ -1,5 +1,11 @@
-const { Service, ServiceType, ServiceCategory, User } = require("../models");
-
+const {
+  Service,
+  ServiceType,
+  ServiceCategory,
+  User,
+  Agency,
+  AgencyType,
+} = require("../models");
 /**
  * REUSABLE INCLUDE CONFIG
  */
@@ -135,6 +141,52 @@ const deleteService = async (serviceId) => {
   return { success: true, message: "Service deleted successfully" };
 };
 
+const getServicesByAgency = async (agencyId) => {
+  // 1. Fetch the agency with its type (e.g., "Municipal")
+  const agency = await Agency.findByPk(agencyId, {
+    include: { model: AgencyType, as: "agencyType" },
+  });
+
+  if (!agency) throw new Error("Agency not found");
+
+  const agencyTypeName = agency.agencyType?.name;
+  if (!agencyTypeName) throw new Error("Agency has no type assigned");
+
+  // 2. Find the matching ServiceType record (e.g., where name is "Municipal")
+  const serviceType = await ServiceType.findOne({
+    where: { name: agencyTypeName },
+  });
+
+  if (!serviceType) {
+    console.warn(`No ServiceType found matching AgencyType: ${agencyTypeName}`);
+    return []; // Return empty array so the dashboard doesn't crash
+  }
+
+  // 3. Fetch all services that belong to this ServiceType
+  // This avoids looking for an agencyId column in the ServiceCategory table
+  return await Service.findAll({
+    where: { serviceTypeId: serviceType.id }, // Filter services by the mapped type
+    include: [
+      {
+        model: ServiceCategory,
+        as: "serviceCategory",
+        attributes: ["id", "name"], // Removed 'agencyId' from attributes as it doesn't exist
+      },
+      {
+        model: ServiceType,
+        as: "serviceType",
+        attributes: ["id", "name"],
+      },
+      {
+        model: User,
+        as: "citizen",
+        attributes: ["id", "fullName", "email"],
+      },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+};
+
 module.exports = {
   createService,
   updateService,
@@ -142,4 +194,5 @@ module.exports = {
   getServicesByType,
   getServicesByUser,
   deleteService,
+  getServicesByAgency,
 };

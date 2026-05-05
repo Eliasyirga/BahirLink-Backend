@@ -86,6 +86,42 @@ const deleteCategory = async (req, res) => {
     res.status(404).json({ success: false, error: err.message });
   }
 };
+const getCategoriesByAgencyId = async (req, res) => {
+  try {
+    const { agencyId } = req.params;
+
+    // 1. Validate Input
+    if (!agencyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Agency ID is required",
+      });
+    }
+
+    // 2. Call the Logic Layer
+    const categories = await categoryService.getCategoriesByAgencyId(agencyId);
+
+    // 3. Send Success Response
+    // Even if categories is empty [], we send 200 so the UI doesn't break
+    return res.status(200).json({
+      success: true,
+      count: categories.length,
+      data: categories,
+    });
+  } catch (error) {
+    // 4. Detailed Error Logging for Backend Debugging
+    console.error(
+      "Error in getCategoriesByAgencyId Controller:",
+      error.message,
+    );
+
+    // 5. Send Error Response to Frontend
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal Server Error",
+    });
+  }
+};
 
 module.exports = {
   createCategory,
@@ -94,4 +130,5 @@ module.exports = {
   getCategoriesByServiceType, // Added this
   updateCategory,
   deleteCategory,
+  getCategoriesByAgencyId,
 };

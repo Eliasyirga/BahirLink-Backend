@@ -17,4 +17,6 @@ router.put("/:id", categoryController.updateCategory);
 
 router.get("/:id", categoryController.deleteCategory);
 
+router.get("/agency/:agencyId", categoryController.getCategoriesByAgencyId);
+
 module.exports = router;

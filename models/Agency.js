@@ -10,6 +10,16 @@ const Agency = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
+
+    createdBy: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "users",
+        key: "id",
+      },
+      onDelete: "CASCADE",
+    },
     name: {
       type: DataTypes.STRING,
       allowNull: false,

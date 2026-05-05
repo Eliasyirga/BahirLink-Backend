@@ -214,6 +214,10 @@ FinalReport.belongsTo(ResponderTeam, {
   as: "responder", // This MUST match the alias used in your controller's "include"
 });
 
+// In your associations/index.js
+User.hasMany(Agency, { foreignKey: "createdBy", as: "agencies" });
+Agency.belongsTo(User, { foreignKey: "createdBy", as: "admin" });
+
 // =========================
 // EXPORTS
 // =========================

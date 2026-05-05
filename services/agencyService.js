@@ -7,7 +7,8 @@ const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
 /**
  * Create a new Agency
  */
-const createAgency = async (data) => {
+const createAgency = async (data, adminId) => {
+  // Accept adminId here
   const {
     name,
     username,
@@ -34,10 +35,11 @@ const createAgency = async (data) => {
     phone,
     location,
     agencyTypeId,
+    createdBy: adminId, // CRITICAL: Save the ID of the admin who created this
     status: status || "active",
   });
 
-  agency.password = undefined; // hide password
+  agency.password = undefined;
   return agency;
 };
 
@@ -115,10 +117,30 @@ const loginAgency = async (email, password) => {
   return { agency, token };
 };
 
+/**
+ * Fetch Agents by their creatorId
+ * @param {number} adminId - The ID of the Admin who created the agents
+ */
+const getAgentsByCreatorId = async (adminId) => {
+  const agents = await Agency.findAll({
+    where: {
+      createdBy: adminId, // This matches the column in your Agency model
+    },
+    order: [["createdAt", "DESC"]],
+  });
+
+  // Return clean data without passwords
+  return agents.map((agent) => {
+    const { password, ...rest } = agent.toJSON();
+    return rest;
+  });
+};
+
 module.exports = {
   createAgency,
   updateAgency,
   deleteAgency,
   getAllAgencies,
   loginAgency,
+  getAgentsByCreatorId,
 };

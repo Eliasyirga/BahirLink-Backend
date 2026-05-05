@@ -559,9 +559,6 @@ const createGuestEmergency = async (data, file, transaction) => {
   }
 };
 
-// =========================
-// CREATE USER EMERGENCY
-// =========================
 const createUserEmergency = async (userId, emergencyData, file) => {
   let {
     mediaType,
@@ -584,7 +581,6 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     };
   }
 
-  // Validation
   if (!kebeleId || !subdivision)
     throw new Error("Kebele ID and Subdivision are required");
 
@@ -636,9 +632,6 @@ const updateEmergency = async (
   return await emergency.update(updatedData);
 };
 
-// =========================
-// DELETE EMERGENCY
-// =========================
 const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
@@ -651,9 +644,6 @@ const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
   return { message: "Emergency deleted successfully" };
 };
 
-// =========================
-// GET USER/GUEST EMERGENCIES
-// =========================
 const getEmergencies = async (userOrGuestId, isGuest = false) => {
   const whereClause = isGuest
     ? { guestId: userOrGuestId }
@@ -669,9 +659,6 @@ const getEmergencies = async (userOrGuestId, isGuest = false) => {
   });
 };
 
-// =========================
-// GET EMERGENCIES BY AGENCY
-// =========================
 const getEmergenciesByAgency = async (agencyId) => {
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
@@ -682,14 +669,12 @@ const getEmergenciesByAgency = async (agencyId) => {
   const agencyTypeName = agency.agencyType?.name;
   if (!agencyTypeName) return [];
 
-  // 2️⃣ Get emergency types handled by this agency type
   const handledEmergencyTypes = Object.entries(emergencyTypeToAgencyType)
     .filter(([etype, aType]) => aType === agencyTypeName)
     .map(([etype]) => etype);
 
   if (!handledEmergencyTypes.length) return [];
 
-  // 3️⃣ Fetch emergencies for these types
   const emergencies = await Emergency.findAll({
     include: [
       {
@@ -706,7 +691,6 @@ const getEmergenciesByAgency = async (agencyId) => {
   return emergencies;
 };
 const getEmergenciesForResponderTeam = async (responderTeamId) => {
-  // 1. Get the team to identify their agency type
   const team = await ResponderTeam.findByPk(responderTeamId, {
     include: [{ model: Agency, as: "agency" }],
   });
@@ -719,8 +703,6 @@ const getEmergenciesForResponderTeam = async (responderTeamId) => {
   return await Emergency.findAll({
     where: {
       emergencyTypeId: targetType,
-      // 🚨 REMOVED: status: { [Op.ne]: "resolved" }
-      // This allows the query to fetch "resolved" incidents along with "reported" and "pending"
     },
     subQuery: false,
     include: [

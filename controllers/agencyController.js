@@ -7,6 +7,8 @@ const {
   getAgentsByCreatorId,
 } = require("../services/agencyService");
 
+const Agency = require("../models/Agency"); // Import your model
+
 /**
  * Create a new Agent/Agency linked to the logged-in Admin
  */
@@ -245,6 +247,24 @@ const getAgentsByCreatorIdHandler = async (req, res) => {
     });
   }
 };
+const getAgencyByIdHandler = async (req, res) => {
+  try {
+    const { id } = req.params; // Get the ID from the URL (e.g., /api/agencies/5)
+
+    const agency = await Agency.findByPk(id); // "Find By Primary Key"
+
+    if (!agency) {
+      return res.status(404).json({ message: "Agency not found" });
+    }
+
+    res.status(200).json({ data: agency });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error retrieving agency", error: error.message });
+  }
+};
+
 module.exports = {
   createAgencyHandler,
   updateAgencyHandler,
@@ -252,4 +272,5 @@ module.exports = {
   getAllAgenciesHandler,
   loginAgencyHandler,
   getAgentsByCreatorIdHandler,
+  getAgencyByIdHandler,
 };

@@ -1,4 +1,5 @@
 const ServiceType = require("../models/ServiceType");
+const ServiceCategory = require("../models/ServiceCategory");
 
 // ✅ CREATE
 const createServiceType = async (data) => {
@@ -16,6 +17,13 @@ const createServiceType = async (data) => {
 // ✅ GET ALL
 const getAllServiceTypes = async () => {
   return await ServiceType.findAll({
+    // Nest the associated ServiceCategory model
+    include: [
+      {
+        model: ServiceCategory,
+        as: "categories",
+      },
+    ],
     order: [["createdAt", "DESC"]],
   });
 };

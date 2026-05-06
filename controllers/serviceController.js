@@ -122,3 +122,35 @@ exports.getServicesByAgency = async (req, res) => {
     });
   }
 };
+
+exports.getResponderTeamServices = async (req, res) => {
+  try {
+    // The ID comes from the URL parameter (req.params.id)
+    // which was decoded in your React frontend as decoded.id
+    const responderTeamId = req.params.id;
+
+    if (!responderTeamId) {
+      return res.status(400).json({
+        success: false,
+        message: "Responder Team ID is required",
+      });
+    }
+
+    const services =
+      await serviceService.getServicesForResponderTeam(responderTeamId);
+
+    // If no services found, return an empty array with 200 (not an error)
+    return res.status(200).json({
+      success: true,
+      count: services.length,
+      data: services,
+    });
+  } catch (error) {
+    console.error("Controller Error [getResponderTeamServices]:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch team services",
+      error: error.message,
+    });
+  }
+};

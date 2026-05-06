@@ -5,6 +5,9 @@ const {
   User,
   Agency,
   AgencyType,
+  ResponderTeam, // Add this
+  Kebele, // Add this
+  ResponderTeamKebele, // Add this (since you use it on line 211)
 } = require("../models");
 /**
  * REUSABLE INCLUDE CONFIG
@@ -187,6 +190,58 @@ const getServicesByAgency = async (agencyId) => {
   });
 };
 
+const getServicesForResponderTeam = async (responderTeamId) => {
+  // 1. Find the team and their agency context
+  const team = await ResponderTeam.findByPk(responderTeamId, {
+    include: [
+      {
+        model: Agency,
+        as: "agency",
+        include: [{ model: AgencyType, as: "agencyType" }],
+      },
+    ],
+  });
+
+  if (!team) throw new Error("Responder Team not found");
+
+  // 2. Map AgencyType to ServiceType
+  const agencyTypeName = team.agency.agencyType?.name;
+  const serviceType = await ServiceType.findOne({
+    where: { name: agencyTypeName },
+  });
+
+  if (!serviceType) return [];
+
+  // 3. Fetch Services filtered by Type and Kebele Assignment
+  return await Service.findAll({
+    where: {
+      serviceTypeId: serviceType.id,
+    },
+    subQuery: false,
+    include: [
+      {
+        model: Kebele,
+        as: "kebele",
+        required: true,
+        include: [
+          {
+            model: ResponderTeam,
+            as: "teams",
+            where: { id: responderTeamId },
+            required: true,
+            through: {
+              model: ResponderTeamKebele,
+              attributes: [],
+            },
+          },
+        ],
+      },
+      ...serviceIncludes, // Reusing the top configuration
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+};
+
 module.exports = {
   createService,
   updateService,
@@ -195,4 +250,5 @@ module.exports = {
   getServicesByUser,
   deleteService,
   getServicesByAgency,
+  getServicesForResponderTeam,
 };

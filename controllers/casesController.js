@@ -1,13 +1,14 @@
 const casesService = require("../services/casesService");
 
 /**
- * Handle new case deployment via multipart/form-data
+ * ✅ CREATE A NEW CASE
+ * Handles multipart/form-data with localized JSON parsing
  */
 const createCase = async (req, res) => {
   try {
     const { fullName, caseTypeId, responderTeamId } = req.body;
 
-    // Strict validation for required fields
+    // 1. Mandatory field validation
     if (!fullName || !caseTypeId || !responderTeamId) {
       return res.status(400).json({
         success: false,
@@ -15,19 +16,16 @@ const createCase = async (req, res) => {
       });
     }
 
-    /**
-     * Parsing logic:
-     * Localized fields (fullName, description, distinctiveFeatures) 
-     * can come in as JSON strings if sent via FormData.
-     */
+    // 2. Helper to parse JSON strings from FormData (Common in Flutter/React file uploads)
     const parseLocalized = (field) => {
       try {
         return typeof field === 'string' ? JSON.parse(field) : field;
       } catch (e) {
-        return field; // Return as is, Service layer will handle string-to-object conversion
+        return field; 
       }
     };
 
+    // 3. Construct Case Object
     const caseData = {
       fullName:            parseLocalized(req.body.fullName),
       description:         parseLocalized(req.body.description),
@@ -48,7 +46,7 @@ const createCase = async (req, res) => {
       responderTeamId:     parseInt(responderTeamId, 10),
       lastSeenLocationId:  req.body.lastSeenLocationId ? parseInt(req.body.lastSeenLocationId, 10) : null,
 
-      // Media attachment from Multer
+      // File handling (Multer)
       mediaUrl:            req.file ? `/uploads/${req.file.filename}` : null,
       mediaType:           req.file ? "photo" : null,
     };
@@ -70,11 +68,14 @@ const createCase = async (req, res) => {
 };
 
 /**
- * Retrieve all registered cases
+ * ✅ GET ALL CASES
+ * Supports: ?lang=en, ?lang=am
  */
 const getAllCases = async (req, res) => {
   try {
-    const cases = await casesService.getAllCases();
+    const lang = req.query.lang || "en";
+    const cases = await casesService.getAllCases(lang);
+
     return res.status(200).json({
       success: true,
       count: cases.length,
@@ -87,12 +88,15 @@ const getAllCases = async (req, res) => {
 };
 
 /**
- * Fetch granular case intelligence by ID
+ * ✅ GET CASE BY ID
  */
 const getCaseById = async (req, res) => {
   try {
     const { id } = req.params;
-    const caseData = await casesService.getCaseById(id);
+    const lang = req.query.lang || "all"; // Use 'all' to see both langs (Admin/Debug)
+    
+    const caseData = await casesService.getCaseById(id, lang);
+    
     return res.status(200).json({
       success: true,
       data: caseData
@@ -104,7 +108,7 @@ const getCaseById = async (req, res) => {
 };
 
 /**
- * Update case operational status or full data
+ * ✅ UPDATE CASE STATUS
  */
 const updateCaseStatus = async (req, res) => {
   try {
@@ -112,7 +116,7 @@ const updateCaseStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!status) {
-      return res.status(400).json({ success: false, message: "Status value is required." });
+      return res.status(400).json({ success: false, message: "Status is required." });
     }
 
     const result = await casesService.updateCaseStatus(id, status);
@@ -123,22 +127,23 @@ const updateCaseStatus = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Controller Error [updateCaseStatus]:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * Filter cases by tactical responder team
+ * ✅ GET CASES BY RESPONDER TEAM
  */
 const getCasesByResponderTeam = async (req, res) => {
   try {
     const { responderTeamId } = req.params;
-    let cases;
+    const lang = req.query.lang || "en";
     
+    let cases;
     if (responderTeamId === "all") {
-      cases = await casesService.getAllCases();
+      cases = await casesService.getAllCases(lang);
     } else {
-      cases = await casesService.getCasesByResponderTeam(parseInt(responderTeamId, 10));
+      cases = await casesService.getCasesByResponderTeam(parseInt(responderTeamId, 10), lang);
     }
     
     return res.status(200).json({
@@ -153,7 +158,7 @@ const getCasesByResponderTeam = async (req, res) => {
 };
 
 /**
- * Terminate a case record
+ * ✅ DELETE CASE
  */
 const deleteCase = async (req, res) => {
   try {

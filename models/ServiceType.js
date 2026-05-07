@@ -6,19 +6,15 @@ const ServiceType = sequelize.define(
   {
     id: {
       type: DataTypes.INTEGER,
-      autoIncrement: true, 
+      autoIncrement: true,
       primaryKey: true,
     },
-    // ✅ CHANGED: Multi-language Support
+    // Multi-language Support using JSONB
     name: {
       type: DataTypes.JSONB,
       allowNull: false,
-      // Note: unique constraint on JSONB can be tricky. 
-      // If you need strict uniqueness, it's better to handle it in logic 
-      // or via a unique index on a specific JSON path.
       defaultValue: { en: "", am: "" },
     },
-    // ✅ CHANGED: Multi-language Support
     description: {
       type: DataTypes.JSONB,
       allowNull: true,
@@ -28,7 +24,8 @@ const ServiceType = sequelize.define(
   {
     tableName: "service_types",
     timestamps: true,
-  },
+  }
 );
 
+// ✅ Critical: This must match the variable name defined above
 module.exports = ServiceType;

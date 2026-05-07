@@ -1,9 +1,10 @@
 const service = require("../services/serviceTypeService");
 
-// ✅ CREATE SERVICE TYPE
+/**
+ * ✅ CREATE SERVICE TYPE
+ */
 const createServiceType = async (req, res) => {
   try {
-    // Standardizing the response to include success and message
     const data = await service.createServiceType(req.body);
     return res.status(201).json({
       success: true,
@@ -16,10 +17,17 @@ const createServiceType = async (req, res) => {
   }
 };
 
-// ✅ GET ALL SERVICE TYPES
+/**
+ * ✅ GET ALL SERVICE TYPES
+ * Supports: ?lang=en, ?lang=am, or ?lang=all
+ */
 const getAllServiceTypes = async (req, res) => {
   try {
-    const data = await service.getAllServiceTypes();
+    // Extract language from query, default to 'en' for the mobile app
+    const lang = req.query.lang || "en";
+    
+    const data = await service.getAllServiceTypes(lang);
+    
     return res.status(200).json({
       success: true,
       count: data.length,
@@ -31,10 +39,14 @@ const getAllServiceTypes = async (req, res) => {
   }
 };
 
-// ✅ GET SERVICE TYPE BY ID
+/**
+ * ✅ GET SERVICE TYPE BY ID
+ */
 const getServiceTypeById = async (req, res) => {
   try {
-    const data = await service.getServiceTypeById(req.params.id);
+    const lang = req.query.lang || "all"; 
+    const data = await service.getServiceTypeById(req.params.id, lang);
+    
     return res.status(200).json({
       success: true,
       data: data
@@ -45,7 +57,9 @@ const getServiceTypeById = async (req, res) => {
   }
 };
 
-// ✅ UPDATE SERVICE TYPE
+/**
+ * ✅ UPDATE SERVICE TYPE
+ */
 const updateServiceType = async (req, res) => {
   try {
     const data = await service.updateServiceType(req.params.id, req.body);
@@ -60,7 +74,9 @@ const updateServiceType = async (req, res) => {
   }
 };
 
-// ✅ DELETE SERVICE TYPE
+/**
+ * ✅ DELETE SERVICE TYPE
+ */
 const deleteServiceType = async (req, res) => {
   try {
     const result = await service.deleteServiceType(req.params.id);

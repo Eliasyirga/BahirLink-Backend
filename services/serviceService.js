@@ -6,6 +6,7 @@ const {
   Agency,
   AgencyType,
 } = require("../models");
+
 /**
  * REUSABLE INCLUDE CONFIG
  */
@@ -36,15 +37,11 @@ const createService = async (data, userIdFromParams, file) => {
   }
 
   // Parse IDs safely
-  const serviceTypeId = data.serviceTypeId
-    ? parseInt(data.serviceTypeId)
-    : null;
-  const serviceCategoryId = data.serviceCategoryId
-    ? parseInt(data.serviceCategoryId)
-    : null;
+  const serviceTypeId = data.serviceTypeId ? parseInt(data.serviceTypeId) : null;
+  const serviceCategoryId = data.serviceCategoryId ? parseInt(data.serviceCategoryId) : null;
   const citizenId = parseInt(userIdFromParams || data.citizenId);
 
-  // Parse Location safely
+  // Parse Location safely (Ensure it's an object for JSONB)
   let finalLocation = data.location;
   if (data.latitude && data.longitude) {
     finalLocation = {
@@ -54,31 +51,44 @@ const createService = async (data, userIdFromParams, file) => {
   }
 
   /**
-   * ✅ FIX: Handling Unique Constraint on 'name'
-   * To prevent the 'duplicate key' error, we append a timestamp
-   * if a name is provided, or generate a unique default.
+   * ✅ MULTI-LANGUAGE HANDLING
+   * Data coming from the frontend might be a string (from a form) 
+   * or already an object. We ensure it's saved as { en, am }.
    */
-  const uniqueName = data.name
-    ? `${data.name} (${Date.now()})`
-    : `Service Request ${Date.now()}`;
+  const timestamp = Date.now();
+  
+  const processedName = typeof data.name === 'string' 
+    ? { en: `${data.name} (${timestamp})`, am: `${data.name}` }
+    : data.name || { en: `Service Request ${timestamp}`, am: `የአገልግሎት ጥያቄ ${timestamp}` };
+
+  const processedDescription = typeof data.description === 'string'
+    ? { en: data.description, am: "" }
+    : data.description || { en: "", am: "" };
+
+  const processedSubdivision = typeof data.subdivision === 'string'
+    ? { en: data.subdivision, am: "" }
+    : data.subdivision || { en: "", am: "" };
+
+  const processedStreet = typeof data.street === 'string'
+    ? { en: data.street, am: "" }
+    : data.street || { en: "", am: "" };
 
   const service = await Service.create({
-    name: uniqueName,
-    description: data.description,
+    name: processedName,
+    description: processedDescription,
+    subdivision: processedSubdivision,
+    street: processedStreet,
     kebeleId: data.kebeleId ? parseInt(data.kebeleId) : null,
     serviceTypeId,
     serviceCategoryId,
     citizenId,
-    subdivision: data.subdivision,
-    street: data.street,
     location: finalLocation,
     mediaUrl: mediaUrl,
     mediaType: data.mediaType || (file ? "photo" : null),
     status: "pending",
-    time: data.time || new Date().toLocaleTimeString("it-IT"), // Fallback to HH:mm:ss
+    time: data.time || new Date().toLocaleTimeString("it-IT"), 
   });
 
-  // Return with associations
   return await Service.findByPk(service.id, {
     include: serviceIncludes,
   });
@@ -86,17 +96,20 @@ const createService = async (data, userIdFromParams, file) => {
 
 // ✅ UPDATE SERVICE
 const updateService = async (serviceId, updates) => {
-  const processedUpdates = { ...updates };
-
-  if (updates.serviceTypeId)
-    processedUpdates.serviceTypeId = parseInt(updates.serviceTypeId);
-  if (updates.serviceCategoryId)
-    processedUpdates.serviceCategoryId = parseInt(updates.serviceCategoryId);
-
   const service = await Service.findByPk(serviceId);
   if (!service) throw new Error("Service not found");
 
-  await service.update(processedUpdates);
+  // Prevent direct overwrite of JSONB objects if only one language is sent
+  const finalUpdates = { ...updates };
+  
+  if (updates.name && typeof updates.name === 'object') {
+    finalUpdates.name = { ...service.name, ...updates.name };
+  }
+  if (updates.description && typeof updates.description === 'object') {
+    finalUpdates.description = { ...service.description, ...updates.description };
+  }
+
+  await service.update(finalUpdates);
 
   return await Service.findByPk(serviceId, {
     include: serviceIncludes,
@@ -141,48 +154,37 @@ const deleteService = async (serviceId) => {
   return { success: true, message: "Service deleted successfully" };
 };
 
+// ✅ GET SERVICES BY AGENCY (Multi-language aware)
 const getServicesByAgency = async (agencyId) => {
-  // 1. Fetch the agency with its type (e.g., "Municipal")
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
   });
 
   if (!agency) throw new Error("Agency not found");
 
-  const agencyTypeName = agency.agencyType?.name;
+  // Agency names are likely strings or JSONB. We check both.
+  const agencyTypeName = typeof agency.agencyType?.name === 'object' 
+    ? agency.agencyType.name.en 
+    : agency.agencyType?.name;
+
   if (!agencyTypeName) throw new Error("Agency has no type assigned");
 
-  // 2. Find the matching ServiceType record (e.g., where name is "Municipal")
+  /**
+   * Note: If ServiceType.name is now JSONB, 
+   * Sequelize requires specific syntax to search inside JSON
+   */
   const serviceType = await ServiceType.findOne({
-    where: { name: agencyTypeName },
+    where: sequelize.json("name.en", agencyTypeName)
   });
 
   if (!serviceType) {
     console.warn(`No ServiceType found matching AgencyType: ${agencyTypeName}`);
-    return []; // Return empty array so the dashboard doesn't crash
+    return [];
   }
 
-  // 3. Fetch all services that belong to this ServiceType
-  // This avoids looking for an agencyId column in the ServiceCategory table
   return await Service.findAll({
-    where: { serviceTypeId: serviceType.id }, // Filter services by the mapped type
-    include: [
-      {
-        model: ServiceCategory,
-        as: "serviceCategory",
-        attributes: ["id", "name"], // Removed 'agencyId' from attributes as it doesn't exist
-      },
-      {
-        model: ServiceType,
-        as: "serviceType",
-        attributes: ["id", "name"],
-      },
-      {
-        model: User,
-        as: "citizen",
-        attributes: ["id", "fullName", "email"],
-      },
-    ],
+    where: { serviceTypeId: serviceType.id },
+    include: serviceIncludes,
     order: [["createdAt", "DESC"]],
   });
 };

@@ -9,14 +9,20 @@ const ServiceType = sequelize.define(
       autoIncrement: true, 
       primaryKey: true,
     },
+    // ✅ CHANGED: Multi-language Support
     name: {
-      type: DataTypes.STRING,
+      type: DataTypes.JSONB,
       allowNull: false,
-      unique: true,
+      // Note: unique constraint on JSONB can be tricky. 
+      // If you need strict uniqueness, it's better to handle it in logic 
+      // or via a unique index on a specific JSON path.
+      defaultValue: { en: "", am: "" },
     },
+    // ✅ CHANGED: Multi-language Support
     description: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSONB,
       allowNull: true,
+      defaultValue: { en: "", am: "" },
     },
   },
   {

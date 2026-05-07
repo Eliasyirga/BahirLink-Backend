@@ -4,19 +4,33 @@ const categoryService = require("../services/serviceCategoryService");
 const createCategory = async (req, res) => {
   try {
     const { name, description, serviceTypeId } = req.body;
+
+    /**
+     * Parsing logic: Ensures that if 'name' or 'description' are sent as 
+     * JSON strings (common in multipart/form-data), they are converted to objects.
+     */
+    const parseField = (field) => {
+      try {
+        return typeof field === 'string' && field.includes('{') ? JSON.parse(field) : field;
+      } catch (e) {
+        return field;
+      }
+    };
+
     const category = await categoryService.createCategory({
-      name,
-      description,
+      name: parseField(name),
+      description: parseField(description),
       serviceTypeId,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Category created successfully",
-      category,
+      data: category,
     });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    console.error("❌ Controller Error (Category Create):", err.message);
+    return res.status(400).json({ success: false, error: err.message });
   }
 };
 
@@ -24,9 +38,13 @@ const createCategory = async (req, res) => {
 const getAllCategories = async (req, res) => {
   try {
     const categories = await categoryService.getAllCategories();
-    res.json({ success: true, categories });
+    return res.status(200).json({ 
+      success: true, 
+      count: categories.length,
+      data: categories 
+    });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
 
@@ -34,26 +52,25 @@ const getAllCategories = async (req, res) => {
 const getCategoryById = async (req, res) => {
   try {
     const category = await categoryService.getCategoryById(req.params.id);
-    res.json({ success: true, category });
+    return res.status(200).json({ success: true, data: category });
   } catch (err) {
-    res.status(404).json({ success: false, error: err.message });
+    return res.status(404).json({ success: false, error: err.message });
   }
 };
 
-// ✅ GET CATEGORIES BY SERVICE TYPE ID (New Method)
+// ✅ GET CATEGORIES BY SERVICE TYPE ID
 const getCategoriesByServiceType = async (req, res) => {
   try {
     const { serviceTypeId } = req.params;
-    const categories =
-      await categoryService.getCategoriesByServiceType(serviceTypeId);
+    const categories = await categoryService.getCategoriesByServiceType(serviceTypeId);
 
-    // Returning the list directly as 'categories' to match Flutter's expectations
-    res.json({
+    return res.status(200).json({
       success: true,
-      categories,
+      count: categories.length,
+      data: categories,
     });
   } catch (err) {
-    res.status(404).json({ success: false, error: err.message });
+    return res.status(404).json({ success: false, error: err.message });
   }
 };
 
@@ -64,33 +81,34 @@ const updateCategory = async (req, res) => {
       req.params.id,
       req.body,
     );
-    res.json({
+    return res.status(200).json({
       success: true,
       message: "Category updated successfully",
-      category: updatedCategory,
+      data: updatedCategory,
     });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.status(400).json({ success: false, error: err.message });
   }
 };
 
 // ✅ DELETE CATEGORY
 const deleteCategory = async (req, res) => {
   try {
-    await categoryService.deleteCategory(req.params.id);
-    res.json({
+    const result = await categoryService.deleteCategory(req.params.id);
+    return res.status(200).json({
       success: true,
-      message: "Category deleted successfully",
+      message: result.message || "Category deleted successfully",
     });
   } catch (err) {
-    res.status(404).json({ success: false, error: err.message });
+    return res.status(404).json({ success: false, error: err.message });
   }
 };
+
+// ✅ GET CATEGORIES BY AGENCY ID
 const getCategoriesByAgencyId = async (req, res) => {
   try {
     const { agencyId } = req.params;
 
-    // 1. Validate Input
     if (!agencyId) {
       return res.status(400).json({
         success: false,
@@ -98,24 +116,15 @@ const getCategoriesByAgencyId = async (req, res) => {
       });
     }
 
-    // 2. Call the Logic Layer
     const categories = await categoryService.getCategoriesByAgencyId(agencyId);
 
-    // 3. Send Success Response
-    // Even if categories is empty [], we send 200 so the UI doesn't break
     return res.status(200).json({
       success: true,
       count: categories.length,
       data: categories,
     });
   } catch (error) {
-    // 4. Detailed Error Logging for Backend Debugging
-    console.error(
-      "Error in getCategoriesByAgencyId Controller:",
-      error.message,
-    );
-
-    // 5. Send Error Response to Frontend
+    console.error("❌ Controller Error (GetByAgency):", error.message);
     return res.status(500).json({
       success: false,
       message: error.message || "Internal Server Error",
@@ -127,7 +136,7 @@ module.exports = {
   createCategory,
   getAllCategories,
   getCategoryById,
-  getCategoriesByServiceType, // Added this
+  getCategoriesByServiceType,
   updateCategory,
   deleteCategory,
   getCategoriesByAgencyId,

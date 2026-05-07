@@ -9,14 +9,21 @@ const ServiceCategory = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
+
+    // ✅ CHANGED: Multi-language Support
     name: {
-      type: DataTypes.STRING,
+      type: DataTypes.JSONB,
       allowNull: false,
+      defaultValue: { en: "", am: "" },
     },
+
+    // ✅ CHANGED: Multi-language Support
     description: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSONB,
       allowNull: true,
+      defaultValue: { en: "", am: "" },
     },
+
     serviceTypeId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -34,6 +41,8 @@ const ServiceCategory = sequelize.define(
     indexes: [
       {
         unique: true,
+        // ✅ NOTE: Uniqueness now applies to the entire JSON object + serviceTypeId.
+        // To be safer, you can create a functional index in SQL for name->>'en'.
         fields: ["name", "serviceTypeId"],
       },
     ],

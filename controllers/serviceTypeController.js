@@ -1,52 +1,76 @@
 const service = require("../services/serviceTypeService");
 
-// CREATE SERVICE TYPE
+// ✅ CREATE SERVICE TYPE
 const createServiceType = async (req, res) => {
   try {
+    // Standardizing the response to include success and message
     const data = await service.createServiceType(req.body);
-    res.status(201).json(data);
+    return res.status(201).json({
+      success: true,
+      message: "Service Type created successfully",
+      data: data
+    });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error("❌ Controller Error (ServiceType Create):", err.message);
+    return res.status(400).json({ success: false, error: err.message });
   }
 };
 
-// GET ALL SERVICE TYPES
+// ✅ GET ALL SERVICE TYPES
 const getAllServiceTypes = async (req, res) => {
   try {
     const data = await service.getAllServiceTypes();
-    res.json(data);
+    return res.status(200).json({
+      success: true,
+      count: data.length,
+      data: data
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ Controller Error (ServiceType GetAll):", err.message);
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
 
-// GET SERVICE TYPE BY ID
+// ✅ GET SERVICE TYPE BY ID
 const getServiceTypeById = async (req, res) => {
   try {
     const data = await service.getServiceTypeById(req.params.id);
-    res.json(data);
+    return res.status(200).json({
+      success: true,
+      data: data
+    });
   } catch (err) {
-    res.status(404).json({ error: err.message });
+    console.error("❌ Controller Error (ServiceType GetById):", err.message);
+    return res.status(404).json({ success: false, error: err.message });
   }
 };
 
-// UPDATE SERVICE TYPE
+// ✅ UPDATE SERVICE TYPE
 const updateServiceType = async (req, res) => {
   try {
     const data = await service.updateServiceType(req.params.id, req.body);
-    res.json(data);
+    return res.status(200).json({
+      success: true,
+      message: "Service Type updated successfully",
+      data: data
+    });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error("❌ Controller Error (ServiceType Update):", err.message);
+    return res.status(400).json({ success: false, error: err.message });
   }
 };
 
-// DELETE SERVICE TYPE
+// ✅ DELETE SERVICE TYPE
 const deleteServiceType = async (req, res) => {
   try {
-    const data = await service.deleteServiceType(req.params.id);
-    res.json(data);
+    const result = await service.deleteServiceType(req.params.id);
+    return res.status(200).json({
+      success: true,
+      message: result.message || "Service Type deleted successfully"
+    });
   } catch (err) {
-    res.status(404).json({ error: err.message });
+    console.error("❌ Controller Error (ServiceType Delete):", err.message);
+    return res.status(404).json({ success: false, error: err.message });
   }
 };
 

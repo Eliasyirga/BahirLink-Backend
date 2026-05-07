@@ -1,3 +1,5 @@
+require("dotenv").config(); // ← MUST be first, before anything reads process.env
+
 const { Sequelize } = require("sequelize");
 
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
@@ -9,7 +11,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
       rejectUnauthorized: false,
     },
   },
-  logging: false, // ✅ no more "Executing..." logs
+  logging: false,
 });
 
 const connectDB = async () => {

@@ -11,10 +11,35 @@ const caseIncludes = [
 ];
 
 /**
- * Create a new case with strict type casting
+ * Reusable helper to ensure multi-language fields are saved as objects
+ */
+const processLocalization = (value, fallback = "") => {
+  if (typeof value === "object" && value !== null) {
+    return {
+      en: value.en || fallback,
+      am: value.am || ""
+    };
+  }
+  // If string is sent, put it in the English slot by default
+  return { en: value || fallback, am: "" };
+};
+
+/**
+ * Get one case by ID
+ */
+const getCaseById = async (id) => {
+  const singleCase = await Cases.findByPk(id, {
+    include: caseIncludes,
+  });
+  if (!singleCase) throw new Error("Case record not found in system.");
+  return singleCase;
+};
+
+/**
+ * Create a new case with strict type casting and JSONB processing
  */
 const createCase = async (data) => {
-  // 1. Mandatory Validation: Responder Team is the backbone of the case
+  // 1. Mandatory Validation
   const rTeamId = data.responderTeamId ? Number(data.responderTeamId) : null;
   if (!rTeamId) throw new Error("Responder Team ID is required.");
 
@@ -30,27 +55,32 @@ const createCase = async (data) => {
     height,
     weight,
     isDangerous,
+    fullName,
+    description,
+    distinctiveFeatures,
     ...rest
   } = data;
 
   try {
     const newCase = await Cases.create({
       ...rest,
-      // Foreign Keys
+      // Handle JSONB Localized Fields
+      fullName: processLocalization(fullName, "Unknown Case"),
+      description: processLocalization(description),
+      distinctiveFeatures: processLocalization(distinctiveFeatures),
+
       responderTeamId: rTeamId,
-      agencyId: team.agencyId, // Auto-synced from team
-      caseTypeId: caseTypeId ? Number(caseTypeId) : null,
-      lastSeenLocationId: lastSeenLocationId
-        ? Number(lastSeenLocationId)
-        : null,
+      agencyId: team.agencyId,
 
-      // Biometrics & Numbers (Explicitly cast to handle strings from FormData)
-      age: age && age !== "" ? Number(age) : null,
-      reward: reward && reward !== "" ? Number(reward) : 0,
-      height: height && height !== "" ? Number(height) : null,
-      weight: weight && weight !== "" ? Number(weight) : null,
+      caseTypeId: caseTypeId ? parseInt(caseTypeId, 10) : null,
+      lastSeenLocationId: lastSeenLocationId ? parseInt(lastSeenLocationId, 10) : null,
 
-      // Flags & Default Status
+      // Numeric parsing
+      age: age && age !== "" ? parseInt(age, 10) : null,
+      height: height && height !== "" ? parseInt(height, 10) : null,
+      weight: weight && weight !== "" ? parseInt(weight, 10) : null,
+      reward: reward && reward !== "" ? parseFloat(reward) : 0.0,
+
       isDangerous: isDangerous === "true" || isDangerous === true,
       status: "pending",
     });
@@ -58,7 +88,7 @@ const createCase = async (data) => {
     // 3. Return fully populated object
     return await getCaseById(newCase.id);
   } catch (dbError) {
-    console.error("Sequelize Creation Error:", dbError);
+    console.error("❌ Sequelize Creation Error:", dbError);
     throw new Error(`Database Error: ${dbError.message}`);
   }
 };
@@ -77,17 +107,6 @@ const getAllCases = async () => {
 };
 
 /**
- * Get one case by ID
- */
-const getCaseById = async (id) => {
-  const singleCase = await Cases.findByPk(id, {
-    include: caseIncludes,
-  });
-  if (!singleCase) throw new Error("Case record not found in system.");
-  return singleCase;
-};
-
-/**
  * Get all cases assigned to a specific team
  */
 const getCasesByResponderTeam = async (responderTeamId) => {
@@ -96,6 +115,25 @@ const getCasesByResponderTeam = async (responderTeamId) => {
     include: caseIncludes,
     order: [["createdAt", "DESC"]],
   });
+};
+
+/**
+ * Update case with deep merging for JSONB fields
+ */
+const updateCase = async (id, updates) => {
+  const singleCase = await Cases.findByPk(id);
+  if (!singleCase) throw new Error("Case not found.");
+
+  // If updating localized strings, merge with existing values so we don't wipe out Amharic when updating English
+  if (updates.fullName && typeof updates.fullName === 'object') {
+    updates.fullName = { ...singleCase.fullName, ...updates.fullName };
+  }
+  if (updates.description && typeof updates.description === 'object') {
+    updates.description = { ...singleCase.description, ...updates.description };
+  }
+
+  await singleCase.update(updates);
+  return await getCaseById(id);
 };
 
 /**
@@ -122,7 +160,7 @@ const deleteCase = async (id) => {
   if (!singleCase) throw new Error("Case not found.");
 
   await singleCase.destroy();
-  return { message: "Case successfully purged from registry" };
+  return { success: true, message: "Case successfully purged from registry" };
 };
 
 module.exports = {
@@ -130,6 +168,7 @@ module.exports = {
   getAllCases,
   getCaseById,
   getCasesByResponderTeam,
+  updateCase,
   updateCaseStatus,
   deleteCase,
 };

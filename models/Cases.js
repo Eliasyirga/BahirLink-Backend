@@ -14,9 +14,11 @@ const Cases = sequelize.define(
       primaryKey: true,
     },
 
+    // ✅ CHANGED: Multi-language Support
     fullName: {
-      type: DataTypes.STRING,
+      type: DataTypes.JSONB, 
       allowNull: false,
+      defaultValue: { en: "", am: "" },
     },
 
     reward: {
@@ -36,18 +38,20 @@ const Cases = sequelize.define(
     },
 
     height: {
-      type: DataTypes.INTEGER, // Stores whole numbers (e.g., 180)
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
 
     weight: {
-      type: DataTypes.INTEGER, // Stores whole numbers (e.g., 75)
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
 
+    // ✅ CHANGED: Multi-language Support
     distinctiveFeatures: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSONB,
       allowNull: true,
+      defaultValue: { en: "", am: "" },
     },
 
     isDangerous: {
@@ -61,9 +65,11 @@ const Cases = sequelize.define(
       type: DataTypes.ENUM("male", "female"),
     },
 
+    // ✅ CHANGED: Multi-language Support
     description: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSONB,
       allowNull: false,
+      defaultValue: { en: "", am: "" },
     },
 
     lastSeenLocationId: {
@@ -121,7 +127,13 @@ const Cases = sequelize.define(
   {
     tableName: "cases",
     timestamps: true,
-  },
+    // Add indexes for optimized searching within JSONB if needed
+    indexes: [
+      {
+        fields: ["status"],
+      },
+    ],
+  }
 );
 
 module.exports = Cases;

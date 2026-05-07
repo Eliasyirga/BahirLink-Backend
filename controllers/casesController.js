@@ -1,57 +1,71 @@
 const casesService = require("../services/casesService");
-const { Cases, CaseType, Kebele, CaseReport } = require("../models");
 
 /**
  * Handle new case deployment via multipart/form-data
  */
 const createCase = async (req, res) => {
   try {
-    const {
-      fullName,
-      caseTypeId,
-      responderTeamId,
-      height,
-      weight,
-      age,
-      reward,
-    } = req.body;
+    const { fullName, caseTypeId, responderTeamId } = req.body;
 
-    // 1. Critical Validation
+    // Strict validation for required fields
     if (!fullName || !caseTypeId || !responderTeamId) {
       return res.status(400).json({
-        message:
-          "Deployment failed: Full Name, Case Type, and Responder Team are required.",
+        success: false,
+        message: "Full Name, Case Type, and Responder Team are required.",
       });
     }
 
-    // 2. Data Preparation & Strict Casting
+    /**
+     * Parsing logic:
+     * Localized fields (fullName, description, distinctiveFeatures) 
+     * can come in as JSON strings if sent via FormData.
+     */
+    const parseLocalized = (field) => {
+      try {
+        return typeof field === 'string' ? JSON.parse(field) : field;
+      } catch (e) {
+        return field; // Return as is, Service layer will handle string-to-object conversion
+      }
+    };
+
     const caseData = {
-      ...req.body,
-      // Ensure numeric fields are numbers or null (not empty strings)
-      height: height && height !== "" ? parseFloat(height) : null,
-      weight: weight && weight !== "" ? parseFloat(weight) : null,
-      age: age && age !== "" ? parseInt(age, 10) : null,
-      reward: reward && reward !== "" ? parseFloat(reward) : 0,
+      fullName:            parseLocalized(req.body.fullName),
+      description:         parseLocalized(req.body.description),
+      distinctiveFeatures: parseLocalized(req.body.distinctiveFeatures),
+      gender:              req.body.gender || null,
+      priority:            req.body.priority || "medium",
+      lastSeenDate:        req.body.lastSeenDate || null,
+      contactInfo:         req.body.contactInfo || null,
+      isDangerous:         req.body.isDangerous === "true" || req.body.isDangerous === true,
 
-      // Ensure IDs are integers
-      caseTypeId: parseInt(caseTypeId, 10),
-      responderTeamId: parseInt(responderTeamId, 10),
-      lastSeenLocationId: req.body.lastSeenLocationId
-        ? parseInt(req.body.lastSeenLocationId, 10)
-        : null,
+      // Numeric fields
+      age:                 req.body.age ? parseInt(req.body.age, 10) : null,
+      height:              req.body.height ? parseInt(req.body.height, 10) : null,
+      weight:              req.body.weight ? parseInt(req.body.weight, 10) : null,
+      reward:              req.body.reward ? parseFloat(req.body.reward) : 0,
+      
+      caseTypeId:          parseInt(caseTypeId, 10),
+      responderTeamId:     parseInt(responderTeamId, 10),
+      lastSeenLocationId:  req.body.lastSeenLocationId ? parseInt(req.body.lastSeenLocationId, 10) : null,
 
-      // Media Handling
-      mediaUrl: req.file ? `/uploads/${req.file.filename}` : null,
-      mediaType: req.file ? "photo" : null,
+      // Media attachment from Multer
+      mediaUrl:            req.file ? `/uploads/${req.file.filename}` : null,
+      mediaType:           req.file ? "photo" : null,
     };
 
     const newCase = await casesService.createCase(caseData);
-    res.status(201).json(newCase);
+    
+    return res.status(201).json({
+      success: true,
+      message: "Case registered successfully",
+      data: newCase
+    });
   } catch (error) {
-    console.error("Controller Error [createCase]:", error);
-    res
-      .status(400)
-      .json({ message: error.message || "Failed to register case." });
+    console.error("❌ Controller Error [createCase]:", error);
+    return res.status(400).json({ 
+      success: false, 
+      message: error.message || "Failed to register case." 
+    });
   }
 };
 
@@ -61,42 +75,55 @@ const createCase = async (req, res) => {
 const getAllCases = async (req, res) => {
   try {
     const cases = await casesService.getAllCases();
-    res.status(200).json(cases);
+    return res.status(200).json({
+      success: true,
+      count: cases.length,
+      data: cases
+    });
   } catch (error) {
-    console.error("Controller Error [getAllCases]:", error);
-    res.status(500).json({ message: error.message });
+    console.error("❌ Controller Error [getAllCases]:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * Fetch granular case intelligence
+ * Fetch granular case intelligence by ID
  */
 const getCaseById = async (req, res) => {
   try {
     const { id } = req.params;
     const caseData = await casesService.getCaseById(id);
-    res.status(200).json(caseData);
+    return res.status(200).json({
+      success: true,
+      data: caseData
+    });
   } catch (error) {
-    console.error("Controller Error [getCaseById]:", error);
-    res.status(404).json({ message: error.message });
+    console.error("❌ Controller Error [getCaseById]:", error);
+    return res.status(404).json({ success: false, message: error.message });
   }
 };
 
 /**
- * Update case operational status
+ * Update case operational status or full data
  */
 const updateCaseStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!status)
-      return res.status(400).json({ message: "Status value is required." });
+    if (!status) {
+      return res.status(400).json({ success: false, message: "Status value is required." });
+    }
 
     const result = await casesService.updateCaseStatus(id, status);
-    res.json({ message: "Status updated successfully", data: result });
+    return res.status(200).json({ 
+      success: true, 
+      message: "Status updated successfully", 
+      data: result 
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("❌ Controller Error [updateCaseStatus]:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -107,17 +134,21 @@ const getCasesByResponderTeam = async (req, res) => {
   try {
     const { responderTeamId } = req.params;
     let cases;
+    
     if (responderTeamId === "all") {
       cases = await casesService.getAllCases();
     } else {
-      cases = await casesService.getCasesByResponderTeam(
-        parseInt(responderTeamId, 10),
-      );
+      cases = await casesService.getCasesByResponderTeam(parseInt(responderTeamId, 10));
     }
-    res.status(200).json(cases);
+    
+    return res.status(200).json({
+      success: true,
+      count: cases.length,
+      data: cases
+    });
   } catch (error) {
-    console.error("Controller Error [getCasesByResponderTeam]:", error);
-    res.status(500).json({ message: error.message });
+    console.error("❌ Controller Error [getCasesByResponderTeam]:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -127,9 +158,10 @@ const getCasesByResponderTeam = async (req, res) => {
 const deleteCase = async (req, res) => {
   try {
     const result = await casesService.deleteCase(req.params.id);
-    res.status(200).json(result);
+    return res.status(200).json(result);
   } catch (error) {
-    res.status(404).json({ message: error.message });
+    console.error("❌ Controller Error [deleteCase]:", error);
+    return res.status(404).json({ success: false, message: error.message });
   }
 };
 

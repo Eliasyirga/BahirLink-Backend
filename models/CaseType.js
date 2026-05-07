@@ -8,15 +8,23 @@ const CaseType = sequelize.define("CaseType", {
     primaryKey: true,
   },
 
+  // ✅ CHANGED: Multi-language Support
   name: {
-    type: DataTypes.STRING,
+    type: DataTypes.JSONB,
     allowNull: false,
-    unique: true,
+    defaultValue: { en: "", am: "" },
   },
-
 }, {
   tableName: "case_types",
   timestamps: true,
+  indexes: [
+    {
+      // ✅ NOTE: Standard unique constraint on JSONB works on the whole object.
+      // We keep this to prevent exact duplicate JSON objects.
+      unique: true,
+      fields: ["name"],
+    },
+  ],
 });
 
 module.exports = CaseType;

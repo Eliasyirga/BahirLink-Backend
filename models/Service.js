@@ -10,14 +10,18 @@ const Service = sequelize.define(
       primaryKey: true,
     },
 
+    // ✅ CHANGED: Using JSONB for multi-language support
     name: {
-      type: DataTypes.STRING,
+      type: DataTypes.JSONB,
       allowNull: false,
+      defaultValue: { en: "", am: "" },
     },
 
+    // ✅ CHANGED: Using JSONB for multi-language descriptions
     description: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSONB,
       allowNull: true,
+      defaultValue: { en: "", am: "" },
     },
 
     kebeleId: {
@@ -31,18 +35,21 @@ const Service = sequelize.define(
       onUpdate: "CASCADE",
     },
 
+    // ✅ CHANGED: subdivision and street name localization
     subdivision: {
-      type: DataTypes.STRING,
+      type: DataTypes.JSONB,
       allowNull: false,
+      defaultValue: { en: "", am: "" },
     },
 
     street: {
-      type: DataTypes.STRING,
+      type: DataTypes.JSONB,
       allowNull: true,
+      defaultValue: { en: "", am: "" },
     },
 
     location: {
-      type: DataTypes.JSON,
+      type: DataTypes.JSONB,
       allowNull: true,
     },
 
@@ -102,7 +109,13 @@ const Service = sequelize.define(
   {
     tableName: "services",
     timestamps: true,
-  },
+    // Optional: indexing logic similar to Category if you need uniqueness constraints
+    indexes: [
+      {
+        fields: ["name"],
+      },
+    ],
+  }
 );
 
 module.exports = Service;

@@ -1,23 +1,36 @@
+/**
+ * messageController.js  — FIXED
+ *
+ * Key fix: postAudioMessage now accepts the `io` instance (injected via the
+ * factory exported at the bottom) so it can broadcast the saved message to
+ * the emergency room after a successful REST upload.  This is the missing
+ * link that caused audio messages to never appear on other clients, and
+ * required the Flutter side to emit a redundant chat:send which created
+ * duplicate DB rows.
+ *
+ * Usage in messageRoutes.js:
+ *   const { makeController } = require("../controllers/messageController");
+ *   // inject io when the routes are registered
+ *   router.post("/audio", verifyToken, upload.single("audio"), makeController(io).postAudioMessage);
+ *
+ * Or if you prefer a simpler approach, pass io at require-time:
+ *   const controller = require("../controllers/messageController")(io);
+ */
+
 const messageService = require("../services/messageService");
 
 const resolveSenderFromToken = (req) => {
-  // Some parts of the backend generate JWT without role (id-only).
-  // For chat, id-only tokens are treated as normal `User` tokens.
   const role = req.user?.role;
   if (!req.user?.id) return null;
-
-  // Responder dashboard tokens are issued for `ResponderTeam` with role: "responder"
   if (role === "responder") {
     return { senderId: req.user.id, senderType: "responderTeam" };
   }
-
-  // Citizen/admin tokens are issued for `User`
   return { senderId: req.user.id, senderType: "user" };
 };
 
 /**
  * POST /api/message
- * Send a message
+ * Send a text message (used as REST fallback; text chat normally goes via socket)
  */
 const postMessage = async (req, res) => {
   try {
@@ -25,10 +38,7 @@ const postMessage = async (req, res) => {
     const sender = resolveSenderFromToken(req);
 
     if (!sender) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
     if (!emergencyId || (!text && !audioUrl)) {
@@ -40,15 +50,15 @@ const postMessage = async (req, res) => {
 
     const result = await messageService.saveMessage({
       emergencyId,
-      senderId: sender.senderId,
+      senderId:   sender.senderId,
       senderType: sender.senderType,
-      text: text ?? null,
-      audioUrl: audioUrl ?? null,
+      text:       text    ?? null,
+      audioUrl:   audioUrl ?? null,
     });
 
     return res.status(201).json({
       success: true,
-      data: result.message,
+      data:          result.message,
       statusChanged: result.statusChanged,
     });
   } catch (error) {
@@ -79,9 +89,7 @@ const initEmergencyChat = async (req, res) => {
 
     const { emergencyId } = req.body;
     if (!emergencyId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "emergencyId is required" });
+      return res.status(400).json({ success: false, message: "emergencyId is required" });
     }
 
     const data = await messageService.initChat({
@@ -105,7 +113,6 @@ const initEmergencyChat = async (req, res) => {
 const getEmergencyMessages = async (req, res) => {
   try {
     const { emergencyId } = req.params;
-
     const sender = resolveSenderFromToken(req);
     if (!sender) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -115,10 +122,7 @@ const getEmergencyMessages = async (req, res) => {
       requester: sender,
     });
 
-    return res.status(200).json({
-      success: true,
-      data: messages,
-    });
+    return res.status(200).json({ success: true, data: messages });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -129,12 +133,16 @@ const getEmergencyMessages = async (req, res) => {
 
 /**
  * POST /api/message/audio
- * Upload audio and send as a chat message
- * Form-data:
- * - emergencyId (number)
- * - audio (file)
+ * Upload audio file and persist as a chat message.
+ *
+ * After saving, broadcasts the new message to the socket room so all other
+ * participants see it in real-time.  The uploader's Flutter client adds the
+ * message locally (and registers its dedup key) BEFORE this broadcast fires,
+ * so the echo is silently dropped on their side — no duplicate bubble.
+ *
+ * @param {import("socket.io").Server} io  — injected by makeController()
  */
-const postAudioMessage = async (req, res) => {
+const makePostAudioMessage = (io) => async (req, res) => {
   try {
     const sender = resolveSenderFromToken(req);
     if (!sender) {
@@ -143,32 +151,39 @@ const postAudioMessage = async (req, res) => {
 
     const { emergencyId } = req.body;
     if (!emergencyId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "emergencyId is required" });
+      return res.status(400).json({ success: false, message: "emergencyId is required" });
     }
 
     if (!req.file) {
-      return res
-        .status(400)
-        .json({ success: false, message: "audio file is required" });
+      return res.status(400).json({ success: false, message: "audio file is required" });
     }
 
-    // Served by server.js: app.use("/uploads", express.static("public/uploads"))
+    // URL served by: app.use("/uploads", express.static("public/uploads"))
     const audioUrl = `/uploads/${req.file.filename}`;
 
     const result = await messageService.saveMessage({
       emergencyId,
-      senderId: sender.senderId,
-      senderType: sender.senderType,
+      senderId:    sender.senderId,
+      senderType:  sender.senderType,
       audioUrl,
-      text: null,
+      text:        null,
       messageType: "audio",
     });
 
+    const savedMessage = result.message;
+
+    // ✅ Broadcast to room so OTHER clients see the audio message.
+    //    The sender's Flutter client deduplicates via _seenMsgKeys and ignores
+    //    this echo — no duplicate bubble on sender's screen.
+    const roomName = `emergency_${emergencyId}`;
+    if (io) {
+      io.to(roomName).emit("chat:new",         savedMessage);
+      io.to(roomName).emit("receive_message",  savedMessage); // legacy compat
+    }
+
     return res.status(201).json({
       success: true,
-      data: result.message,
+      data:          savedMessage,
       statusChanged: result.statusChanged,
     });
   } catch (error) {
@@ -179,9 +194,25 @@ const postAudioMessage = async (req, res) => {
   }
 };
 
+/**
+ * Factory — call this with the Socket.IO server instance.
+ *
+ *   const { makeController } = require("../controllers/messageController");
+ *   const ctrl = makeController(io);
+ *   router.post("/audio", verifyToken, upload.single("audio"), ctrl.postAudioMessage);
+ */
+const makeController = (io) => ({
+  postMessage,
+  getEmergencyMessages,
+  initEmergencyChat,
+  postAudioMessage: makePostAudioMessage(io),
+});
+
 module.exports = {
   postMessage,
   getEmergencyMessages,
   initEmergencyChat,
-  postAudioMessage,
+  // Legacy export — no socket broadcast (use makeController instead)
+  postAudioMessage: makePostAudioMessage(null),
+  makeController,
 };

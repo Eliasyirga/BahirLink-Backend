@@ -1,10 +1,11 @@
 const ServiceCategory = require("../models/ServiceCategory");
 const ServiceType = require("../models/ServiceType");
-const { Agency, AgencyType } = require("../models"); // Import related models
+const { Agency, AgencyType } = require("../models"); 
+const { sequelize } = require("../config/db"); // Needed for JSON querying
 
 const serviceTypeInclude = {
   model: ServiceType,
-  as: "serviceType", // Ensure this matches your models/index.js association
+  as: "serviceType",
   attributes: ["id", "name"],
 };
 
@@ -14,12 +15,23 @@ const createCategory = async ({ name, description, serviceTypeId }) => {
   const serviceType = await ServiceType.findByPk(serviceTypeId);
   if (!serviceType) throw new Error("ServiceType not found");
 
-  // Use ServiceCategory (not Category)
+  // Logic Check: Avoid duplicate English names within the same ServiceType
+  const englishName = typeof name === 'object' ? name.en : name;
+  const existing = await ServiceCategory.findOne({
+    where: {
+      serviceTypeId,
+      ...sequelize.json("name.en", englishName)
+    }
+  });
+  if (existing) throw new Error("Category name already exists for this service type");
+
+  // Structure data for JSONB
   const category = await ServiceCategory.create({
-    name,
-    description,
+    name: typeof name === 'string' ? { en: name, am: "" } : name,
+    description: typeof description === 'string' ? { en: description, am: "" } : description,
     serviceTypeId,
   });
+  
   return category;
 };
 
@@ -27,7 +39,8 @@ const createCategory = async ({ name, description, serviceTypeId }) => {
 const getAllCategories = async () => {
   return await ServiceCategory.findAll({
     include: [serviceTypeInclude],
-    order: [["name", "ASC"]],
+    // Order by English name inside the JSONB
+    order: [[sequelize.json("name.en"), "ASC"]],
   });
 };
 
@@ -48,21 +61,30 @@ const getCategoriesByServiceType = async (serviceTypeId) => {
   return await ServiceCategory.findAll({
     where: { serviceTypeId },
     include: [serviceTypeInclude],
-    order: [["name", "ASC"]],
+    order: [[sequelize.json("name.en"), "ASC"]],
   });
 };
 
 // ✅ UPDATE CATEGORY
 const updateCategory = async (categoryId, updates) => {
+  const category = await ServiceCategory.findByPk(categoryId);
+  if (!category) throw new Error("Category not found");
+
   if (updates.serviceTypeId) {
     const serviceType = await ServiceType.findByPk(updates.serviceTypeId);
     if (!serviceType) throw new Error("ServiceType not found");
   }
 
-  const category = await ServiceCategory.findByPk(categoryId);
-  if (!category) throw new Error("Category not found");
+  // Deep Merge JSONB fields
+  const finalUpdates = { ...updates };
+  if (updates.name && typeof updates.name === 'object') {
+    finalUpdates.name = { ...category.name, ...updates.name };
+  }
+  if (updates.description && typeof updates.description === 'object') {
+    finalUpdates.description = { ...category.description, ...updates.description };
+  }
 
-  return await category.update(updates);
+  return await category.update(finalUpdates);
 };
 
 // ✅ DELETE CATEGORY
@@ -74,52 +96,43 @@ const deleteCategory = async (categoryId) => {
   return { success: true, message: "Category deleted successfully" };
 };
 
-// In your serviceCategoryService.js
+// ✅ GET CATEGORIES BY AGENCY ID (Localized)
 const getCategoriesByAgencyId = async (agencyId) => {
-  // 1. Fetch the agency with its type
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
   });
 
   if (!agency) throw new Error("Agency not found");
 
-  // Get the name (e.g., "Municipal", "Electric", "Water")
-  const agencyTypeName = agency.agencyType?.name;
-  if (!agencyTypeName) throw new Error("Agency has no type assigned");
+  // AgencyType name is now likely JSONB {en, am}
+  const agencyTypeNameEn = typeof agency.agencyType?.name === 'object' 
+    ? agency.agencyType.name.en 
+    : agency.agencyType?.name;
 
-  // 2. Find the matching ServiceType record
-  // This assumes your ServiceType table has entries like "Municipal" or "Water"
+  if (!agencyTypeNameEn) throw new Error("Agency has no type assigned");
+
+  // Match the English name of the ServiceType
   const serviceType = await ServiceType.findOne({
-    where: { name: agencyTypeName },
+    where: sequelize.json("name.en", agencyTypeNameEn),
   });
 
   if (!serviceType) {
-    // If no match is found, we log it and return empty to prevent the frontend from crashing
-    console.warn(
-      `⚠️ No ServiceType found in database matching AgencyType: "${agencyTypeName}"`,
-    );
+    console.warn(`⚠️ No ServiceType found matching AgencyType: "${agencyTypeNameEn}"`);
     return [];
   }
 
-  // 3. Fetch categories belonging to that ServiceType
   const categories = await ServiceCategory.findAll({
     where: { serviceTypeId: serviceType.id },
-    include: [
-      {
-        model: ServiceType,
-        as: "serviceType",
-        attributes: ["id", "name"],
-      },
-    ],
-    order: [["name", "ASC"]],
+    include: [serviceTypeInclude],
+    order: [[sequelize.json("name.en"), "ASC"]],
   });
 
-  // 4. Map the data to the format your frontend expects
+  // Return the full objects (frontend handles language display)
   return categories.map((cat) => ({
     id: cat.id,
-    name: cat.name,
+    name: cat.name, // Returns {en, am}
     serviceTypeId: cat.serviceTypeId,
-    type: cat.serviceType?.name, // This allows the UI to display the type name
+    type: cat.serviceType?.name, // Returns {en, am}
   }));
 };
 

@@ -10,15 +10,15 @@ const Category = sequelize.define(
       primaryKey: true,
     },
 
+    // ✅ CHANGED: Now using JSONB to store { "en": "...", "am": "..." }
     name: {
-      type: DataTypes.STRING,
+      type: DataTypes.JSONB, 
       allowNull: false,
+      defaultValue: { en: "", am: "" },
     },
 
-    // ❌ REMOVED: type (not needed in DB, generated dynamically)
-
     emergencyTypeId: {
-      type: DataTypes.INTEGER, // must match emergency_types.id
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: "emergency_types",
@@ -34,7 +34,9 @@ const Category = sequelize.define(
     indexes: [
       {
         unique: true,
-        fields: ["name", "emergencyTypeId"], // same name allowed in different types
+        // Note: Unique constraints on JSONB fields can be tricky. 
+        // This index now tracks the whole JSON object vs the ID.
+        fields: ["name", "emergencyTypeId"], 
       },
     ],
   },

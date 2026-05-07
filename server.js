@@ -34,6 +34,7 @@ const finalReportRoutes = require("./routes/finalReportRoutes");
 const chatSocket = require("./socket/chatSocket");
 const videoCallSocket = require("./socket/videoCallSocket");
 const socketAuth = require("./middleware/socketAuth");
+const langMiddleware = require("./middleware/lang.middleware"); // ✅ Added
 
 const app = express();
 const server = http.createServer(app);
@@ -45,7 +46,7 @@ const server = http.createServer(app);
  */
 const io = new Server(server, {
   cors: {
-    origin: "*", // Matches your frontend development needs
+    origin: "*", 
     methods: ["GET", "POST"],
   },
 });
@@ -82,9 +83,13 @@ app.use("/public", express.static("public"));
  * REST API ROUTES
  * ======================
  */
+
 app.get("/", (req, res) =>
   res.send("BahirLink Mission-Critical Backend is Live."),
 );
+
+// ✅ Apply Translation Middleware to ALL /api routes at once
+app.use("/api", langMiddleware);
 
 app.use("/api/users", userRoutes);
 app.use("/api/guests", guestRoutes);
@@ -130,11 +135,10 @@ const PORT = process.env.PORT || 5000;
 
 connectDB()
   .then(() => {
-    // alter: true will now apply smoothly since you manually fixed 'cases' types
-    return sequelize.sync();
+    sequelize.sync();
   })
   .then(() => {
-    console.log(" Database Synced to Neon.");
+    console.log("Database Synced to Neon.");
     server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => {

@@ -1,4 +1,5 @@
 const { Category, EmergencyType } = require("../models");
+const { Op } = require("sequelize");
 
 const createCategory = async (data) => {
   // 1. Validate EmergencyType exists
@@ -7,40 +8,39 @@ const createCategory = async (data) => {
     throw new Error("EmergencyType not found");
   }
 
-  // 2. FIXED: uniqueness per EmergencyType
+  // 2. FIXED: Uniqueness check for JSONB
+  // This checks if the English name already exists within the JSONB object
   const existingCategory = await Category.findOne({
     where: {
-      name: data.name,
       emergencyTypeId: data.emergencyTypeId,
+      [Op.or]: [
+        { "name.en": data.name.en },
+        { "name.am": data.name.am }
+      ]
     },
   });
 
   if (existingCategory) {
-    throw new Error("Category already exists in this EmergencyType");
+    throw new Error("Category with this name already exists in this EmergencyType");
   }
 
-  // 3. Create category
+  // 3. Create category (data.name should be { en: "...", am: "..." })
   const category = await Category.create({
-    name: data.name,
+    name: data.name, 
     emergencyTypeId: data.emergencyTypeId,
   });
 
-  // 4. ADD type for dashboard (NOT stored in DB)
   return {
     id: category.id,
     name: category.name,
     emergencyTypeId: category.emergencyTypeId,
-    type: emergencyType.name, // 👈 dashboard display field
+    type: emergencyType.name.en || emergencyType.name, // Return string for dashboard
   };
 };
 
 const deleteCategory = async (categoryId) => {
   const category = await Category.findByPk(categoryId);
-
-  if (!category) {
-    throw new Error("Category not found");
-  }
-
+  if (!category) throw new Error("Category not found");
   await category.destroy();
   return { message: "Category deleted successfully" };
 };
@@ -54,13 +54,13 @@ const getAllCategories = async () => {
     },
   });
 
-  // ADD type for dashboard
   return categories.map((cat) => ({
     id: cat.id,
     name: cat.name,
     emergencyTypeId: cat.emergencyTypeId,
     emergencyType: cat.emergencyType,
-    type: cat.emergencyType.name, // 👈 dashboard display
+    // Dashboard usually expects a string, so we pick .en
+    type: cat.emergencyType.name.en || cat.emergencyType.name, 
   }));
 };
 
@@ -79,37 +79,34 @@ const getCategoriesByEmergencyType = async (emergencyTypeId) => {
     id: cat.id,
     name: cat.name,
     emergencyTypeId: cat.emergencyTypeId,
-    type: cat.emergencyType.name,
+    type: cat.emergencyType.name.en || cat.emergencyType.name,
   }));
 };
 
 const updateCategory = async (categoryId, data) => {
   const category = await Category.findByPk(categoryId);
+  if (!category) throw new Error("Category not found");
 
-  if (!category) {
-    throw new Error("Category not found");
-  }
-
-  // validate emergencyType if changing
   if (data.emergencyTypeId) {
     const emergencyType = await EmergencyType.findByPk(data.emergencyTypeId);
-
-    if (!emergencyType) {
-      throw new Error("EmergencyType not found");
-    }
+    if (!emergencyType) throw new Error("EmergencyType not found");
   }
 
-  // duplicate check
+  // Duplicate check for JSONB names
   if (data.name) {
     const existingCategory = await Category.findOne({
       where: {
-        name: data.name,
         emergencyTypeId: data.emergencyTypeId ?? category.emergencyTypeId,
+        [Op.or]: [
+          { "name.en": data.name.en },
+          { "name.am": data.name.am }
+        ],
+        id: { [Op.ne]: categoryId } // Not this current category
       },
     });
 
-    if (existingCategory && existingCategory.id !== category.id) {
-      throw new Error("Category already exists in this EmergencyType");
+    if (existingCategory) {
+      throw new Error("Category with this name already exists in this EmergencyType");
     }
   }
 
@@ -118,22 +115,19 @@ const updateCategory = async (categoryId, data) => {
     emergencyTypeId: data.emergencyTypeId ?? category.emergencyTypeId,
   });
 
-  const updatedEmergencyType = await EmergencyType.findByPk(
-    category.emergencyTypeId,
-  );
+  const updatedEmergencyType = await EmergencyType.findByPk(category.emergencyTypeId);
 
   return {
     id: category.id,
     name: category.name,
     emergencyTypeId: category.emergencyTypeId,
-    type: updatedEmergencyType.name, // 👈 dashboard display
+    type: updatedEmergencyType.name.en || updatedEmergencyType.name,
   };
 };
 
 const getCategoriesByAgencyId = async (agencyId) => {
   const { Agency, AgencyType } = require("../models");
 
-  // 1. Fetch the agency with its type
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
   });
@@ -143,7 +137,6 @@ const getCategoriesByAgencyId = async (agencyId) => {
   const agencyTypeName = agency.agencyType?.name;
   if (!agencyTypeName) throw new Error("Agency has no type assigned");
 
-  // 2. Map agency type → emergency type name (mirrors your emergency service)
   const agencyTypeToEmergencyType = {
     Police: "Crime",
     Health: "Health",
@@ -152,18 +145,20 @@ const getCategoriesByAgencyId = async (agencyId) => {
   };
 
   const targetEmergencyTypeName = agencyTypeToEmergencyType[agencyTypeName];
-  if (!targetEmergencyTypeName)
-    throw new Error(`No emergency type mapped for agency type: ${agencyTypeName}`);
-
-  // 3. Find the matching EmergencyType record
+  
+  // NOTE: We use Op.or to check the English name in the JSONB field
   const emergencyType = await EmergencyType.findOne({
-    where: { name: targetEmergencyTypeName },
+    where: {
+      [Op.or]: [
+        { "name.en": targetEmergencyTypeName },
+        { name: targetEmergencyTypeName } // Fallback for old string data
+      ]
+    },
   });
 
   if (!emergencyType)
     throw new Error(`EmergencyType "${targetEmergencyTypeName}" not found in DB`);
 
-  // 4. Fetch categories for that emergency type
   const categories = await Category.findAll({
     where: { emergencyTypeId: emergencyType.id },
     include: {
@@ -179,7 +174,7 @@ const getCategoriesByAgencyId = async (agencyId) => {
     name: cat.name,
     emergencyTypeId: cat.emergencyTypeId,
     emergencyType: cat.emergencyType,
-    type: cat.emergencyType.name,
+    type: cat.emergencyType.name.en || cat.emergencyType.name,
   }));
 };
 

@@ -5,7 +5,11 @@ const {
   User,
   Agency,
   AgencyType,
+  ResponderTeam,
+  Kebele,
+  ResponderTeamKebele,
 } = require("../models");
+const { sequelize } = require("../config/db");
 
 /**
  * REUSABLE INCLUDE CONFIG
@@ -41,7 +45,7 @@ const createService = async (data, userIdFromParams, file) => {
   const serviceCategoryId = data.serviceCategoryId ? parseInt(data.serviceCategoryId) : null;
   const citizenId = parseInt(userIdFromParams || data.citizenId);
 
-  // Parse Location safely (Ensure it's an object for JSONB)
+  // Parse Location safely
   let finalLocation = data.location;
   if (data.latitude && data.longitude) {
     finalLocation = {
@@ -50,11 +54,6 @@ const createService = async (data, userIdFromParams, file) => {
     };
   }
 
-  /**
-   * ✅ MULTI-LANGUAGE HANDLING
-   * Data coming from the frontend might be a string (from a form) 
-   * or already an object. We ensure it's saved as { en, am }.
-   */
   const timestamp = Date.now();
   
   const processedName = typeof data.name === 'string' 
@@ -99,7 +98,6 @@ const updateService = async (serviceId, updates) => {
   const service = await Service.findByPk(serviceId);
   if (!service) throw new Error("Service not found");
 
-  // Prevent direct overwrite of JSONB objects if only one language is sent
   const finalUpdates = { ...updates };
   
   if (updates.name && typeof updates.name === 'object') {
@@ -154,7 +152,7 @@ const deleteService = async (serviceId) => {
   return { success: true, message: "Service deleted successfully" };
 };
 
-// ✅ GET SERVICES BY AGENCY (Multi-language aware)
+// ✅ GET SERVICES BY AGENCY
 const getServicesByAgency = async (agencyId) => {
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
@@ -162,29 +160,74 @@ const getServicesByAgency = async (agencyId) => {
 
   if (!agency) throw new Error("Agency not found");
 
-  // Agency names are likely strings or JSONB. We check both.
   const agencyTypeName = typeof agency.agencyType?.name === 'object' 
     ? agency.agencyType.name.en 
     : agency.agencyType?.name;
 
   if (!agencyTypeName) throw new Error("Agency has no type assigned");
 
-  /**
-   * Note: If ServiceType.name is now JSONB, 
-   * Sequelize requires specific syntax to search inside JSON
-   */
   const serviceType = await ServiceType.findOne({
     where: sequelize.json("name.en", agencyTypeName)
   });
 
-  if (!serviceType) {
-    console.warn(`No ServiceType found matching AgencyType: ${agencyTypeName}`);
-    return [];
-  }
+  if (!serviceType) return [];
 
   return await Service.findAll({
     where: { serviceTypeId: serviceType.id },
     include: serviceIncludes,
+    order: [["createdAt", "DESC"]],
+  });
+};
+
+// ✅ GET SERVICES FOR RESPONDER TEAM (Kebele & Type Aware)
+const getServicesForResponderTeam = async (responderTeamId) => {
+  const team = await ResponderTeam.findByPk(responderTeamId, {
+    include: [
+      {
+        model: Agency,
+        as: "agency",
+        include: [{ model: AgencyType, as: "agencyType" }],
+      },
+    ],
+  });
+
+  if (!team) throw new Error("Responder Team not found");
+
+  const agencyTypeName = typeof team.agency.agencyType?.name === 'object'
+    ? team.agency.agencyType.name.en
+    : team.agency.agencyType?.name;
+
+  const serviceType = await ServiceType.findOne({
+    where: sequelize.json("name.en", agencyTypeName),
+  });
+
+  if (!serviceType) return [];
+
+  return await Service.findAll({
+    where: {
+      serviceTypeId: serviceType.id,
+    },
+    subQuery: false,
+    include: [
+      {
+        model: Kebele,
+        as: "kebele",
+        required: true,
+        include: [
+          {
+            model: ResponderTeam,
+            as: "teams",
+            where: { id: responderTeamId },
+            required: true,
+            through: {
+              model: ResponderTeamKebele,
+              attributes: [],
+            },
+          },
+        ],
+      },
+      ...serviceIncludes,
+    ],
     order: [["createdAt", "DESC"]],
   });
 };
@@ -197,4 +240,5 @@ module.exports = {
   getServicesByUser,
   deleteService,
   getServicesByAgency,
+  getServicesForResponderTeam,
 };

@@ -1,4 +1,4 @@
-const { ServiceType } = require("../models");
+const { ServiceType, ServiceCategory } = require("../models");
 const { sequelize } = require("../config/db");
 
 // ✅ CREATE
@@ -27,6 +27,13 @@ const createServiceType = async (data) => {
 // ✅ GET ALL
 const getAllServiceTypes = async () => {
   return await ServiceType.findAll({
+    // Nest the associated ServiceCategory model
+    include: [
+      {
+        model: ServiceCategory,
+        as: "categories",
+      },
+    ],
     order: [["createdAt", "DESC"]],
   });
 };

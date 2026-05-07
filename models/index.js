@@ -34,10 +34,6 @@ Emergency.belongsTo(Guest, { foreignKey: "guestId", as: "guest" });
 User.hasMany(Emergency, { foreignKey: "citizenId", as: "emergencies" });
 Emergency.belongsTo(User, { foreignKey: "citizenId", as: "user" });
 
-// =========================
-// EMERGENCY CORE (Chat Logic)
-// =========================
-// This replaces the old Chat model logic by linking messages directly to an Emergency
 Emergency.hasMany(Message, { foreignKey: "emergencyId", as: "messages" });
 Message.belongsTo(Emergency, { foreignKey: "emergencyId", as: "emergency" });
 
@@ -45,6 +41,7 @@ EmergencyType.hasMany(Emergency, {
   foreignKey: "emergencyTypeId",
   as: "emergencies",
 });
+
 Emergency.belongsTo(EmergencyType, {
   foreignKey: "emergencyTypeId",
   as: "emergencyType",
@@ -142,6 +139,8 @@ ServiceCategory.belongsTo(ServiceType, {
   foreignKey: "serviceTypeId",
   as: "serviceType",
 });
+Service.belongsTo(Kebele, { foreignKey: "kebeleId", as: "kebele" });
+Kebele.hasMany(Service, { foreignKey: "kebeleId", as: "services" });
 
 User.hasMany(Service, { foreignKey: "citizenId", as: "services" });
 Service.belongsTo(User, { foreignKey: "citizenId", as: "citizen" });
@@ -161,9 +160,6 @@ Service.belongsTo(ServiceCategory, {
   as: "serviceCategory",
 });
 
-// =========================
-// GEOGRAPHIC RELATIONSHIPS
-// =========================
 Kebele.hasMany(Cases, { foreignKey: "lastSeenLocationId", as: "cases" });
 Cases.belongsTo(Kebele, {
   foreignKey: "lastSeenLocationId",
@@ -176,6 +172,7 @@ Emergency.belongsTo(Kebele, {
   onUpdate: "CASCADE",
   onDelete: "RESTRICT",
 });
+
 Kebele.hasMany(Emergency, { foreignKey: "kebeleId", as: "emergencies" });
 
 ResponderTeam.belongsToMany(Kebele, {
@@ -183,6 +180,7 @@ ResponderTeam.belongsToMany(Kebele, {
   foreignKey: "responderTeamId",
   as: "kebeles",
 });
+
 Kebele.belongsToMany(ResponderTeam, {
   through: ResponderTeamKebele,
   foreignKey: "kebeleId",

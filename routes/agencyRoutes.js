@@ -9,6 +9,7 @@ const {
   getAllAgenciesHandler,
   loginAgencyHandler,
   getAgentsByCreatorIdHandler,
+  getAgencyByIdHandler,
 } = require("../controllers/agencyController");
 
 // Get all agencies
@@ -26,4 +27,7 @@ router.delete("/:id", verifyToken, deleteAgencyHandler);
 router.post("/agent-login", loginAgencyHandler);
 
 router.get("/my-agents", verifyToken, getAgentsByCreatorIdHandler);
+
+router.get("/:id", verifyToken, getAgencyByIdHandler);
+
 module.exports = router;

@@ -10,131 +10,93 @@ const Emergency = sequelize.define(
       primaryKey: true,
     },
 
+    // ─── JSONB: stores { en: "...", am: "..." } ───────────────────────────────
     description: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSONB,
       allowNull: true,
+      comment: "Localised description e.g. { en: 'Fire on 2nd floor', am: '...' }",
     },
+    subdivision: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      comment: "Localised subdivision/area name e.g. { en: 'Bole', am: 'ቦሌ' }",
+    },
+
+    // ─── Plain fields ─────────────────────────────────────────────────────────
     kebeleId: {
       type: DataTypes.INTEGER,
-      allowNull: true, // temporary
-      references: {
-        model: "kebeles",
-        key: "id",
-      },
+      allowNull: true,
+      references: { model: "kebeles", key: "id" },
     },
-
-    subdivision: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-
     street: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-
     location: {
       type: DataTypes.JSON,
       allowNull: true,
+      comment: "{ latitude: float, longitude: float }",
     },
-
     mediaUrl: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-
     mediaType: {
       type: DataTypes.ENUM("photo", "video", "audio"),
       allowNull: true,
     },
-
     status: {
       type: DataTypes.ENUM("reported", "assigned", "in_progress", "resolved"),
       defaultValue: "reported",
     },
-
-    citizenId: {
-      type: DataTypes.INTEGER,
+    report: {
+      type: DataTypes.TEXT,
       allowNull: true,
-      references: {
-        model: "users",
-        key: "id",
-      },
+      comment: "Resolver's closing report",
     },
-
-    guestId: {
-      type: DataTypes.INTEGER,
+    reporterType: {
+      type: DataTypes.ENUM("user", "guest"),
       allowNull: true,
-      references: {
-        model: "guests",
-        key: "id",
-      },
-    },
-
-    emergencyTypeId: {
-      type: DataTypes.INTEGER, // ✅ FIXED
-      allowNull: true,
-      references: {
-        model: "emergency_types",
-        key: "id",
-      },
-      onDelete: "CASCADE",
-      onUpdate: "CASCADE",
-    },
-
-    categoryId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-      references: {
-        model: "categories",
-        key: "id",
-      },
-      onDelete: "SET NULL",
-      onUpdate: "CASCADE",
-    },
-    emergedId: {
-      type: DataTypes.INTEGER,
-      allowNull: true, // important (not all emergencies are merged)
-      references: {
-        model: "emerged",
-        key: "id",
-      },
-      onDelete: "SET NULL",
-      onUpdate: "CASCADE",
     },
     deviceId: {
       type: DataTypes.STRING,
       allowNull: true,
+      comment: "Mobile device identifier for guest tracking",
     },
-
     time: {
-      type: DataTypes.TIME,
+      type: DataTypes.STRING,
       allowNull: true,
+      comment: "HH:MM:SS string extracted from the reported datetime",
     },
 
-    // Chat is enabled only after responder initiates.
-    isChatEnabled: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false,
-    },
-    chatInitiatedByResponderTeamId: {
+    // ─── Foreign keys ─────────────────────────────────────────────────────────
+    citizenId: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      references: {
-        model: "responder_teams",
-        key: "id",
-      },
+      references: { model: "users", key: "id" },
     },
-    chatInitiatedAt: {
-      type: DataTypes.DATE,
+    guestId: {
+      type: DataTypes.INTEGER,
       allowNull: true,
+      references: { model: "guests", key: "id" },
+    },
+    emergencyTypeId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: "emergency_types", key: "id" },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
+    },
+    categoryId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: "categories", key: "id" },
     },
   },
   {
     tableName: "emergencies",
     timestamps: true,
-  },
+  }
 );
 
 module.exports = Emergency;

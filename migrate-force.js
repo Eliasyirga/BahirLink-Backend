@@ -4,7 +4,10 @@ const {
   Cases, 
   ServiceType, 
   ServiceCategory,
-  CaseType // ✅ Added CaseType
+  CaseType,
+  Emergency,      // ✅ Added
+  EmergencyType,  // ✅ Added
+  Kebele          // ✅ Added
 } = require("./models");
 const translate = require("google-translate-api-x");
 
@@ -12,46 +15,61 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const runFullSystemMigration = async () => {
   try {
-    console.log("🛠 Starting Full System Multi-Language Migration...");
+    console.log("🛠 Starting Full System & Emergency Multi-Language Migration...");
 
-    // 1. Case Types (e.g., "Theft", "Fire", "Accident")
-    // Added this at the start as it's a foundational lookup table
+    // 1. Emergency Types (e.g., "Fire", "Crime", "Medical")
+    const emergencyTypes = await EmergencyType.findAll();
+    console.log(`\n--- [1/9] Processing ${emergencyTypes.length} Emergency Types ---`);
+    for (const type of emergencyTypes) {
+      await processLocalization(type, 'name');
+      await delay(500);
+    }
+
+    // 2. Kebeles (Location names)
+    const kebeles = await Kebele.findAll();
+    console.log(`\n--- [2/9] Processing ${kebeles.length} Kebeles ---`);
+    for (const kebele of kebeles) {
+      await processLocalization(kebele, 'name');
+      await delay(500);
+    }
+
+    // 3. Case Types
     const caseTypes = await CaseType.findAll();
-    console.log(`\n--- [1/6] Processing ${caseTypes.length} Case Types ---`);
+    console.log(`\n--- [3/9] Processing ${caseTypes.length} Case Types ---`);
     for (const type of caseTypes) {
       await processLocalization(type, 'name');
       await delay(500);
     }
 
-    // 2. Service Types (e.g., "Medical", "Security")
+    // 4. Service Types
     const serviceTypes = await ServiceType.findAll();
-    console.log(`\n--- [2/6] Processing ${serviceTypes.length} Service Types ---`);
+    console.log(`\n--- [4/9] Processing ${serviceTypes.length} Service Types ---`);
     for (const type of serviceTypes) {
       await processLocalization(type, 'name');
       await processLocalization(type, 'description');
       await delay(500);
     }
 
-    // 3. Service Categories (e.g., "Fire Department", "Ambulance")
+    // 5. Service Categories
     const serviceCats = await ServiceCategory.findAll();
-    console.log(`\n--- [3/6] Processing ${serviceCats.length} Service Categories ---`);
+    console.log(`\n--- [5/9] Processing ${serviceCats.length} Service Categories ---`);
     for (const cat of serviceCats) {
       await processLocalization(cat, 'name');
       await processLocalization(cat, 'description');
       await delay(500);
     }
 
-    // 4. Categories (Generic Categories)
+    // 6. Generic Categories
     const categories = await Category.findAll();
-    console.log(`\n--- [4/6] Processing ${categories.length} Categories ---`);
+    console.log(`\n--- [6/9] Processing ${categories.length} Categories ---`);
     for (const cat of categories) {
       await processLocalization(cat, 'name');
       await delay(500);
     }
 
-    // 5. Services (The specific utility or office)
+    // 7. Services
     const services = await Service.findAll();
-    console.log(`\n--- [5/6] Processing ${services.length} Services ---`);
+    console.log(`\n--- [7/9] Processing ${services.length} Services ---`);
     for (const service of services) {
       await processLocalization(service, 'name');
       await processLocalization(service, 'description');
@@ -60,9 +78,9 @@ const runFullSystemMigration = async () => {
       await delay(500);
     }
 
-    // 6. Cases (Active incidents or reports)
+    // 8. Cases
     const cases = await Cases.findAll();
-    console.log(`\n--- [6/6] Processing ${cases.length} Cases ---`);
+    console.log(`\n--- [8/9] Processing ${cases.length} Cases ---`);
     for (const caseItem of cases) {
       await processLocalization(caseItem, 'fullName');
       await processLocalization(caseItem, 'description');
@@ -70,10 +88,21 @@ const runFullSystemMigration = async () => {
       await delay(500);
     }
 
-    console.log("\n🚀 GLOBAL MIGRATION COMPLETE! Your database is now JSONB localized.");
+    // 9. Emergencies (Reports from Users/Guests)
+    const emergencies = await Emergency.findAll();
+    console.log(`\n--- [9/9] Processing ${emergencies.length} Emergencies ---`);
+    for (const emergency of emergencies) {
+      await processLocalization(emergency, 'subdivision');
+      await processLocalization(emergency, 'description');
+      // If your emergency model stores additional notes or reports:
+      if (emergency.report) await processLocalization(emergency, 'report');
+      await delay(500);
+    }
+
+    console.log("\n🚀 GLOBAL MIGRATION COMPLETE! All emergency and service data is localized.");
     process.exit(0);
   } catch (err) {
-    console.error("❌ Migration failed with a critical error:", err);
+    console.error("❌ Migration failed:", err);
     process.exit(1);
   }
 };
@@ -86,13 +115,12 @@ async function processLocalization(instance, fieldName) {
 
   if (!value) return;
 
-  // Handle accidental stringified JSON from previous migrations or manual entry
+  // Cleanup for accidental stringified JSON
   if (typeof value === 'string' && value.trim().startsWith("{")) {
     try { value = JSON.parse(value); } catch (e) {}
   }
 
   const isPlainString = typeof value === 'string';
-  // Check if it's already an object but missing the Amharic translation
   const isMissingAm = typeof value === 'object' && value !== null && (!value.am || value.am === "");
 
   if (isPlainString || isMissingAm) {
@@ -111,11 +139,10 @@ async function processLocalization(instance, fieldName) {
         am: res.text
       };
 
-      // We use .update() to trigger Sequelize's hooks if any exist
       await instance.update({ [fieldName]: updatedValue });
       console.log(`✅ -> ${res.text}`);
     } catch (error) {
-      console.log(`\n⚠️ Error translating field ${fieldName}:`, error.message);
+      console.log(`\n⚠️ Error translating ${fieldName}:`, error.message);
     }
   }
 }

@@ -9,63 +9,45 @@ const {
   getAllEmergenciesForAdmin,
   updateEmergencyStatus,
   getEmergenciesByDeviceId,
-  getEmergencyById, // ✅ ADD THIS
+  getEmergencyById,
 } = require("../services/emergencyService");
+
+/** Read Accept-Language from request headers. Defaults to 'en'. */
+const getLang = (req) => req.headers["accept-language"] || "en";
+
 // =========================
 // CREATE GUEST EMERGENCY
 // =========================
 const createGuestEmergencyHandler = async (req, res) => {
   try {
-    // 1. Log incoming data for debugging (helpful for Flutter Web development)
-    console.log("Incoming Guest Emergency Report:", {
-      body: req.body,
-      file: req.file ? req.file.filename : "No file attached",
-    });
-
-    // 2. Call the service
-    // Ensure createGuestEmergency is the updated version that handles parseFloat for lat/lng
     const emergency = await createGuestEmergency(req.body, req.file);
-
-    // 3. Return successful response
     return res.status(201).json({
       success: true,
       message: "Emergency reported successfully",
       data: emergency,
     });
   } catch (error) {
-    // 4. Detailed Error Logging
-    // This will show up in your Node.js console/terminal
-    console.error("CRITICAL ERROR in createGuestEmergencyHandler:");
-    console.error("Error Message:", error.message);
-    console.error("Stack Trace:", error.stack);
-
-    // 5. Categorize the error
-    // If it's a validation error (like missing fields), we return 400
-    // Otherwise, we return 500
     const statusCode =
       error.message.includes("required") || error.message.includes("Invalid")
         ? 400
         : 500;
-
-    return res.status(statusCode).json({
-      success: false,
-      message: error.message || "An internal server error occurred",
-    });
+    return res.status(statusCode).json({ success: false, message: error.message });
   }
 };
+
 // =========================
 // CREATE USER EMERGENCY
 // =========================
 const createUserEmergencyHandler = async (req, res) => {
   try {
-    const userId = req.user?.id; // assuming auth middleware
+    const userId = req.user?.id;
     if (!userId)
       return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const emergency = await createUserEmergency(userId, req.body, req.file);
-    res.status(201).json({ success: true, data: emergency });
+    return res.status(201).json({ success: true, data: emergency });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -75,36 +57,36 @@ const createUserEmergencyHandler = async (req, res) => {
 const updateEmergencyHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.id;
-    const isGuest = !!req.body.guestId;
+    // Pass isGuest flag from query if needed; default to false (user context)
+    const isGuest = req.query.isGuest === "true";
+    const userOrGuestId = req.user?.id || req.query.guestId;
 
     const emergency = await updateEmergency(
-      userId || req.body.guestId,
+      userOrGuestId,
       id,
       req.body,
       req.file,
-      isGuest,
+      isGuest
     );
-    res.status(200).json({ success: true, data: emergency });
+    return res.status(200).json({ success: true, data: emergency });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
+// =========================
+// DELETE EMERGENCY
+// =========================
 const deleteEmergencyHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.id;
-    const isGuest = !!req.body.guestId;
+    const isGuest = req.query.isGuest === "true";
+    const userOrGuestId = req.user?.id || req.query.guestId;
 
-    const result = await deleteEmergency(
-      userId || req.body.guestId,
-      id,
-      isGuest,
-    );
-    res.status(200).json({ success: true, message: result.message });
+    const result = await deleteEmergency(userOrGuestId, id, isGuest);
+    return res.status(200).json({ success: true, message: result.message });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -113,19 +95,14 @@ const deleteEmergencyHandler = async (req, res) => {
 // =========================
 const getEmergenciesHandler = async (req, res) => {
   try {
-    const { userOrGuestId } = req.params; // Make sure this matches your router param name
-    const isGuest = req.query.guestId === "true";
+    const { userOrGuestId } = req.params;
+    const isGuest = req.query.isGuest === "true";
+    const lang = getLang(req);
 
-    console.log(
-      `Fetching emergencies for ${isGuest ? "Guest" : "User"}: ${userOrGuestId}`,
-    );
-
-    const emergencies = await getEmergencies(userOrGuestId, isGuest);
-    res.status(200).json({ success: true, data: emergencies });
+    const emergencies = await getEmergencies(userOrGuestId, isGuest, lang);
+    return res.status(200).json({ success: true, data: emergencies });
   } catch (error) {
-    // THIS LOG IS CRITICAL - It will tell you the exact SQL or JS error
-    console.error("DETAILED ERROR:", error);
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -135,6 +112,7 @@ const getEmergenciesHandler = async (req, res) => {
 const getEmergenciesForResponderTeamHandler = async (req, res) => {
   try {
     const { responderTeamId } = req.params;
+    const lang = getLang(req);
 
     if (!responderTeamId) {
       return res
@@ -142,12 +120,12 @@ const getEmergenciesForResponderTeamHandler = async (req, res) => {
         .json({ success: false, message: "Responder Team ID is required" });
     }
 
-    // Call the function we discussed earlier
-    const emergencies = await getEmergenciesForResponderTeam(responderTeamId);
-
+    const emergencies = await getEmergenciesForResponderTeam(
+      responderTeamId,
+      lang
+    );
     return res.status(200).json({ success: true, data: emergencies });
   } catch (error) {
-    console.error(error); // good for debugging
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -158,15 +136,17 @@ const getEmergenciesForResponderTeamHandler = async (req, res) => {
 const getEmergenciesByAgencyHandler = async (req, res) => {
   try {
     const { agencyId } = req.params;
+    const lang = getLang(req);
+
     if (!agencyId)
       return res
         .status(400)
         .json({ success: false, message: "Agency ID is required" });
 
-    const emergencies = await getEmergenciesByAgency(agencyId);
-    res.status(200).json({ success: true, data: emergencies });
+    const emergencies = await getEmergenciesByAgency(agencyId, lang);
+    return res.status(200).json({ success: true, data: emergencies });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -175,18 +155,11 @@ const getEmergenciesByAgencyHandler = async (req, res) => {
 // =========================
 const getAllEmergenciesAdmin = async (req, res) => {
   try {
-    const emergencies = await getAllEmergenciesForAdmin();
-
-    return res.json({
-      success: true,
-      data: emergencies,
-    });
+    const lang = getLang(req);
+    const emergencies = await getAllEmergenciesForAdmin(lang);
+    return res.json({ success: true, data: emergencies });
   } catch (err) {
-    console.error("❌ Error fetching all emergencies for admin:", err);
-    return res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
 
@@ -196,83 +169,65 @@ const getAllEmergenciesAdmin = async (req, res) => {
 const getEmergencyByIdHandler = async (req, res) => {
   try {
     const { id } = req.params;
+    const lang = getLang(req);
 
-    // You need to make sure 'getEmergencyById' exists in your emergencyService.js
-    // If you don't have it, you can often use your Sequelize/Mongoose model directly:
-    // const emergency = await Emergency.findByPk(id, { include: [{ all: true }] });
-
-    const emergency = await getEmergencyById(id); // Ensure this is exported from your service
+    const emergency = await getEmergencyById(id, lang);
 
     if (!emergency) {
-      return res.status(404).json({
-        success: false,
-        message: "Incident not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Incident not found" });
     }
 
-    return res.status(200).json({
-      success: true,
-      data: emergency,
-    });
+    return res.status(200).json({ success: true, data: emergency });
   } catch (error) {
-    console.error("Error fetching single emergency:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// =========================
+// UPDATE EMERGENCY STATUS
+// =========================
 const updateEmergencyStatusHandler = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, report } = req.body;
 
-    if (!status) {
+    if (!status)
       return res
         .status(400)
         .json({ success: false, message: "Status is required" });
-    }
 
-    // This calls the specific service function that doesn't check for citizenId
     const emergency = await updateEmergencyStatus(id, status, report);
-
     return res.status(200).json({
       success: true,
       message: "Status updated successfully",
       data: emergency,
     });
   } catch (error) {
-    console.error("❌ Status Update Error:", error);
-    return res.status(error.message.includes("not found") ? 404 : 500).json({
-      success: false,
-      message: error.message,
-    });
+    return res
+      .status(error.message.includes("not found") ? 404 : 500)
+      .json({ success: false, message: error.message });
   }
 };
+
+// =========================
+// GET BY DEVICE ID
+// =========================
 const getEmergenciesByDeviceIdHandler = async (req, res) => {
   try {
     const { deviceId } = req.params;
+    const lang = getLang(req);
 
-    if (!deviceId) {
-      return res.status(400).json({
-        success: false,
-        message: "deviceId is required",
-      });
-    }
+    if (!deviceId)
+      return res
+        .status(400)
+        .json({ success: false, message: "deviceId is required" });
 
-    const emergencies = await getEmergenciesByDeviceId(deviceId);
-
-    return res.status(200).json({
-      success: true,
-      data: emergencies,
-    });
+    const emergencies = await getEmergenciesByDeviceId(deviceId, lang);
+    return res.status(200).json({ success: true, data: emergencies });
   } catch (error) {
-    console.error("❌ Error fetching emergencies by deviceId:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 

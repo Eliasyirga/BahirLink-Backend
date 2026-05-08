@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const ServiceCategory = require("../models/ServiceCategory");
 const ServiceType = require("../models/ServiceType");
 const { Agency, AgencyType } = require("../models");
@@ -10,10 +11,6 @@ const serviceTypeInclude = {
 };
 
 // ── Safe ORDER BY ─────────────────────────────────────────────────────────────
-// The name column may be VARCHAR (plain string) or JSONB ({en, am}).
-// Qualifying with the table name prevents the "ambiguous column" error
-// that arises when ServiceType (also has "name") is JOINed.
-// The CASE handles both column types safely.
 const nameOrderAsc = [
   [
     sequelize.literal(
@@ -21,33 +18,54 @@ const nameOrderAsc = [
          WHEN pg_typeof("ServiceCategory"."name") = 'jsonb'::regtype
          THEN ("ServiceCategory"."name"::jsonb)->>'en'
          ELSE "ServiceCategory"."name"::text
-       END`
+       END`,
     ),
     "ASC",
   ],
 ];
 
-// ── Helper: extract English name regardless of column type ───────────────────
-const getEnName = (nameField) =>
-  typeof nameField === "object" && nameField !== null
-    ? nameField.en ?? Object.values(nameField)[0] ?? ""
-    : String(nameField ?? "");
+// ── Helper: extract English name or parse stringified JSON ───────────────────
+const getEnName = (nameField) => {
+  if (typeof nameField === "object" && nameField !== null) {
+    return nameField.en ?? Object.values(nameField)[0] ?? "";
+  }
+  return String(nameField ?? "");
+};
+
+const parseJsonField = (field) => {
+  if (typeof field !== "string") return field;
+  try {
+    const parsed = JSON.parse(field);
+    // Handle double-stringified cases
+    return typeof parsed === "string" ? JSON.parse(parsed) : parsed;
+  } catch {
+    return field;
+  }
+};
 
 // ✅ CREATE CATEGORY
 const createCategory = async ({ name, description, serviceTypeId }) => {
   const serviceType = await ServiceType.findByPk(serviceTypeId);
   if (!serviceType) throw new Error("ServiceType not found");
 
+  // Logic Check: Avoid duplicate English names within the same ServiceType
   const englishName = getEnName(name);
+  const existing = await ServiceCategory.findOne({
+    where: {
+      serviceTypeId,
+      ...sequelize.json("name.en", englishName),
+    },
+  });
 
-  // Duplicate check that works for both VARCHAR and JSONB
-  const all = await ServiceCategory.findAll({ where: { serviceTypeId } });
-  const isDuplicate = all.some((cat) => getEnName(cat.name) === englishName);
-  if (isDuplicate) throw new Error("Category name already exists for this service type");
+  if (existing)
+    throw new Error("Category name already exists for this service type");
 
   const category = await ServiceCategory.create({
-    name        : typeof name        === "string" ? { en: name,        am: "" } : name,
-    description : typeof description === "string" ? { en: description, am: "" } : description,
+    name: typeof name === "string" ? { en: name, am: "" } : name,
+    description:
+      typeof description === "string"
+        ? { en: description, am: "" }
+        : description,
     serviceTypeId,
   });
 
@@ -57,8 +75,8 @@ const createCategory = async ({ name, description, serviceTypeId }) => {
 // ✅ GET ALL CATEGORIES
 const getAllCategories = async () => {
   return await ServiceCategory.findAll({
-    include : [serviceTypeInclude],
-    order   : nameOrderAsc,
+    include: [serviceTypeInclude],
+    order: nameOrderAsc,
   });
 };
 
@@ -77,9 +95,9 @@ const getCategoriesByServiceType = async (serviceTypeId) => {
   if (!serviceType) throw new Error("ServiceType not found");
 
   return await ServiceCategory.findAll({
-    where   : { serviceTypeId },
-    include : [serviceTypeInclude],
-    order   : nameOrderAsc,
+    where: { serviceTypeId },
+    include: [serviceTypeInclude],
+    order: nameOrderAsc,
   });
 };
 
@@ -98,7 +116,10 @@ const updateCategory = async (categoryId, updates) => {
     finalUpdates.name = { ...category.name, ...updates.name };
   }
   if (updates.description && typeof updates.description === "object") {
-    finalUpdates.description = { ...category.description, ...updates.description };
+    finalUpdates.description = {
+      ...category.description,
+      ...updates.description,
+    };
   }
 
   return await category.update(finalUpdates);
@@ -123,29 +144,48 @@ const getCategoriesByAgencyId = async (agencyId) => {
   const agencyTypeNameEn = getEnName(agency.agencyType?.name);
   if (!agencyTypeNameEn) throw new Error("Agency has no type assigned");
 
-  // Find matching ServiceType in JS to avoid VARCHAR vs JSONB SQL issues
-  const allServiceTypes = await ServiceType.findAll();
-  const serviceType = allServiceTypes.find(
-    (st) => getEnName(st.name) === agencyTypeNameEn
-  );
+  const searchTerm = agencyTypeNameEn.toLowerCase().trim();
+
+  // Search for matching ServiceType using either JSON path or casted Text
+  const serviceType = await ServiceType.findOne({
+    where: {
+      [Op.or]: [
+        sequelize.where(
+          sequelize.fn("LOWER", sequelize.json("name.en")),
+          searchTerm,
+        ),
+        sequelize.where(
+          sequelize.fn(
+            "LOWER",
+            sequelize.cast(sequelize.col("ServiceType.name"), "text"),
+          ),
+          { [Op.like]: `%${searchTerm}%` },
+        ),
+      ],
+    },
+  });
 
   if (!serviceType) {
-    console.warn(`⚠️ No ServiceType found matching AgencyType: "${agencyTypeNameEn}"`);
+    console.warn(`⚠️ No ServiceType found matching: "${searchTerm}"`);
     return [];
   }
 
   const categories = await ServiceCategory.findAll({
-    where   : { serviceTypeId: serviceType.id },
-    include : [serviceTypeInclude],
-    order   : nameOrderAsc,
+    where: { serviceTypeId: serviceType.id },
+    include: [serviceTypeInclude],
+    order: nameOrderAsc,
   });
 
-  return categories.map((cat) => ({
-    id            : cat.id,
-    name          : cat.name,
-    serviceTypeId : cat.serviceTypeId,
-    type          : cat.serviceType?.name,
-  }));
+  // Return cleaned objects for frontend consumption
+  return categories.map((cat) => {
+    const item = cat.get({ plain: true });
+    return {
+      id: item.id,
+      name: parseJsonField(item.name),
+      serviceTypeId: item.serviceTypeId,
+      type: item.serviceType ? parseJsonField(item.serviceType.name) : null,
+    };
+  });
 };
 
 module.exports = {

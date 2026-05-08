@@ -15,19 +15,19 @@ exports.create = async (req, res) => {
     const service = await serviceService.createService(
       req.body,
       userId,
-      req.file
+      req.file,
     );
 
-    return res.status(201).json({ 
-      success: true, 
+    return res.status(201).json({
+      success: true,
       message: "Service created successfully",
-      data: service 
+      data: service,
     });
   } catch (err) {
     console.error("❌ Controller Error (Create):", err);
-    return res.status(400).json({ 
-      success: false, 
-      error: err.message || "Failed to create service" 
+    return res.status(400).json({
+      success: false,
+      error: err.message || "Failed to create service",
     });
   }
 };
@@ -41,10 +41,10 @@ exports.getAll = async (req, res) => {
     const lang = req.query.lang || "en";
     const services = await serviceService.getAllServices(lang);
 
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       count: services.length,
-      data: services 
+      data: services,
     });
   } catch (err) {
     console.error("❌ Controller Error (GetAll):", err);
@@ -91,13 +91,16 @@ exports.getByServiceType = async (req, res) => {
   try {
     const { serviceTypeId } = req.params;
     const lang = req.query.lang || "en";
-    
-    const services = await serviceService.getServicesByType(serviceTypeId, lang);
-    
-    return res.status(200).json({ 
-      success: true, 
+
+    const services = await serviceService.getServicesByType(
+      serviceTypeId,
+      lang,
+    );
+
+    return res.status(200).json({
+      success: true,
       count: services.length,
-      data: services 
+      data: services,
     });
   } catch (err) {
     console.error("❌ Controller Error (GetByType):", err);
@@ -114,7 +117,9 @@ exports.getServicesByAgency = async (req, res) => {
     const lang = req.query.lang || "en";
 
     if (!agencyId || isNaN(parseInt(agencyId))) {
-      return res.status(400).json({ success: false, message: "Valid Agency ID is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Valid Agency ID is required" });
     }
 
     const services = await serviceService.getServicesByAgency(agencyId, lang);
@@ -122,7 +127,7 @@ exports.getServicesByAgency = async (req, res) => {
     return res.status(200).json({
       success: true,
       count: services.length,
-      data: services || []
+      data: services || [],
     });
   } catch (error) {
     console.error("❌ Controller Error (GetByAgency):", error);
@@ -142,11 +147,11 @@ exports.update = async (req, res) => {
   try {
     const { id } = req.params;
     const updatedService = await serviceService.updateService(id, req.body);
-    
-    return res.status(200).json({ 
-      success: true, 
+
+    return res.status(200).json({
+      success: true,
       message: "Service updated successfully",
-      data: updatedService 
+      data: updatedService,
     });
   } catch (err) {
     console.error("❌ Controller Error (Update):", err);
@@ -161,9 +166,9 @@ exports.delete = async (req, res) => {
   try {
     const { id } = req.params;
     await serviceService.deleteService(id);
-    return res.status(200).json({ 
-      success: true, 
-      message: "Service deleted successfully" 
+    return res.status(200).json({
+      success: true,
+      message: "Service deleted successfully",
     });
   } catch (err) {
     console.error("❌ Controller Error (Delete):", err);
@@ -186,7 +191,10 @@ exports.getResponderTeamServices = async (req, res) => {
       });
     }
 
-    const services = await serviceService.getServicesForResponderTeam(responderTeamId, lang);
+    const services = await serviceService.getServicesForResponderTeam(
+      responderTeamId,
+      lang,
+    );
 
     return res.status(200).json({
       success: true,

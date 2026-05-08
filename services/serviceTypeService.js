@@ -8,7 +8,8 @@ const translate = require("google-translate-api-x");
  */
 const autoTranslate = async (fieldData) => {
   if (!fieldData) return null;
-  let data = typeof fieldData === "string" ? { en: fieldData } : { ...fieldData };
+  let data =
+    typeof fieldData === "string" ? { en: fieldData } : { ...fieldData };
 
   if (data.en && !data.am) {
     try {
@@ -16,25 +17,29 @@ const autoTranslate = async (fieldData) => {
       data.am = res.text;
     } catch (err) {
       console.error("Auto-translation failed:", err.message);
-      data.am = data.en; 
+      data.am = data.en; // Fallback to English if translation fails
     }
   }
   return data;
 };
 
+/**
+ * HELPER: Localize
+ * Flattens JSONB objects into a single string based on requested language
+ */
 const localize = (item, lang, fields) => {
   if (!item) return null;
-  const plainItem = typeof item.get === "function" ? item.get({ plain: true }) : item;
+  const plainItem =
+    typeof item.get === "function" ? item.get({ plain: true }) : item;
 
   fields.forEach((field) => {
     let value = plainItem[field];
 
-    // Manually parse if the DB returned a string instead of an object
     if (typeof value === "string") {
       try {
         value = JSON.parse(value);
       } catch (e) {
-        // Keep as string if parsing fails
+        /* keep as string */
       }
     }
 
@@ -42,24 +47,28 @@ const localize = (item, lang, fields) => {
       if (lang === "all") {
         plainItem[field] = value;
       } else {
-        plainItem[field] = value[lang] || value["en"] || Object.values(value)[0];
+        // Core Logic: Requested -> English -> Amharic -> First Available
+        plainItem[field] =
+          value[lang] || value["en"] || value["am"] || Object.values(value)[0];
       }
     }
   });
 
-  // Recursively handle nested categories
   if (plainItem.categories) {
-    plainItem.categories = plainItem.categories.map(cat => localize(cat, lang, ["name"]));
+    plainItem.categories = plainItem.categories.map((cat) =>
+      localize(cat, lang, ["name"]),
+    );
   }
 
   return plainItem;
 };
+
 /**
  * ✅ CREATE
  */
 const createServiceType = async (data) => {
-  // Uniqueness check for English name
-  const englishName = typeof data.name === 'object' ? data.name.en : data.name;
+  const englishName = typeof data.name === "object" ? data.name.en : data.name;
+
   const existing = await ServiceType.findOne({
     where: sequelize.json("name.en", englishName),
   });
@@ -68,6 +77,7 @@ const createServiceType = async (data) => {
     throw new Error("Service type with this English name already exists");
   }
 
+  // Use the auto-translate helper to fill in missing gaps
   const translatedName = await autoTranslate(data.name);
   const translatedDesc = await autoTranslate(data.description);
 
@@ -80,7 +90,6 @@ const createServiceType = async (data) => {
 
 /**
  * ✅ GET ALL
- * lang: 'en', 'am', or 'all'
  */
 const getAllServiceTypes = async (lang = "en") => {
   const serviceTypes = await ServiceType.findAll({
@@ -94,12 +103,10 @@ const getAllServiceTypes = async (lang = "en") => {
     order: [["id", "ASC"]],
   });
 
-  if (lang === "all") {
-    return serviceTypes;
-  }
+  if (lang === "all") return serviceTypes;
 
   return serviceTypes.map((type) =>
-    localize(type, lang, ["name", "description"])
+    localize(type, lang, ["name", "description"]),
   );
 };
 
@@ -108,12 +115,10 @@ const getAllServiceTypes = async (lang = "en") => {
  */
 const getServiceTypeById = async (id, lang = "all") => {
   const serviceType = await ServiceType.findByPk(id, {
-    include: [{ model: ServiceCategory, as: "categories" }]
+    include: [{ model: ServiceCategory, as: "categories" }],
   });
 
-  if (!serviceType) {
-    throw new Error("Service type not found");
-  }
+  if (!serviceType) throw new Error("Service type not found");
 
   if (lang === "all") return serviceType;
   return localize(serviceType, lang, ["name", "description"]);
@@ -124,20 +129,31 @@ const getServiceTypeById = async (id, lang = "all") => {
  */
 const updateServiceType = async (id, data) => {
   const serviceType = await ServiceType.findByPk(id);
+  if (!serviceType) throw new Error("Service type not found");
 
-  if (!serviceType) {
-    throw new Error("Service type not found");
-  }
-
-  // Deep merge to prevent overwriting translations
-  const finalUpdates = { ...data };
   if (data.name) {
-    const newName = typeof data.name === 'string' ? { en: data.name } : data.name;
-    finalUpdates.name = { ...serviceType.name, ...newName };
+    const englishName =
+      typeof data.name === "object" ? data.name.en : data.name;
+    const existing = await ServiceType.findOne({
+      where: sequelize.json("name.en", englishName),
+    });
+
+    if (existing && existing.id !== parseInt(id)) {
+      throw new Error("Service type name already in use");
+    }
   }
+
+  // Deep merge for JSONB to prevent overwriting existing translations
+  const finalUpdates = { ...data };
+
+  if (data.name) {
+    const processedName = await autoTranslate(data.name);
+    finalUpdates.name = { ...serviceType.name, ...processedName };
+  }
+
   if (data.description) {
-    const newDesc = typeof data.description === 'string' ? { en: data.description } : data.description;
-    finalUpdates.description = { ...serviceType.description, ...newDesc };
+    const processedDesc = await autoTranslate(data.description);
+    finalUpdates.description = { ...serviceType.description, ...processedDesc };
   }
 
   await serviceType.update(finalUpdates);
@@ -149,9 +165,8 @@ const updateServiceType = async (id, data) => {
  */
 const deleteServiceType = async (id) => {
   const serviceType = await ServiceType.findByPk(id);
-  if (!serviceType) {
-    throw new Error("Service type not found");
-  }
+  if (!serviceType) throw new Error("Service type not found");
+
   await serviceType.destroy();
   return { success: true, message: "Service type deleted successfully" };
 };

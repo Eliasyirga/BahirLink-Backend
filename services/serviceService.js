@@ -1,3 +1,4 @@
+const { Op } = require("sequelize"); // Ensure Op is imported
 const {
   Service,
   ServiceType,
@@ -10,6 +11,18 @@ const {
   ResponderTeamKebele,
 } = require("../models");
 const { sequelize } = require("../config/db");
+
+const parseJsonField = (field) => {
+  if (typeof field === "string") {
+    try {
+      const parsed = JSON.parse(field);
+      return typeof parsed === "string" ? JSON.parse(parsed) : parsed;
+    } catch (e) {
+      return field; // Return as is if it's not JSON
+    }
+  }
+  return field;
+};
 
 /**
  * REUSABLE INCLUDE CONFIG
@@ -41,8 +54,12 @@ const createService = async (data, userIdFromParams, file) => {
   }
 
   // Parse IDs safely
-  const serviceTypeId = data.serviceTypeId ? parseInt(data.serviceTypeId) : null;
-  const serviceCategoryId = data.serviceCategoryId ? parseInt(data.serviceCategoryId) : null;
+  const serviceTypeId = data.serviceTypeId
+    ? parseInt(data.serviceTypeId)
+    : null;
+  const serviceCategoryId = data.serviceCategoryId
+    ? parseInt(data.serviceCategoryId)
+    : null;
   const citizenId = parseInt(userIdFromParams || data.citizenId);
 
   // Parse Location safely
@@ -55,22 +72,29 @@ const createService = async (data, userIdFromParams, file) => {
   }
 
   const timestamp = Date.now();
-  
-  const processedName = typeof data.name === 'string' 
-    ? { en: `${data.name} (${timestamp})`, am: `${data.name}` }
-    : data.name || { en: `Service Request ${timestamp}`, am: `የአገልግሎት ጥያቄ ${timestamp}` };
 
-  const processedDescription = typeof data.description === 'string'
-    ? { en: data.description, am: "" }
-    : data.description || { en: "", am: "" };
+  const processedName =
+    typeof data.name === "string"
+      ? { en: `${data.name} (${timestamp})`, am: `${data.name}` }
+      : data.name || {
+          en: `Service Request ${timestamp}`,
+          am: `የአገልግሎት ጥያቄ ${timestamp}`,
+        };
 
-  const processedSubdivision = typeof data.subdivision === 'string'
-    ? { en: data.subdivision, am: "" }
-    : data.subdivision || { en: "", am: "" };
+  const processedDescription =
+    typeof data.description === "string"
+      ? { en: data.description, am: "" }
+      : data.description || { en: "", am: "" };
 
-  const processedStreet = typeof data.street === 'string'
-    ? { en: data.street, am: "" }
-    : data.street || { en: "", am: "" };
+  const processedSubdivision =
+    typeof data.subdivision === "string"
+      ? { en: data.subdivision, am: "" }
+      : data.subdivision || { en: "", am: "" };
+
+  const processedStreet =
+    typeof data.street === "string"
+      ? { en: data.street, am: "" }
+      : data.street || { en: "", am: "" };
 
   const service = await Service.create({
     name: processedName,
@@ -85,7 +109,7 @@ const createService = async (data, userIdFromParams, file) => {
     mediaUrl: mediaUrl,
     mediaType: data.mediaType || (file ? "photo" : null),
     status: "pending",
-    time: data.time || new Date().toLocaleTimeString("it-IT"), 
+    time: data.time || new Date().toLocaleTimeString("it-IT"),
   });
 
   return await Service.findByPk(service.id, {
@@ -99,12 +123,15 @@ const updateService = async (serviceId, updates) => {
   if (!service) throw new Error("Service not found");
 
   const finalUpdates = { ...updates };
-  
-  if (updates.name && typeof updates.name === 'object') {
+
+  if (updates.name && typeof updates.name === "object") {
     finalUpdates.name = { ...service.name, ...updates.name };
   }
-  if (updates.description && typeof updates.description === 'object') {
-    finalUpdates.description = { ...service.description, ...updates.description };
+  if (updates.description && typeof updates.description === "object") {
+    finalUpdates.description = {
+      ...service.description,
+      ...updates.description,
+    };
   }
 
   await service.update(finalUpdates);
@@ -160,22 +187,74 @@ const getServicesByAgency = async (agencyId) => {
 
   if (!agency) throw new Error("Agency not found");
 
-  const agencyTypeName = typeof agency.agencyType?.name === 'object' 
-    ? agency.agencyType.name.en 
-    : agency.agencyType?.name;
+  const agencyTypeName =
+    typeof agency.agencyType?.name === "object"
+      ? agency.agencyType.name.en
+      : agency.agencyType?.name;
 
   if (!agencyTypeName) throw new Error("Agency has no type assigned");
 
+  const searchTerm = agencyTypeName.toLowerCase().trim();
+
   const serviceType = await ServiceType.findOne({
-    where: sequelize.json("name.en", agencyTypeName)
+    where: {
+      [Op.or]: [
+        sequelize.where(
+          sequelize.fn("LOWER", sequelize.json("name.en")),
+          searchTerm,
+        ),
+        sequelize.where(
+          sequelize.fn(
+            "LOWER",
+            sequelize.cast(sequelize.col("ServiceType.name"), "text"),
+          ),
+          { [Op.like]: `%${searchTerm}%` },
+        ),
+      ],
+    },
   });
 
-  if (!serviceType) return [];
+  if (!serviceType) {
+    console.log(`❌ No ServiceType found matching: ${searchTerm}`);
+    return [];
+  }
 
-  return await Service.findAll({
+  // 1. Fetch the raw services
+  const services = await Service.findAll({
     where: { serviceTypeId: serviceType.id },
     include: serviceIncludes,
     order: [["createdAt", "DESC"]],
+  });
+
+  // 2. Helper to peel back extra stringification layers
+  const cleanJson = (val) => {
+    if (typeof val !== "string") return val;
+    try {
+      const parsed = JSON.parse(val);
+      // If it was double-stringified, parse it one more time
+      return typeof parsed === "string" ? JSON.parse(parsed) : parsed;
+    } catch {
+      return val;
+    }
+  };
+
+  // 3. Map and clean every service before returning to the controller
+  return services.map((s) => {
+    const item = s.get({ plain: true });
+    return {
+      ...item,
+      name: cleanJson(item.name),
+      description: cleanJson(item.description),
+      subdivision: cleanJson(item.subdivision),
+      street: cleanJson(item.street),
+      // Also clean the category name if it exists
+      serviceCategory: item.serviceCategory
+        ? {
+            ...item.serviceCategory,
+            name: cleanJson(item.serviceCategory.name),
+          }
+        : null,
+    };
   });
 };
 
@@ -193,9 +272,10 @@ const getServicesForResponderTeam = async (responderTeamId) => {
 
   if (!team) throw new Error("Responder Team not found");
 
-  const agencyTypeName = typeof team.agency.agencyType?.name === 'object'
-    ? team.agency.agencyType.name.en
-    : team.agency.agencyType?.name;
+  const agencyTypeName =
+    typeof team.agency.agencyType?.name === "object"
+      ? team.agency.agencyType.name.en
+      : team.agency.agencyType?.name;
 
   const serviceType = await ServiceType.findOne({
     where: sequelize.json("name.en", agencyTypeName),

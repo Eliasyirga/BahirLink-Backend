@@ -11,9 +11,10 @@ const {
   getEmergenciesByDeviceId,
   getEmergencyById,
 } = require("../services/emergencyService");
+const { localize } = require("../utils/localize");
 
 /** Read Accept-Language from request headers. Defaults to 'en'. */
-const getLang = (req) => req.headers["accept-language"] || "en";
+const getLang = (req) => req.headers["accept-language"] || req.lang || "en";
 
 // =========================
 // CREATE GUEST EMERGENCY
@@ -31,7 +32,9 @@ const createGuestEmergencyHandler = async (req, res) => {
       error.message.includes("required") || error.message.includes("Invalid")
         ? 400
         : 500;
-    return res.status(statusCode).json({ success: false, message: error.message });
+    return res
+      .status(statusCode)
+      .json({ success: false, message: error.message });
   }
 };
 
@@ -57,7 +60,6 @@ const createUserEmergencyHandler = async (req, res) => {
 const updateEmergencyHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    // Pass isGuest flag from query if needed; default to false (user context)
     const isGuest = req.query.isGuest === "true";
     const userOrGuestId = req.user?.id || req.query.guestId;
 
@@ -66,7 +68,7 @@ const updateEmergencyHandler = async (req, res) => {
       id,
       req.body,
       req.file,
-      isGuest
+      isGuest,
     );
     return res.status(200).json({ success: true, data: emergency });
   } catch (error) {
@@ -122,7 +124,7 @@ const getEmergenciesForResponderTeamHandler = async (req, res) => {
 
     const emergencies = await getEmergenciesForResponderTeam(
       responderTeamId,
-      lang
+      lang,
     );
     return res.status(200).json({ success: true, data: emergencies });
   } catch (error) {
@@ -138,27 +140,40 @@ const getEmergenciesByAgencyHandler = async (req, res) => {
     const { agencyId } = req.params;
     const lang = getLang(req);
 
-    if (!agencyId)
+    if (!agencyId) {
       return res
         .status(400)
         .json({ success: false, message: "Agency ID is required" });
+    }
 
-    const emergencies = await getEmergenciesByAgency(agencyId, lang);
-    return res.status(200).json({ success: true, data: emergencies });
+    const emergencies = await getEmergenciesByAgency(agencyId);
+    const cleanData = localize(emergencies, lang, [
+      "emergencyType",
+      "category",
+    ]);
+
+    return res.status(200).json({ success: true, data: cleanData });
   } catch (error) {
+    console.error("❌ Agency Handler Error:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
 // =========================
-// GET ALL EMERGENCIES FOR ADMIN
+// GET ALL EMERGENCIES ADMIN
 // =========================
 const getAllEmergenciesAdmin = async (req, res) => {
   try {
     const lang = getLang(req);
-    const emergencies = await getAllEmergenciesForAdmin(lang);
-    return res.json({ success: true, data: emergencies });
+    const emergencies = await getAllEmergenciesForAdmin();
+    const cleanData = localize(emergencies, lang, [
+      "emergencyType",
+      "category",
+    ]);
+
+    return res.json({ success: true, data: cleanData });
   } catch (err) {
+    console.error("❌ Admin Handler Error:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 };

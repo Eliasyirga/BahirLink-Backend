@@ -1,4 +1,4 @@
-require("dotenv").config(); // ← MUST be first, before anything reads process.env
+require("dotenv").config();
 
 const { Sequelize } = require("sequelize");
 

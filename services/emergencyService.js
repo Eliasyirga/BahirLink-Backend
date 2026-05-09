@@ -267,10 +267,12 @@ const getEmergenciesByAgency = async (agencyId, lang = "en") => {
     : emergencies.map((e) => localizeEmergency(e, lang));
 };
 
-const getEmergenciesForResponderTeam = async (responderTeamId, lang = "en") => {
+// ✅ GET EMERGENCIES FOR RESPONDER TEAM (English Only)
+const getEmergenciesForResponderTeam = async (responderTeamId) => {
   const team = await ResponderTeam.findByPk(responderTeamId, {
     include: [{ model: Agency, as: "agency" }],
   });
+
   if (!team) throw new Error("Team not found");
 
   const emergencies = await Emergency.findAll({
@@ -296,9 +298,44 @@ const getEmergenciesForResponderTeam = async (responderTeamId, lang = "en") => {
     order: [["createdAt", "DESC"]],
   });
 
-  return lang === "all"
-    ? emergencies
-    : emergencies.map((e) => localizeEmergency(e, lang));
+  // Map results to return only English strings
+  return emergencies.map((e) => {
+    const item = e.get({ plain: true });
+
+    /**
+     * Internal Helper: Always prioritize 'en'.
+     * Falls back to the first available string if 'en' is missing.
+     */
+    const toEnglish = (field) => {
+      if (!field || typeof field !== "object") return field;
+      return field["en"] || Object.values(field)[0] || "";
+    };
+
+    return {
+      ...item,
+      description: toEnglish(item.description),
+      subdivision: toEnglish(item.subdivision),
+      emergencyType: item.emergencyType
+        ? {
+            ...item.emergencyType,
+            name: toEnglish(item.emergencyType.name),
+            description: toEnglish(item.emergencyType.description),
+          }
+        : null,
+      category: item.category
+        ? {
+            ...item.category,
+            name: toEnglish(item.category.name),
+          }
+        : null,
+      kebele: item.kebele
+        ? {
+            ...item.kebele,
+            name: toEnglish(item.kebele.name),
+          }
+        : null,
+    };
+  });
 };
 
 const getAllEmergenciesForAdmin = async (lang = "en") => {

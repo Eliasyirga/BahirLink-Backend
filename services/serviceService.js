@@ -142,10 +142,44 @@ const updateService = async (serviceId, updates) => {
 };
 
 // ✅ GET ALL SERVICES
+// ✅ GET ALL SERVICES (English Only)
 const getAllServices = async () => {
-  return await Service.findAll({
+  const services = await Service.findAll({
     include: serviceIncludes,
     order: [["createdAt", "DESC"]],
+  });
+
+  return services.map((s) => {
+    const item = s.get({ plain: true });
+
+    /**
+     * Helper to extract English string or first available translation
+     */
+    const toEnglish = (field) => {
+      const parsed = parseJsonField(field);
+      if (!parsed || typeof parsed !== "object") return parsed;
+      return parsed["en"] || Object.values(parsed)[0] || "";
+    };
+
+    return {
+      ...item,
+      name: toEnglish(item.name),
+      description: toEnglish(item.description),
+      subdivision: toEnglish(item.subdivision),
+      street: toEnglish(item.street),
+      serviceType: item.serviceType
+        ? {
+            ...item.serviceType,
+            name: toEnglish(item.serviceType.name),
+          }
+        : null,
+      serviceCategory: item.serviceCategory
+        ? {
+            ...item.serviceCategory,
+            name: toEnglish(item.serviceCategory.name),
+          }
+        : null,
+    };
   });
 };
 
@@ -257,8 +291,7 @@ const getServicesByAgency = async (agencyId) => {
     };
   });
 };
-
-// ✅ GET SERVICES FOR RESPONDER TEAM (Kebele & Type Aware)
+// ✅ GET SERVICES FOR RESPONDER TEAM (English Only)
 const getServicesForResponderTeam = async (responderTeamId) => {
   const team = await ResponderTeam.findByPk(responderTeamId, {
     include: [
@@ -272,18 +305,20 @@ const getServicesForResponderTeam = async (responderTeamId) => {
 
   if (!team) throw new Error("Responder Team not found");
 
+  // Determine the Agency Type Name (Internal logic still uses 'en' for matching)
   const agencyTypeName =
     typeof team.agency.agencyType?.name === "object"
       ? team.agency.agencyType.name.en
       : team.agency.agencyType?.name;
 
+  // Find matching ServiceType using JSONB query
   const serviceType = await ServiceType.findOne({
-    where: sequelize.json("name.en", agencyTypeName),
+    where: sequelize.where(sequelize.json("name.en"), agencyTypeName),
   });
 
   if (!serviceType) return [];
 
-  return await Service.findAll({
+  const services = await Service.findAll({
     where: {
       serviceTypeId: serviceType.id,
     },
@@ -309,6 +344,48 @@ const getServicesForResponderTeam = async (responderTeamId) => {
       ...serviceIncludes,
     ],
     order: [["createdAt", "DESC"]],
+  });
+
+  // Flatten the response to return ONLY English strings
+  return services.map((s) => {
+    const item = s.get({ plain: true });
+
+    /**
+     * Internal Helper: Always prioritize 'en'.
+     * If 'en' is missing, it falls back to the first available string
+     * to prevent the dashboard from appearing empty.
+     */
+    const toEnglish = (field) => {
+      const parsed = parseJsonField(field);
+      if (!parsed || typeof parsed !== "object") return parsed;
+      return parsed["en"] || Object.values(parsed)[0] || "";
+    };
+
+    return {
+      ...item,
+      name: toEnglish(item.name),
+      description: toEnglish(item.description),
+      subdivision: toEnglish(item.subdivision),
+      street: toEnglish(item.street),
+      serviceType: item.serviceType
+        ? {
+            ...item.serviceType,
+            name: toEnglish(item.serviceType.name),
+          }
+        : null,
+      serviceCategory: item.serviceCategory
+        ? {
+            ...item.serviceCategory,
+            name: toEnglish(item.serviceCategory.name),
+          }
+        : null,
+      kebele: item.kebele
+        ? {
+            ...item.kebele,
+            name: toEnglish(item.kebele.name),
+          }
+        : null,
+    };
   });
 };
 

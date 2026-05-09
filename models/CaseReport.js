@@ -13,8 +13,9 @@ const CaseReport = sequelize.define(
       primaryKey: true,
     },
 
+    // description now stores localized text: { "en": "...", "am": "..." }
     description: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSONB, 
       allowNull: true,
     },
 
@@ -60,7 +61,7 @@ const CaseReport = sequelize.define(
   {
     tableName: "case_reports",
     timestamps: true,
-  },
+  }
 );
 
 module.exports = CaseReport;

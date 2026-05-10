@@ -1,52 +1,98 @@
 const CaseReport = require("../models/CaseReport");
+const translate = require("google-translate-api-x");
+
+/**
+ * HELPER: Auto-Translate
+ * Ensures description stores a full { en, am } object.
+ */
+const autoTranslate = async (fieldData) => {
+  if (!fieldData) return null;
+  let data = typeof fieldData === "string" ? { en: fieldData } : { ...fieldData };
+
+  if (data.en && !data.am) {
+    try {
+      const res = await translate(data.en, { to: "am" });
+      data.am = res.text;
+    } catch (err) {
+      console.error("Auto-translation failed:", err.message);
+      data.am = data.en;
+    }
+  }
+  return data;
+};
+
+/**
+ * HELPER: Localize
+ * Flattens JSONB fields based on requested language.
+ */
+const localize = (item, lang, fields) => {
+  if (!item) return null;
+  const plainItem = typeof item.get === "function" ? item.get({ plain: true }) : item;
+
+  fields.forEach((field) => {
+    if (plainItem[field] && typeof plainItem[field] === "object") {
+      plainItem[field] = plainItem[field][lang] || plainItem[field]["en"] || Object.values(plainItem[field])[0];
+    }
+  });
+
+  // Note: If associated models (Case, CaseType) also use JSONB for names, 
+  // you should localize them here as well.
+  if (plainItem.case) plainItem.case = localize(plainItem.case, lang, ["name"]);
+  if (plainItem.caseType) plainItem.caseType = localize(plainItem.caseType, lang, ["name"]);
+
+  return plainItem;
+};
 
 // ✅ CREATE REPORT
 const createReport = async (data) => {
+  // Apply translation to description
+  const translatedDesc = await autoTranslate(data.description);
+
   const report = await CaseReport.create({
-    description: data.description,
+    description: translatedDesc,
     caseId: data.caseId,
     caseTypeId: data.caseTypeId,
-    kebeleId: data.kebeleId, // Added from new model
-    spottedAt: data.spottedAt, // Added from new model
+    kebeleId: data.kebeleId,
+    spottedAt: data.spottedAt,
     reporterId: data.reporterId || null,
   });
 
-  // Re-fetching with all associations including the new Kebele relation
   return await CaseReport.findByPk(report.id, {
     include: ["case", "caseType", "kebele"],
   });
 };
 
 // ✅ GET ALL REPORTS
-const getAllReports = async () => {
-  return await CaseReport.findAll({
-    include: ["case", "caseType", "kebele"], // Added kebele to includes
+const getAllReports = async (lang = "en") => {
+  const reports = await CaseReport.findAll({
+    include: ["case", "caseType", "kebele"],
     order: [["createdAt", "DESC"]],
   });
+
+  if (lang === "all") return reports;
+  return reports.map((report) => localize(report, lang, ["description"]));
 };
 
 // ✅ GET REPORTS BY CASE
-const getReportsByCase = async (caseId) => {
-  return await CaseReport.findAll({
+const getReportsByCase = async (caseId, lang = "en") => {
+  const reports = await CaseReport.findAll({
     where: { caseId },
-    include: ["caseType", "case", "kebele"], // Added kebele to includes
+    include: ["caseType", "case", "kebele"],
   });
-};
 
-// ✅ GET REPORTS BY CASE TYPE
-const getReportsByCaseType = async (caseTypeId) => {
-  return await CaseReport.findAll({
-    where: { caseTypeId },
-    include: ["case", "caseType", "kebele"], // Added kebele to includes
-  });
+  if (lang === "all") return reports;
+  return reports.map((report) => localize(report, lang, ["description"]));
 };
 
 // ✅ GET REPORTS BY REPORTER
-const getReportsByReporter = async (reporterId) => {
-  return await CaseReport.findAll({
+const getReportsByReporter = async (reporterId, lang = "en") => {
+  const reports = await CaseReport.findAll({
     where: { reporterId },
-    include: ["case", "caseType", "kebele"], // Added kebele to includes
+    include: ["case", "caseType", "kebele"],
   });
+
+  if (lang === "all") return reports;
+  return reports.map((report) => localize(report, lang, ["description"]));
 };
 
 // ✅ UPDATE REPORT STATUS
@@ -72,7 +118,6 @@ module.exports = {
   createReport,
   getAllReports,
   getReportsByCase,
-  getReportsByCaseType,
   getReportsByReporter,
   updateReportStatus,
   deleteReport,

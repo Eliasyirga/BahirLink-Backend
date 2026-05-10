@@ -302,10 +302,7 @@ const getEmergenciesForResponderTeam = async (responderTeamId) => {
   return emergencies.map((e) => {
     const item = e.get({ plain: true });
 
-    /**
-     * Internal Helper: Always prioritize 'en'.
-     * Falls back to the first available string if 'en' is missing.
-     */
+  
     const toEnglish = (field) => {
       if (!field || typeof field !== "object") return field;
       return field["en"] || Object.values(field)[0] || "";

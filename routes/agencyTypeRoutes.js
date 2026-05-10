@@ -6,7 +6,9 @@ const {
   updateAgencyTypeHandler,
   deleteAgencyTypeHandler,
   getAllAgencyTypesHandler,
+  getAgentsByCreatorIdHandler,
 } = require("../controllers/agencyTypeController");
+const { verifyToken } = require("../middleware/auth");
 
 // Create Agency Type
 router.post("/", createAgencyTypeHandler);
@@ -18,5 +20,6 @@ router.put("/:id", updateAgencyTypeHandler);
 router.delete("/:id", deleteAgencyTypeHandler);
 
 router.get("/", getAllAgencyTypesHandler);
+router.get("/my-agents", verifyToken, getAgentsByCreatorIdHandler);
 
 module.exports = router;

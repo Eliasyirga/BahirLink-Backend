@@ -18,6 +18,14 @@ const AgencyType = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    creatorId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "users",
+        key: "id",
+      },
+    },
   },
   {
     tableName: "agency_types",

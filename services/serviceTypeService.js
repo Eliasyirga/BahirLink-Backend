@@ -4,20 +4,18 @@ const translate = require("google-translate-api-x");
 
 /**
  * HELPER: Auto-Translate
- * Ensures we always store a full { en, am } object in the DB.
  */
 const autoTranslate = async (fieldData) => {
   if (!fieldData) return null;
   let data =
     typeof fieldData === "string" ? { en: fieldData } : { ...fieldData };
-
   if (data.en && !data.am) {
     try {
       const res = await translate(data.en, { to: "am" });
       data.am = res.text;
     } catch (err) {
       console.error("Auto-translation failed:", err.message);
-      data.am = data.en; // Fallback to English if translation fails
+      data.am = data.en;
     }
   }
   return data;
@@ -25,7 +23,6 @@ const autoTranslate = async (fieldData) => {
 
 /**
  * HELPER: Localize
- * Flattens JSONB objects into a single string based on requested language
  */
 const localize = (item, lang, fields) => {
   if (!item) return null;
@@ -34,23 +31,19 @@ const localize = (item, lang, fields) => {
 
   fields.forEach((field) => {
     let value = plainItem[field];
-
     if (typeof value === "string") {
       try {
         value = JSON.parse(value);
-      } catch (e) {
-        /* keep as string */
-      }
+      } catch (e) {}
     }
-
     if (value && typeof value === "object") {
-      if (lang === "all") {
-        plainItem[field] = value;
-      } else {
-        // Core Logic: Requested -> English -> Amharic -> First Available
-        plainItem[field] =
-          value[lang] || value["en"] || value["am"] || Object.values(value)[0];
-      }
+      plainItem[field] =
+        lang === "all"
+          ? value
+          : value[lang] ||
+            value["en"] ||
+            value["am"] ||
+            Object.values(value)[0];
     }
   });
 
@@ -59,12 +52,11 @@ const localize = (item, lang, fields) => {
       localize(cat, lang, ["name"]),
     );
   }
-
   return plainItem;
 };
 
 /**
- * ✅ CREATE
+ * ✅ CREATE (Global)
  */
 const createServiceType = async (data) => {
   const englishName = typeof data.name === "object" ? data.name.en : data.name;
@@ -77,7 +69,6 @@ const createServiceType = async (data) => {
     throw new Error("Service type with this English name already exists");
   }
 
-  // Use the auto-translate helper to fill in missing gaps
   const translatedName = await autoTranslate(data.name);
   const translatedDesc = await autoTranslate(data.description);
 
@@ -89,19 +80,17 @@ const createServiceType = async (data) => {
 };
 
 /**
- * ✅ GET ALL
+ * ✅ GET ALL (Global)
  */
 const getAllServiceTypes = async (lang = "en") => {
-  const serviceTypes = await ServiceType.findAll({
+  const queryOptions = {
     include: [
-      {
-        model: ServiceCategory,
-        as: "categories",
-        attributes: ["id", "name"],
-      },
+      { model: ServiceCategory, as: "categories", attributes: ["id", "name"] },
     ],
     order: [["id", "ASC"]],
-  });
+  };
+
+  const serviceTypes = await ServiceType.findAll(queryOptions);
 
   if (lang === "all") return serviceTypes;
 
@@ -111,7 +100,7 @@ const getAllServiceTypes = async (lang = "en") => {
 };
 
 /**
- * ✅ GET BY ID
+ * ✅ GET BY ID (Global)
  */
 const getServiceTypeById = async (id, lang = "all") => {
   const serviceType = await ServiceType.findByPk(id, {
@@ -125,10 +114,11 @@ const getServiceTypeById = async (id, lang = "all") => {
 };
 
 /**
- * ✅ UPDATE
+ * ✅ UPDATE (Global)
  */
 const updateServiceType = async (id, data) => {
   const serviceType = await ServiceType.findByPk(id);
+
   if (!serviceType) throw new Error("Service type not found");
 
   if (data.name) {
@@ -143,7 +133,6 @@ const updateServiceType = async (id, data) => {
     }
   }
 
-  // Deep merge for JSONB to prevent overwriting existing translations
   const finalUpdates = { ...data };
 
   if (data.name) {
@@ -161,10 +150,11 @@ const updateServiceType = async (id, data) => {
 };
 
 /**
- * ✅ DELETE
+ * ✅ DELETE (Global)
  */
 const deleteServiceType = async (id) => {
   const serviceType = await ServiceType.findByPk(id);
+
   if (!serviceType) throw new Error("Service type not found");
 
   await serviceType.destroy();

@@ -30,95 +30,79 @@ const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
 /**
  * Auto-translate a field value into { en, am }.
- *
- * Accepts:
- *   - A plain string  → language is auto-detected, then both en & am are filled.
- *   - { en }          → translates en → am.
- *   - { am }          → translates am → en.
- *   - { en, am }      → already complete, returned as-is.
- *
- * This means a user who types in Amharic will have their text translated to
- * English automatically, and both versions are stored in the JSONB column.
  */
 const autoTranslate = async (fieldData) => {
   if (!fieldData) return null;
 
-  // Normalise input into a working object
   let data =
-    typeof fieldData === "string"
-      ? { _raw: fieldData } // plain string — need to detect language
-      : { ...fieldData };
+    typeof fieldData === "string" ? { _raw: fieldData } : { ...fieldData };
 
-  // ── Case 1: plain string — detect language first ──────────────────────────
   if (data._raw) {
     const rawText = data._raw;
     delete data._raw;
 
     try {
-      // translate() to "en" returns the detected source language as well
       const toEn = await translate(rawText, { to: "en" });
       const detectedLang = toEn.from?.language?.iso || "en";
 
       if (detectedLang === "am") {
-        // User typed Amharic → store original as am, translation as en
         data.am = rawText;
         data.en = toEn.text;
       } else {
-        // User typed English (or other) → store as en, translate to am
         data.en = rawText;
         try {
           const toAm = await translate(rawText, { to: "am" });
           data.am = toAm.text;
         } catch (err) {
           console.error("en→am translation failed:", err.message);
-          data.am = rawText; // fallback: copy English text
+          data.am = rawText;
         }
       }
     } catch (err) {
       console.error("Language detection / translation failed:", err.message);
-      // Fallback: save raw text in both fields so the UI is never empty
       data.en = rawText;
       data.am = rawText;
     }
-
     return data;
   }
 
-  // ── Case 2: { am } only — translate am → en ───────────────────────────────
   if (data.am && !data.en) {
     try {
       const toEn = await translate(data.am, { to: "en" });
       data.en = toEn.text;
     } catch (err) {
+<<<<<<< HEAD
       console.error("am→en translation failed:", err.message);
       data.en = data.am; // fallback
+=======
+      data.en = data.am;
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
     }
   }
 
-  // ── Case 3: { en } only — translate en → am ───────────────────────────────
   if (data.en && !data.am) {
     try {
       const toAm = await translate(data.en, { to: "am" });
       data.am = toAm.text;
     } catch (err) {
-      console.error("en→am translation failed:", err.message);
-      data.am = data.en; // fallback
+      data.am = data.en;
     }
   }
 
-  // ── Case 4: { en, am } — already complete ─────────────────────────────────
   return data;
 };
 
 /**
  * Localize a plain emergency object for a specific language.
- * `fields` is the list of JSONB columns to flatten (e.g. ["description","subdivision"]).
- * Nested emergencyType / kebele / category associations are also flattened.
  */
 const localizeEmergency = (
   item,
   lang,
+<<<<<<< HEAD
   fields = ["description", "subdivision"]
+=======
+  fields = ["description", "subdivision"],
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
 ) => {
   if (!item) return null;
   const plain =
@@ -133,33 +117,18 @@ const localizeEmergency = (
     }
   });
 
-  if (plain.emergencyType && typeof plain.emergencyType === "object") {
+  const flattenNested = (obj) => {
+    if (!obj) return;
     ["name", "description"].forEach((f) => {
-      if (
-        plain.emergencyType[f] &&
-        typeof plain.emergencyType[f] === "object"
-      ) {
-        plain.emergencyType[f] =
-          plain.emergencyType[f][lang] ||
-          plain.emergencyType[f]["en"] ||
-          Object.values(plain.emergencyType[f])[0];
+      if (obj[f] && typeof obj[f] === "object") {
+        obj[f] = obj[f][lang] || obj[f]["en"] || Object.values(obj[f])[0];
       }
     });
-  }
+  };
 
-  if (plain.category?.name && typeof plain.category.name === "object") {
-    plain.category.name =
-      plain.category.name[lang] ||
-      plain.category.name["en"] ||
-      Object.values(plain.category.name)[0];
-  }
-
-  if (plain.kebele?.name && typeof plain.kebele.name === "object") {
-    plain.kebele.name =
-      plain.kebele.name[lang] ||
-      plain.kebele.name["en"] ||
-      Object.values(plain.kebele.name)[0];
-  }
+  flattenNested(plain.emergencyType);
+  flattenNested(plain.category);
+  flattenNested(plain.kebele);
 
   return plain;
 };
@@ -170,18 +139,25 @@ const localizeEmergency = (
 
 const createGuestEmergency = async (data, file, transaction) => {
   const emergencyData = { ...data };
-  emergencyData.deviceId = emergencyData.deviceId || null;
 
   if (emergencyData.kebeleId || emergencyData.kebele) {
     emergencyData.kebeleId = parseInt(
+<<<<<<< HEAD
       emergencyData.kebeleId || emergencyData.kebele
+=======
+      emergencyData.kebeleId || emergencyData.kebele,
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
     );
     delete emergencyData.kebele;
   }
 
+<<<<<<< HEAD
   if (!emergencyData.kebeleId) {
     throw new Error("kebeleId is required");
   }
+=======
+  if (!emergencyData.kebeleId) throw new Error("kebeleId is required");
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
 
   if (emergencyData.latitude && emergencyData.longitude) {
     emergencyData.location = {
@@ -209,11 +185,16 @@ const createGuestEmergency = async (data, file, transaction) => {
   }
   if (emergencyData.subdivision) {
     emergencyData.subdivision = await autoTranslate(emergencyData.subdivision);
+<<<<<<< HEAD
   }
 
   if (file) {
     emergencyData.mediaUrl = `/uploads/${file.filename}`;
   }
+=======
+
+  if (file) emergencyData.mediaUrl = `/uploads/${file.filename}`;
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
 
   emergencyData.reporterType = "guest";
   emergencyData.status = "reported";
@@ -237,6 +218,7 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     ...rest
   } = emergencyData;
 
+<<<<<<< HEAD
   let location =
     latitude && longitude
       ? { latitude: parseFloat(latitude), longitude: parseFloat(longitude) }
@@ -249,6 +231,16 @@ const createUserEmergency = async (userId, emergencyData, file) => {
   if (!kebeleRecord) throw new Error("Invalid kebele ID");
 
   // Translate JSONB fields — detects Amharic input and fills both en & am.
+=======
+  if (!kebeleId || !subdivision)
+    throw new Error("Kebele ID and Subdivision are required");
+
+  const location =
+    latitude && longitude
+      ? { latitude: parseFloat(latitude), longitude: parseFloat(longitude) }
+      : null;
+
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
   const translatedSubdivision = await autoTranslate(subdivision);
   const translatedDescription = await autoTranslate(description);
 
@@ -278,11 +270,16 @@ const updateEmergency = async (
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
     : { id: emergencyId, citizenId: userOrGuestId };
+
   const emergency = await Emergency.findOne({ where: whereClause });
   if (!emergency) throw new Error("Emergency not found");
 
+<<<<<<< HEAD
   // Translate any JSONB fields being updated — handles Amharic input too.
   if (updatedData.description) {
+=======
+  if (updatedData.description)
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
     updatedData.description = await autoTranslate(updatedData.description);
   }
   if (updatedData.subdivision) {
@@ -298,6 +295,7 @@ const updateEmergency = async (
   return await emergency.update(updatedData);
 };
 
+<<<<<<< HEAD
 // =========================
 // DELETE EMERGENCY
 // =========================
@@ -306,9 +304,13 @@ const deleteEmergency = async (
   emergencyId,
   isGuest = false
 ) => {
+=======
+const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
     : { id: emergencyId, citizenId: userOrGuestId };
+
   const emergency = await Emergency.findOne({ where: whereClause });
   if (!emergency) throw new Error("Emergency not found");
   await emergency.destroy();
@@ -319,11 +321,15 @@ const deleteEmergency = async (
 // RETRIEVAL LOGIC
 // =========================
 
+<<<<<<< HEAD
 const getEmergencies = async (
   userOrGuestId,
   isGuest = false,
   lang = "en"
 ) => {
+=======
+const getEmergencies = async (userOrGuestId, isGuest = false, lang = "en") => {
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
   const whereClause = isGuest
     ? { guestId: userOrGuestId }
     : { citizenId: userOrGuestId };
@@ -340,6 +346,7 @@ const getEmergencies = async (
     : emergencies.map((e) => localizeEmergency(e, lang));
 };
 
+<<<<<<< HEAD
 const getEmergenciesByAgency = async (agencyId, lang = "en") => {
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
@@ -388,6 +395,10 @@ const getEmergenciesForResponderTeam = async (
     include: [{ model: Agency, as: "agency" }],
   });
 
+=======
+const getEmergenciesForResponderTeam = async (responderTeamId, lang = "en") => {
+  const team = await ResponderTeam.findByPk(responderTeamId);
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
   if (!team) throw new Error("Team not found");
 
   const emergencies = await Emergency.findAll({
@@ -407,16 +418,22 @@ const getEmergenciesForResponderTeam = async (
           },
         ],
       },
+<<<<<<< HEAD
       {
         model: EmergencyType,
         as: "emergencyType",
         attributes: ["id", "name"],
       },
       { model: Category, as: "category", attributes: ["id", "name"] },
+=======
+      { model: EmergencyType, as: "emergencyType" },
+      { model: Category, as: "category" },
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
     ],
     order: [["createdAt", "DESC"]],
   });
 
+<<<<<<< HEAD
   /**
    * Internal Helper: Always prioritize the requested lang.
    * Falls back to 'en', then the first available string.
@@ -546,6 +563,16 @@ const getEmergencyById = async (id, lang = "en") => {
       lang === "all"
         ? emergency.toJSON()
         : localizeEmergency(emergency, lang);
+=======
+  // Keep Local Logic: Map results to return only English strings
+  return emergencies.map((e) => {
+    const item = e.get({ plain: true });
+
+    const toEnglish = (field) => {
+      if (!field || typeof field !== "object") return field;
+      return field["en"] || Object.values(field)[0] || "";
+    };
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
 
     return {
       ...base,
@@ -563,6 +590,7 @@ const getEmergencyById = async (id, lang = "en") => {
   }
 };
 
+<<<<<<< HEAD
 // =========================
 // UPDATE EMERGENCY STATUS
 // =========================
@@ -586,23 +614,36 @@ const updateEmergencyStatus = async (
 const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
   if (!deviceId) throw new Error("deviceId is required");
 
+=======
+const getAllEmergenciesForAdmin = async (lang = "en") => {
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
   const emergencies = await Emergency.findAll({
     where: { deviceId },
     include: [
+<<<<<<< HEAD
+=======
+      { model: EmergencyType, as: "emergencyType" },
+      { model: Category, as: "category" },
+      { model: Kebele, as: "kebele" },
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
       {
-        model: EmergencyType,
-        as: "emergencyType",
-        attributes: ["id", "name"],
+        model: User,
+        as: "user",
+        attributes: ["id", "fullName", "email", "phone"],
       },
+<<<<<<< HEAD
       { model: Category, as: "category", attributes: ["id", "name"] },
       { model: Kebele, as: "kebele", attributes: ["id", "name"] },
       { model: User, as: "user", attributes: ["id", "fullName"] },
+=======
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
       { model: Guest, as: "guest", attributes: ["id", "contactNo"] },
     ],
     order: [["createdAt", "DESC"]],
   });
 
   return emergencies.map((e) => {
+<<<<<<< HEAD
     const localized =
       lang === "all" ? e.get({ plain: true }) : localizeEmergency(e, lang);
     return {
@@ -621,7 +662,98 @@ const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
           ? localized.kebele.name[lang] || localized.kebele.name["en"]
           : localized.kebele?.name || null,
     };
+=======
+    const localized = localizeEmergency(e, lang);
+    return {
+      ...localized,
+      reporterType: localized.user ? "user" : "guest",
+      reporterName: localized.user
+        ? localized.user.fullName
+        : localized.guest?.contactNo || "Guest",
+    };
   });
+};
+
+const getEmergencyById = async (id, lang = "en") => {
+  const emergency = await Emergency.findByPk(id, {
+    include: [
+      { model: EmergencyType, as: "emergencyType" },
+      { model: Category, as: "category" },
+      { model: Kebele, as: "kebele" },
+      { model: User, as: "user" },
+      { model: Guest, as: "guest" },
+    ],
+  });
+  if (!emergency) return null;
+  const base =
+    lang === "all" ? emergency.toJSON() : localizeEmergency(emergency, lang);
+  return {
+    ...base,
+    reporterName: emergency.user
+      ? emergency.user.fullName
+      : emergency.guest?.contactNo || "Guest",
+    location:
+      typeof base.location === "string"
+        ? JSON.parse(base.location)
+        : base.location,
+  };
+};
+
+const updateEmergencyStatus = async (emergencyId, status, report = null) => {
+  const emergency = await Emergency.findByPk(emergencyId);
+  if (!emergency) throw new Error("Emergency record not found");
+  emergency.status = status;
+  if (report) emergency.report = report;
+  return await emergency.save();
+};
+
+const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
+  const emergencies = await Emergency.findAll({
+    where: { deviceId },
+    include: [
+      { model: EmergencyType, as: "emergencyType" },
+      { model: Category, as: "category" },
+      { model: Kebele, as: "kebele" },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+  return emergencies.map((e) => localizeEmergency(e, lang));
+};
+
+const getEmergenciesByAgency = async (agencyId, lang = "en") => {
+  const agency = await Agency.findByPk(agencyId, {
+    include: { model: AgencyType, as: "agencyType" },
+>>>>>>> d3a5cdaf2660d585b2e320e03f0a5740800db588
+  });
+  if (!agency) throw new Error("Agency not found");
+
+  const agencyTypeName =
+    typeof agency.agencyType?.name === "object"
+      ? agency.agencyType.name.en
+      : agency.agencyType?.name;
+
+  const handledEmergencyTypes = Object.entries(emergencyTypeToAgencyType)
+    .filter(([, aType]) => aType === agencyTypeName)
+    .map(([etype]) => etype);
+
+  if (!handledEmergencyTypes.length) return [];
+
+  const emergencies = await Emergency.findAll({
+    include: [
+      {
+        model: EmergencyType,
+        as: "emergencyType",
+        where: { name: { en: { [Op.in]: handledEmergencyTypes } } },
+      },
+      { model: Category, as: "category" },
+      { model: Kebele, as: "kebele" },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+
+  return lang === "all"
+    ? emergencies
+    : emergencies.map((e) => localizeEmergency(e, lang));
 };
 
 module.exports = {

@@ -2,11 +2,12 @@ const {
   createAgencyType,
   updateAgencyType,
   deleteAgencyType,
-  getAllAgencyTypes, // Import the new service
+  getAllAgencyTypes,
+  getAgencyTypesByCreator, // Import the new filter service
 } = require("../services/AgencyTypeService");
 
 /**
- * Create a new Agency Type
+ * ✅ CREATE
  */
 const createAgencyTypeHandler = async (req, res) => {
   try {
@@ -18,7 +19,11 @@ const createAgencyTypeHandler = async (req, res) => {
         .json({ success: false, message: "Name is required" });
     }
 
-    const agencyType = await createAgencyType({ name, description });
+    // Pass req.user.id as the creatorId
+    const agencyType = await createAgencyType(
+      { name, description },
+      req.user.id,
+    );
 
     res.status(201).json({
       success: true,
@@ -26,21 +31,19 @@ const createAgencyTypeHandler = async (req, res) => {
       data: agencyType,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * Update an existing Agency Type
+ * ✅ UPDATE
  */
 const updateAgencyTypeHandler = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const agencyType = await updateAgencyType(id, req.body);
+    // Pass req.user.id to ensure only the owner can update
+    const agencyType = await updateAgencyType(id, req.body, req.user.id);
 
     res.status(200).json({
       success: true,
@@ -48,36 +51,31 @@ const updateAgencyTypeHandler = async (req, res) => {
       data: agencyType,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * Delete an Agency Type
+ * ✅ DELETE
  */
 const deleteAgencyTypeHandler = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await deleteAgencyType(id);
+    // Pass req.user.id to ensure only the owner can delete
+    const result = await deleteAgencyType(id, req.user.id);
 
     res.status(200).json({
       success: true,
       message: result.message,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * Get all Agency Types
+ * ✅ GET ALL (Global)
  */
 const getAllAgencyTypesHandler = async (req, res) => {
   try {
@@ -87,10 +85,23 @@ const getAllAgencyTypesHandler = async (req, res) => {
       data: agencyTypes,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * ✅ GET BY CREATOR (Your "my-agents" logic)
+ */
+const getAgentsByCreatorIdHandler = async (req, res) => {
+  try {
+    // Filter by the logged-in user's ID
+    const agencyTypes = await getAgencyTypesByCreator(req.user.id);
+    res.status(200).json({
+      success: true,
+      data: agencyTypes,
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -99,4 +110,5 @@ module.exports = {
   updateAgencyTypeHandler,
   deleteAgencyTypeHandler,
   getAllAgencyTypesHandler,
+  getAgentsByCreatorIdHandler, // Export this for your route
 };

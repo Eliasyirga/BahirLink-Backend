@@ -5,11 +5,12 @@ const service = require("../services/serviceTypeService");
  */
 const createServiceType = async (req, res) => {
   try {
+    // Logic: creatorId removed, back to global creation
     const data = await service.createServiceType(req.body);
     return res.status(201).json({
       success: true,
       message: "Service Type created successfully",
-      data: data
+      data: data,
     });
   } catch (err) {
     console.error("❌ Controller Error (ServiceType Create):", err.message);
@@ -19,19 +20,16 @@ const createServiceType = async (req, res) => {
 
 /**
  * ✅ GET ALL SERVICE TYPES
- * Supports: ?lang=en, ?lang=am, or ?lang=all
  */
 const getAllServiceTypes = async (req, res) => {
   try {
-    // Extract language from query, default to 'en' for the mobile app
     const lang = req.query.lang || "en";
-    
     const data = await service.getAllServiceTypes(lang);
-    
+
     return res.status(200).json({
       success: true,
       count: data.length,
-      data: data
+      data: data,
     });
   } catch (err) {
     console.error("❌ Controller Error (ServiceType GetAll):", err.message);
@@ -44,12 +42,12 @@ const getAllServiceTypes = async (req, res) => {
  */
 const getServiceTypeById = async (req, res) => {
   try {
-    const lang = req.query.lang || "all"; 
+    const lang = req.query.lang || "all";
     const data = await service.getServiceTypeById(req.params.id, lang);
-    
+
     return res.status(200).json({
       success: true,
-      data: data
+      data: data,
     });
   } catch (err) {
     console.error("❌ Controller Error (ServiceType GetById):", err.message);
@@ -62,11 +60,12 @@ const getServiceTypeById = async (req, res) => {
  */
 const updateServiceType = async (req, res) => {
   try {
+    // Logic: creatorId removed, anyone with access can update
     const data = await service.updateServiceType(req.params.id, req.body);
     return res.status(200).json({
       success: true,
       message: "Service Type updated successfully",
-      data: data
+      data: data,
     });
   } catch (err) {
     console.error("❌ Controller Error (ServiceType Update):", err.message);
@@ -79,10 +78,11 @@ const updateServiceType = async (req, res) => {
  */
 const deleteServiceType = async (req, res) => {
   try {
+    // Logic: creatorId removed, back to global deletion
     const result = await service.deleteServiceType(req.params.id);
     return res.status(200).json({
       success: true,
-      message: result.message || "Service Type deleted successfully"
+      message: result.message || "Service Type deleted successfully",
     });
   } catch (err) {
     console.error("❌ Controller Error (ServiceType Delete):", err.message);

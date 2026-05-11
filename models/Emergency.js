@@ -92,6 +92,28 @@ const Emergency = sequelize.define(
       allowNull: true,
       references: { model: "categories", key: "id" },
     },
+
+    // ─── Chat fields ──────────────────────────────────────────────────────────
+    // These three columns are required by chatSocket and messageService.
+    // Without them Sequelize returns `undefined` for every chat read/write,
+    // making isChatEnabled always falsy and blocking citizens permanently.
+    isChatEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: "Set to true when a responder sends their first message",
+    },
+    chatInitiatedByResponderTeamId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: "responder_teams", key: "id" },
+      comment: "The responder team that opened this chat thread",
+    },
+    chatInitiatedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Timestamp of when the responder first enabled chat",
+    },
   },
   {
     tableName: "emergencies",

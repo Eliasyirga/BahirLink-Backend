@@ -27,14 +27,15 @@ const serviceCategoryRoutes = require("./routes/serviceCategoryRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
 const caseReportsRoutes = require("./routes/caseReportsRoutes");
 const emergedRoutes = require("./routes/emergedRoutes");
-const messageRoutes = require("./routes/messageRoutes");
 const finalReportRoutes = require("./routes/finalReportRoutes");
+
+// NOTE: messageRoutes is a factory — imported below AFTER io is created.
 
 // --- Socket logic & Middleware ---
 const chatSocket = require("./socket/chatSocket");
 const videoCallSocket = require("./socket/videoCallSocket");
 const socketAuth = require("./middleware/socketAuth");
-const langMiddleware = require("./middleware/lang.middleware"); // ✅ Added
+const langMiddleware = require("./middleware/lang.middleware");
 
 const app = express();
 const server = http.createServer(app);
@@ -88,7 +89,7 @@ app.get("/", (req, res) =>
   res.send("BahirLink Mission-Critical Backend is Live."),
 );
 
-// ✅ Apply Translation Middleware to ALL /api routes at once
+// Apply Translation Middleware to ALL /api routes
 app.use("/api", langMiddleware);
 
 app.use("/api/users", userRoutes);
@@ -109,8 +110,11 @@ app.use("/api/serviceCategory", serviceCategoryRoutes);
 app.use("/api/service", serviceRoutes);
 app.use("/api/caseReports", caseReportsRoutes);
 app.use("/api/emerged", emergedRoutes);
-app.use("/api/message", messageRoutes);
 app.use("/api/finalReport", finalReportRoutes);
+
+// FIX: messageRoutes is a factory function — pass io so the audio upload
+// endpoint can broadcast to the socket room after saving the file.
+app.use("/api/message", require("./routes/messageRoutes")(io));
 
 /**
  * ======================

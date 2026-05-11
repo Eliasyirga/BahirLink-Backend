@@ -28,13 +28,6 @@ const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 // HELPERS
 // =========================
 
-<<<<<<< Updated upstream
-const autoTranslate = async (fieldData) => {
-  if (!fieldData) return null;
-  let data =
-    typeof fieldData === "string" ? { en: fieldData } : { ...fieldData };
-  if (data.en && !data.am) {
-=======
 /**
  * Auto-translate a field value into { en, am }.
  *
@@ -61,7 +54,6 @@ const autoTranslate = async (fieldData) => {
     const rawText = data._raw;
     delete data._raw;
 
->>>>>>> Stashed changes
     try {
       // translate() to "en" returns the detected source language as well
       const toEn = await translate(rawText, { to: "en" });
@@ -83,10 +75,6 @@ const autoTranslate = async (fieldData) => {
         }
       }
     } catch (err) {
-<<<<<<< Updated upstream
-      console.error("Auto-translation failed:", err.message);
-      data.am = data.en;
-=======
       console.error("Language detection / translation failed:", err.message);
       // Fallback: save raw text in both fields so the UI is never empty
       data.en = rawText;
@@ -104,7 +92,6 @@ const autoTranslate = async (fieldData) => {
     } catch (err) {
       console.error("am→en translation failed:", err.message);
       data.en = data.am; // fallback
->>>>>>> Stashed changes
     }
   }
 
@@ -123,12 +110,6 @@ const autoTranslate = async (fieldData) => {
   return data;
 };
 
-<<<<<<< Updated upstream
-const localizeEmergency = (
-  item,
-  lang,
-  fields = ["description", "subdivision"],
-=======
 /**
  * Localize a plain emergency object for a specific language.
  * `fields` is the list of JSONB columns to flatten (e.g. ["description","subdivision"]).
@@ -138,7 +119,6 @@ const localizeEmergency = (
   item,
   lang,
   fields = ["description", "subdivision"]
->>>>>>> Stashed changes
 ) => {
   if (!item) return null;
   const plain =
@@ -192,71 +172,16 @@ const createGuestEmergency = async (data, file, transaction) => {
   const emergencyData = { ...data };
   emergencyData.deviceId = emergencyData.deviceId || null;
 
-<<<<<<< Updated upstream
   if (emergencyData.kebeleId || emergencyData.kebele) {
     emergencyData.kebeleId = parseInt(
-      emergencyData.kebeleId || emergencyData.kebele,
-=======
-    emergencyData.deviceId = emergencyData.deviceId || null;
-
-    if (emergencyData.kebeleId || emergencyData.kebele) {
-      emergencyData.kebeleId = parseInt(
-        emergencyData.kebeleId || emergencyData.kebele
-      );
-      delete emergencyData.kebele;
-    }
-
-    if (!emergencyData.kebeleId) {
-      throw new Error("kebeleId is required");
-    }
-
-    if (emergencyData.latitude && emergencyData.longitude) {
-      emergencyData.location = {
-        latitude: parseFloat(emergencyData.latitude),
-        longitude: parseFloat(emergencyData.longitude),
-      };
-      delete emergencyData.latitude;
-      delete emergencyData.longitude;
-    }
-
-    if (emergencyData.time) {
-      const d = new Date(emergencyData.time);
-      emergencyData.time = [
-        String(d.getHours()).padStart(2, "0"),
-        String(d.getMinutes()).padStart(2, "0"),
-        String(d.getSeconds()).padStart(2, "0"),
-      ].join(":");
-    }
-
-    // Translate JSONB fields — autoTranslate() detects the input language
-    // and ensures both { en, am } are always stored, regardless of whether
-    // the user typed in English or Amharic.
-    if (emergencyData.description) {
-      emergencyData.description = await autoTranslate(
-        emergencyData.description
-      );
-    }
-    if (emergencyData.subdivision) {
-      emergencyData.subdivision = await autoTranslate(
-        emergencyData.subdivision
-      );
-    }
-
-    if (file) {
-      emergencyData.mediaUrl = `/uploads/${file.filename}`;
-    }
-
-    emergencyData.reporterType = "guest";
-    emergencyData.status = "reported";
-
-    return await Emergency.create(
-      emergencyData,
-      transaction ? { transaction } : {}
->>>>>>> Stashed changes
+      emergencyData.kebeleId || emergencyData.kebele
     );
     delete emergencyData.kebele;
   }
-  if (!emergencyData.kebeleId) throw new Error("kebeleId is required");
+
+  if (!emergencyData.kebeleId) {
+    throw new Error("kebeleId is required");
+  }
 
   if (emergencyData.latitude && emergencyData.longitude) {
     emergencyData.location = {
@@ -267,18 +192,35 @@ const createGuestEmergency = async (data, file, transaction) => {
     delete emergencyData.longitude;
   }
 
-  if (emergencyData.description)
+  if (emergencyData.time) {
+    const d = new Date(emergencyData.time);
+    emergencyData.time = [
+      String(d.getHours()).padStart(2, "0"),
+      String(d.getMinutes()).padStart(2, "0"),
+      String(d.getSeconds()).padStart(2, "0"),
+    ].join(":");
+  }
+
+  // Translate JSONB fields — autoTranslate() detects the input language
+  // and ensures both { en, am } are always stored, regardless of whether
+  // the user typed in English or Amharic.
+  if (emergencyData.description) {
     emergencyData.description = await autoTranslate(emergencyData.description);
-  if (emergencyData.subdivision)
+  }
+  if (emergencyData.subdivision) {
     emergencyData.subdivision = await autoTranslate(emergencyData.subdivision);
-  if (file) emergencyData.mediaUrl = `/uploads/${file.filename}`;
+  }
+
+  if (file) {
+    emergencyData.mediaUrl = `/uploads/${file.filename}`;
+  }
 
   emergencyData.reporterType = "guest";
   emergencyData.status = "reported";
 
   return await Emergency.create(
     emergencyData,
-    transaction ? { transaction } : {},
+    transaction ? { transaction } : {}
   );
 };
 
@@ -299,16 +241,14 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     latitude && longitude
       ? { latitude: parseFloat(latitude), longitude: parseFloat(longitude) }
       : null;
+
   if (!kebeleId || !subdivision)
     throw new Error("Kebele ID and Subdivision are required");
 
-<<<<<<< Updated upstream
-=======
   const kebeleRecord = await Kebele.findByPk(kebeleId);
   if (!kebeleRecord) throw new Error("Invalid kebele ID");
 
   // Translate JSONB fields — detects Amharic input and fills both en & am.
->>>>>>> Stashed changes
   const translatedSubdivision = await autoTranslate(subdivision);
   const translatedDescription = await autoTranslate(description);
 
@@ -333,7 +273,7 @@ const updateEmergency = async (
   emergencyId,
   updatedData,
   file,
-  isGuest = false,
+  isGuest = false
 ) => {
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
@@ -341,15 +281,13 @@ const updateEmergency = async (
   const emergency = await Emergency.findOne({ where: whereClause });
   if (!emergency) throw new Error("Emergency not found");
 
-<<<<<<< Updated upstream
-  if (updatedData.description)
-=======
   // Translate any JSONB fields being updated — handles Amharic input too.
   if (updatedData.description) {
->>>>>>> Stashed changes
     updatedData.description = await autoTranslate(updatedData.description);
-  if (updatedData.subdivision)
+  }
+  if (updatedData.subdivision) {
     updatedData.subdivision = await autoTranslate(updatedData.subdivision);
+  }
 
   if (file) {
     updatedData.mediaUrl = `/public/uploads/${file.filename}`;
@@ -360,9 +298,6 @@ const updateEmergency = async (
   return await emergency.update(updatedData);
 };
 
-<<<<<<< Updated upstream
-const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
-=======
 // =========================
 // DELETE EMERGENCY
 // =========================
@@ -371,7 +306,6 @@ const deleteEmergency = async (
   emergencyId,
   isGuest = false
 ) => {
->>>>>>> Stashed changes
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
     : { id: emergencyId, citizenId: userOrGuestId };
@@ -384,16 +318,12 @@ const deleteEmergency = async (
 // =========================
 // RETRIEVAL LOGIC
 // =========================
-<<<<<<< Updated upstream
 
-const getEmergencies = async (userOrGuestId, isGuest = false, lang = "en") => {
-=======
 const getEmergencies = async (
   userOrGuestId,
   isGuest = false,
   lang = "en"
 ) => {
->>>>>>> Stashed changes
   const whereClause = isGuest
     ? { guestId: userOrGuestId }
     : { citizenId: userOrGuestId };
@@ -447,10 +377,6 @@ const getEmergenciesByAgency = async (agencyId, lang = "en") => {
     : emergencies.map((e) => localizeEmergency(e, lang));
 };
 
-<<<<<<< Updated upstream
-// ✅ GET EMERGENCIES FOR RESPONDER TEAM (English Only)
-const getEmergenciesForResponderTeam = async (responderTeamId) => {
-=======
 // =========================
 // GET EMERGENCIES FOR RESPONDER TEAM
 // =========================
@@ -458,7 +384,6 @@ const getEmergenciesForResponderTeam = async (
   responderTeamId,
   lang = "en"
 ) => {
->>>>>>> Stashed changes
   const team = await ResponderTeam.findByPk(responderTeamId, {
     include: [{ model: Agency, as: "agency" }],
   });
@@ -482,35 +407,55 @@ const getEmergenciesForResponderTeam = async (
           },
         ],
       },
-<<<<<<< Updated upstream
-      { model: EmergencyType, as: "emergencyType" },
-      { model: Category, as: "category" },
-=======
       {
         model: EmergencyType,
         as: "emergencyType",
         attributes: ["id", "name"],
       },
       { model: Category, as: "category", attributes: ["id", "name"] },
->>>>>>> Stashed changes
     ],
     order: [["createdAt", "DESC"]],
   });
 
-  // Map results to return only English strings
+  /**
+   * Internal Helper: Always prioritize the requested lang.
+   * Falls back to 'en', then the first available string.
+   */
+  const toLocale = (field) => {
+    if (!field || typeof field !== "object") return field;
+    return field[lang] || field["en"] || Object.values(field)[0] || "";
+  };
+
   return emergencies.map((e) => {
     const item = e.get({ plain: true });
 
-<<<<<<< Updated upstream
-    /**
-     * Internal Helper: Always prioritize 'en'.
-     * Falls back to the first available string if 'en' is missing.
-     */
-    const toEnglish = (field) => {
-      if (!field || typeof field !== "object") return field;
-      return field["en"] || Object.values(field)[0] || "";
+    return {
+      ...item,
+      description: toLocale(item.description),
+      subdivision: toLocale(item.subdivision),
+      emergencyType: item.emergencyType
+        ? {
+            ...item.emergencyType,
+            name: toLocale(item.emergencyType.name),
+            description: toLocale(item.emergencyType.description),
+          }
+        : null,
+      category: item.category
+        ? {
+            ...item.category,
+            name: toLocale(item.category.name),
+          }
+        : null,
+      kebele: item.kebele
+        ? {
+            ...item.kebele,
+            name: toLocale(item.kebele.name),
+          }
+        : null,
     };
-=======
+  });
+};
+
 // =========================
 // GET ALL EMERGENCIES FOR ADMIN
 // =========================
@@ -601,38 +546,23 @@ const getEmergencyById = async (id, lang = "en") => {
       lang === "all"
         ? emergency.toJSON()
         : localizeEmergency(emergency, lang);
->>>>>>> Stashed changes
 
     return {
-      ...item,
-      description: toEnglish(item.description),
-      subdivision: toEnglish(item.subdivision),
-      emergencyType: item.emergencyType
-        ? {
-            ...item.emergencyType,
-            name: toEnglish(item.emergencyType.name),
-            description: toEnglish(item.emergencyType.description),
-          }
-        : null,
-      category: item.category
-        ? {
-            ...item.category,
-            name: toEnglish(item.category.name),
-          }
-        : null,
-      kebele: item.kebele
-        ? {
-            ...item.kebele,
-            name: toEnglish(item.kebele.name),
-          }
-        : null,
+      ...base,
+      reporterName: emergency.user
+        ? emergency.user.fullName
+        : emergency.guest?.contactNo || "Guest",
+      location:
+        typeof base.location === "string"
+          ? JSON.parse(base.location)
+          : base.location,
     };
-  });
+  } catch (err) {
+    console.error("❌ Error in getEmergencyById:", err);
+    throw err;
+  }
 };
 
-<<<<<<< Updated upstream
-const getAllEmergenciesForAdmin = async (lang = "en") => {
-=======
 // =========================
 // UPDATE EMERGENCY STATUS
 // =========================
@@ -656,14 +586,9 @@ const updateEmergencyStatus = async (
 const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
   if (!deviceId) throw new Error("deviceId is required");
 
->>>>>>> Stashed changes
   const emergencies = await Emergency.findAll({
+    where: { deviceId },
     include: [
-<<<<<<< Updated upstream
-      { model: EmergencyType, as: "emergencyType" },
-      { model: Category, as: "category" },
-      { model: Kebele, as: "kebele" },
-=======
       {
         model: EmergencyType,
         as: "emergencyType",
@@ -671,7 +596,6 @@ const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
       },
       { model: Category, as: "category", attributes: ["id", "name"] },
       { model: Kebele, as: "kebele", attributes: ["id", "name"] },
->>>>>>> Stashed changes
       { model: User, as: "user", attributes: ["id", "fullName"] },
       { model: Guest, as: "guest", attributes: ["id", "contactNo"] },
     ],
@@ -679,18 +603,10 @@ const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
   });
 
   return emergencies.map((e) => {
-<<<<<<< Updated upstream
-    const localized = localizeEmergency(e, lang);
-    return {
-      id: localized.id,
-      emergencyType: localized.emergencyType?.name || null,
-      category: localized.category?.name || null,
-      kebele: localized.kebele?.name || null,
-=======
     const localized =
       lang === "all" ? e.get({ plain: true }) : localizeEmergency(e, lang);
     return {
-      id: localized.id,
+      ...localized,
       emergencyType:
         typeof localized.emergencyType?.name === "object"
           ? localized.emergencyType.name[lang] ||
@@ -704,72 +620,6 @@ const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
         typeof localized.kebele?.name === "object"
           ? localized.kebele.name[lang] || localized.kebele.name["en"]
           : localized.kebele?.name || null,
->>>>>>> Stashed changes
-      subdivision: localized.subdivision,
-      street: localized.street,
-      reporterType: localized.user ? "user" : "guest",
-      reporterName: localized.user
-        ? localized.user.fullName
-        : localized.guest?.contactNo || "Guest",
-      deviceId: localized.deviceId,
-      status: localized.status,
-      createdAt: localized.createdAt,
-    };
-  });
-};
-
-const getEmergencyById = async (id, lang = "en") => {
-  const emergency = await Emergency.findByPk(id, {
-    include: [
-      { model: EmergencyType, as: "emergencyType" },
-      { model: Category, as: "category" },
-      { model: Kebele, as: "kebele" },
-      { model: User, as: "user" },
-      { model: Guest, as: "guest" },
-    ],
-  });
-  if (!emergency) return null;
-  const base =
-    lang === "all" ? emergency.toJSON() : localizeEmergency(emergency, lang);
-  return {
-    ...base,
-    reporterName: emergency.user
-      ? emergency.user.fullName
-      : emergency.guest?.contactNo || "Guest",
-    location:
-      typeof base.location === "string"
-        ? JSON.parse(base.location)
-        : base.location,
-  };
-};
-
-const updateEmergencyStatus = async (emergencyId, status, report = null) => {
-  const emergency = await Emergency.findByPk(emergencyId);
-  if (!emergency) throw new Error("Emergency record not found");
-  emergency.status = status;
-  if (report) emergency.report = report;
-  return await emergency.save();
-};
-
-const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
-  const emergencies = await Emergency.findAll({
-    where: { deviceId },
-    include: [
-      { model: EmergencyType, as: "emergencyType" },
-      { model: Category, as: "category" },
-      { model: Kebele, as: "kebele" },
-      { model: User, as: "user" },
-      { model: Guest, as: "guest" },
-    ],
-    order: [["createdAt", "DESC"]],
-  });
-  return emergencies.map((e) => {
-    const localized = localizeEmergency(e, lang);
-    return {
-      ...localized,
-      emergencyType: localized.emergencyType?.name,
-      category: localized.category?.name,
-      kebele: localized.kebele?.name,
     };
   });
 };

@@ -1,29 +1,33 @@
-const Message = require("../models/Message");
-const Emergency = require("../models/Emergency");
-const User = require("../models/User");
+const Message       = require("../models/Message");
+const Emergency     = require("../models/Emergency");
+const User          = require("../models/User");
 const ResponderTeam = require("../models/ResponderTeam");
 
+// ─── Access guard ─────────────────────────────────────────────────────────────
 const assertCanAccessEmergencyChat = async (emergency, requester) => {
   if (!requester?.senderType || !requester?.senderId) {
     throw new Error("Unauthorized");
   }
 
-  // Citizen can only access their own emergency chat.
   if (requester.senderType === "user") {
-    if (!emergency.citizenId || Number(emergency.citizenId) !== Number(requester.senderId)) {
+    if (
+      !emergency.citizenId ||
+      Number(emergency.citizenId) !== Number(requester.senderId)
+    ) {
       throw new Error("You do not have access to this emergency chat.");
     }
     return;
   }
 
-  // Responder team: allow access (optionally restrict by agency/kebele later).
   if (requester.senderType === "responderTeam") return;
 
   throw new Error("Invalid requester.");
 };
 
+// ─── initChat ────────────────────────────────────────────────────────────────
 /**
- * Responder-only: initialize chat thread (enables chat on emergency)
+ * Responder-only: mark an emergency chat as enabled.
+ * Returns all data needed for the caller to emit "chat:enabled" via socket.
  */
 const initChat = async ({ emergencyId, responderTeamId }) => {
   const emergency = await Emergency.findByPk(emergencyId);
@@ -33,14 +37,16 @@ const initChat = async ({ emergencyId, responderTeamId }) => {
   if (!responder) throw new Error("Responder team not found.");
 
   if (!emergency.citizenId) {
-    throw new Error("Emergency has no citizenId; cannot initialize citizen chat.");
+    throw new Error(
+      "Emergency has no citizenId; cannot initialize citizen chat."
+    );
   }
 
   if (!emergency.isChatEnabled) {
     await emergency.update({
-      isChatEnabled: true,
+      isChatEnabled:                  true,
       chatInitiatedByResponderTeamId: responderTeamId,
-      chatInitiatedAt: new Date(),
+      chatInitiatedAt:                new Date(),
     });
   }
 
@@ -49,148 +55,132 @@ const initChat = async ({ emergencyId, responderTeamId }) => {
   });
 
   return {
-    emergencyId: emergency.id,
-    isChatEnabled: emergency.isChatEnabled,
-    citizen: citizen ? citizen.toJSON() : { id: emergency.citizenId },
+    emergencyId:                    emergency.id,
+    isChatEnabled:                  true,
+    citizen:                        citizen ? citizen.toJSON() : { id: emergency.citizenId },
     chatInitiatedByResponderTeamId: emergency.chatInitiatedByResponderTeamId,
-    chatInitiatedAt: emergency.chatInitiatedAt,
+    chatInitiatedAt:                emergency.chatInitiatedAt,
   };
 };
 
+// ─── saveMessage ─────────────────────────────────────────────────────────────
 /**
- * Save message with emergency chat rules
+ * Persist a text or audio message and return it together with a flag
+ * indicating whether the emergency's isChatEnabled status just changed.
+ *
+ * IMPORTANT: socket broadcast (io.to(...).emit("chat:new", ...)) must be
+ * done in the *controller / route handler*, not here, because this service
+ * has no access to the socket.io instance.
+ *
+ * @param {object} opts
+ * @param {number|string} opts.emergencyId
+ * @param {number|string} opts.senderId
+ * @param {"user"|"responderTeam"} opts.senderType
+ * @param {string|null}  [opts.text]       - plain-text body (text messages)
+ * @param {string|null}  [opts.audioUrl]   - public URL of uploaded audio file
+ * @param {"text"|"audio"} [opts.messageType] - inferred automatically if omitted
  */
 const saveMessage = async ({
   emergencyId,
   senderId,
   senderType,
-  text = null,
-  messageType = "text",
-  audioUrl = null,
+  text      = null,
+  audioUrl  = null,
+  messageType,        // caller may pass this; we validate/override below
 }) => {
-  try {
-    console.log("🔥 SAVE MESSAGE INPUT:", {
-      emergencyId,
-      senderId,
-      senderType,
-      text,
-      messageType,
-      audioUrl,
-    });
+  console.log("🔥 SAVE MESSAGE INPUT:", {
+    emergencyId,
+    senderId,
+    senderType,
+    text,
+    audioUrl,
+    messageType,
+  });
 
-    const emergency = await Emergency.findByPk(emergencyId);
-
-    if (!emergency) {
-      throw new Error("Emergency record not found.");
-    }
-
-    if (!emergency.citizenId) {
-      throw new Error("Emergency has no citizenId; cannot start citizen chat.");
-    }
-
-    let sender = null;
-
-    // 🔥 resolve sender safely
-    if (senderType === "user") {
-      sender = await User.findByPk(senderId);
-    } else if (senderType === "responderTeam") {
-      sender = await ResponderTeam.findByPk(senderId);
-    } else {
-      throw new Error("Invalid senderType provided.");
-    }
-
-    if (!sender) {
-      throw new Error(`Sender not found in ${senderType} table.`);
-    }
-
-    let statusChanged = false;
-
-    // Validate payload (must contain text or audio)
-    const cleanText = typeof text === "string" ? text.trim() : "";
-    const cleanAudioUrl = typeof audioUrl === "string" ? audioUrl.trim() : "";
-    if (!cleanText && !cleanAudioUrl) {
-      throw new Error("Message must include text or audioUrl.");
-    }
-
-    if (cleanAudioUrl) {
-      messageType = "audio";
-    } else {
-      messageType = "text";
-    }
-
-    // 🚨 BLOCK USER IF CHAT NOT ENABLED
-    if (
-      senderType === "user" &&
-      !emergency.isChatEnabled
-    ) {
-      throw new Error("Chat not yet initiated by a responder.");
-    }
-
-    // 🚨 Ensure citizen can only chat on their own emergency
-    if (senderType === "user") {
-      if (!emergency.citizenId || Number(emergency.citizenId) !== Number(senderId)) {
-        throw new Error("You do not have access to this emergency chat.");
-      }
-    }
-
-    // 🚨 ENABLE CHAT ON FIRST RESPONDER MESSAGE
-    if (senderType === "responderTeam" && !emergency.isChatEnabled) {
-      await emergency.update({
-        isChatEnabled: true,
-        chatInitiatedByResponderTeamId: senderId,
-        chatInitiatedAt: new Date(),
-      });
-      statusChanged = true;
-    }
-
-    // 💾 CREATE MESSAGE
-    const message = await Message.create({
-      emergencyId,
-      citizenId: emergency.citizenId,
-      responderTeamId:
-        emergency.chatInitiatedByResponderTeamId ??
-        (senderType === "responderTeam" ? senderId : null),
-      senderId,
-      senderType,
-      messageType,
-      text: cleanText || null,
-      audioUrl: cleanAudioUrl || null,
-    });
-
-    console.log("✅ MESSAGE SAVED:", message.id);
-
-    return { message, statusChanged };
-  } catch (error) {
-    console.error("❌ SERVICE ERROR:", error);
-    throw error;
+  // ── 1. Load emergency ────────────────────────────────────────────────────
+  const emergency = await Emergency.findByPk(emergencyId);
+  if (!emergency) throw new Error("Emergency record not found.");
+  if (!emergency.citizenId) {
+    throw new Error("Emergency has no citizenId; cannot start citizen chat.");
   }
+
+  // ── 2. Validate sender ───────────────────────────────────────────────────
+  let sender = null;
+  if (senderType === "user") {
+    sender = await User.findByPk(senderId);
+  } else if (senderType === "responderTeam") {
+    sender = await ResponderTeam.findByPk(senderId);
+  } else {
+    throw new Error("Invalid senderType provided.");
+  }
+  if (!sender) throw new Error(`Sender not found in ${senderType} table.`);
+
+  // ── 3. Validate payload ──────────────────────────────────────────────────
+  const cleanText     = typeof text     === "string" ? text.trim()     : "";
+  const cleanAudioUrl = typeof audioUrl === "string" ? audioUrl.trim() : "";
+
+  if (!cleanText && !cleanAudioUrl) {
+    throw new Error("Message must include text or audioUrl.");
+  }
+
+  // Override messageType from actual content so it is always consistent.
+  const resolvedType = cleanAudioUrl ? "audio" : "text";
+
+  // ── 4. Access / business rules ───────────────────────────────────────────
+  if (senderType === "user" && !emergency.isChatEnabled) {
+    throw new Error("Chat not yet initiated by a responder.");
+  }
+
+  if (senderType === "user") {
+    if (Number(emergency.citizenId) !== Number(senderId)) {
+      throw new Error("You do not have access to this emergency chat.");
+    }
+  }
+
+  // ── 5. Auto-enable chat on first responder message ───────────────────────
+  let statusChanged = false;
+  if (senderType === "responderTeam" && !emergency.isChatEnabled) {
+    await emergency.update({
+      isChatEnabled:                  true,
+      chatInitiatedByResponderTeamId: senderId,
+      chatInitiatedAt:                new Date(),
+    });
+    statusChanged = true;
+  }
+
+  // ── 6. Persist ───────────────────────────────────────────────────────────
+  const message = await Message.create({
+    emergencyId,
+    citizenId:      emergency.citizenId,
+    responderTeamId:
+      emergency.chatInitiatedByResponderTeamId ??
+      (senderType === "responderTeam" ? senderId : null),
+    senderId,
+    senderType,
+    messageType:    resolvedType,
+    text:           cleanText     || null,
+    audioUrl:       cleanAudioUrl || null,
+  });
+
+  console.log("✅ MESSAGE SAVED:", message.id, "| type:", resolvedType,
+              "| audioUrl:", cleanAudioUrl || "(none)");
+
+  return { message, statusChanged };
 };
 
-/**
- * Get chat history
- */
+// ─── getHistory ───────────────────────────────────────────────────────────────
 const getHistory = async (emergencyId, { requester } = {}) => {
-  try {
-    const emergency = await Emergency.findByPk(emergencyId);
-    if (!emergency) throw new Error("Emergency record not found.");
-    await assertCanAccessEmergencyChat(emergency, requester);
+  const emergency = await Emergency.findByPk(emergencyId);
+  if (!emergency) throw new Error("Emergency record not found.");
+  await assertCanAccessEmergencyChat(emergency, requester);
 
-    const messages = await Message.findAll({
-      where: { emergencyId },
-      order: [["createdAt", "ASC"]],
-    });
+  const messages = await Message.findAll({
+    where: { emergencyId },
+    order: [["createdAt", "ASC"]],
+  });
 
-    console.log(`📩 Loaded ${messages.length} messages`);
-
-    return messages;
-  } catch (error) {
-    console.error("❌ HISTORY ERROR:", error);
-    throw error;
-  }
+  console.log(`📩 Loaded ${messages.length} messages for emergency ${emergencyId}`);
+  return messages;
 };
 
-module.exports = {
-  initChat,
-  saveMessage,
-  getHistory,
-};
+module.exports = { initChat, saveMessage, getHistory };

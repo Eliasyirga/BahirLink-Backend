@@ -2,28 +2,26 @@ const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models");
 
 const localize = (item, lang, fields) => {
   if (!item) return null;
-  
-  // Convert Sequelize instance to plain JS object
-  const plainItem = typeof item.get === "function" ? item.get({ plain: true }) : item;
+
+  const plainItem =
+    typeof item.get === "function" ? item.get({ plain: true }) : item;
 
   fields.forEach((field) => {
     let value = plainItem[field];
 
-    // ✅ STEP 1: If it's a string, try to parse it into an object
     if (typeof value === "string") {
       try {
         value = JSON.parse(value);
       } catch (e) {
-        // Not a JSON string, leave it as is
       }
     }
 
-    // ✅ STEP 2: Flatten based on language
     if (value && typeof value === "object") {
       if (lang === "all") {
         plainItem[field] = value;
       } else {
-        plainItem[field] = value[lang] || value["en"] || Object.values(value)[0] || "";
+        plainItem[field] =
+          value[lang] || value["en"] || Object.values(value)[0] || "";
       }
     }
   });
@@ -32,10 +30,13 @@ const localize = (item, lang, fields) => {
   if (plainItem.caseType && plainItem.caseType.name) {
     let ctName = plainItem.caseType.name;
     if (typeof ctName === "string") {
-      try { ctName = JSON.parse(ctName); } catch (e) {}
+      try {
+        ctName = JSON.parse(ctName);
+      } catch (e) {}
     }
     if (typeof ctName === "object") {
-      plainItem.caseType.name = lang === "all" ? ctName : (ctName[lang] || ctName["en"]);
+      plainItem.caseType.name =
+        lang === "all" ? ctName : ctName[lang] || ctName["en"];
     }
   }
 
@@ -109,7 +110,9 @@ const createCase = async (data) => {
     responderTeamId: rTeamId,
     agencyId: team.agencyId,
     caseTypeId: caseTypeId ? parseInt(caseTypeId, 10) : null,
-    lastSeenLocationId: lastSeenLocationId ? parseInt(lastSeenLocationId, 10) : null,
+    lastSeenLocationId: lastSeenLocationId
+      ? parseInt(lastSeenLocationId, 10)
+      : null,
     age: age ? parseInt(age, 10) : null,
     height: height ? parseInt(height, 10) : null,
     weight: weight ? parseInt(weight, 10) : null,

@@ -1,11 +1,22 @@
 const { Emergency } = require("../models");
 
+// FIX ④: relay() previously called ensureCallRoom() on every signalling
+// message (offer, answer, ice, hangup). ensureCallRoom() calls socket.join()
+// each time, which re-emits call:peer-joined to the other party — causing
+// React to attempt a second createOffer and ICE to go haywire.
+//
+// The fix splits the logic:
+//   • ensureCallRoom()  — used only for call:initiate and call:join (first join)
+//   • roomOnly()        — used inside relay() — resolves the room name from
+//                         socket.data.callEmergencyId without any join side-effect
+
 const videoCallSocket = (io, socket) => {
   const identityRoom = socket?.identity
     ? `identity_${socket.identity.senderType}_${socket.identity.id}`
     : null;
   if (identityRoom) socket.join(identityRoom);
 
+  // Used only on first join (call:initiate, call:join).
   const ensureCallRoom = async ({ emergencyId }) => {
     if (!emergencyId) {
       socket.emit("call:error", { message: "emergencyId is required." });
@@ -29,6 +40,20 @@ const videoCallSocket = (io, socket) => {
     return { roomName, emergency };
   };
 
+  // Used inside relay() — resolves the room name from already-joined state,
+  // with NO socket.join() side-effect so we never re-trigger call:peer-joined.
+  const roomOnly = (emergencyId) => {
+    if (!emergencyId) return null;
+    return `emergency_${emergencyId}`;
+  };
+
+  const identityToRoom = (toIdentity) => {
+    if (!toIdentity) return null;
+    const { senderType, id } = toIdentity;
+    if (!senderType || id == null) return null;
+    return `identity_${senderType}_${Number(id)}`;
+  };
+
   socket.on("call:initiate", async ({ emergencyId }) => {
     try {
       if (socket.identity.role !== "responder") {
@@ -50,17 +75,17 @@ const videoCallSocket = (io, socket) => {
       const targetRoom = `identity_user_${reporterUserId}`;
 
       io.to(targetRoom).emit("call:incoming", {
-        emergencyId: Number(emergencyId),
+        emergencyId:  Number(emergencyId),
         reporterUserId,
-        toUserId: reporterUserId,
+        toUserId:     reporterUserId,
         fromIdentity: socket.identity,
-        fromSocketId: socket.id, // ← Flutter needs this
+        fromSocketId: socket.id,
       });
 
       socket.emit("call:initiated", {
-        emergencyId: Number(emergencyId),
+        emergencyId:   Number(emergencyId),
         reporterUserId,
-        toUserId: reporterUserId,
+        toUserId:      reporterUserId,
       });
     } catch (err) {
       console.error("call:initiate error:", err);
@@ -80,17 +105,18 @@ const videoCallSocket = (io, socket) => {
       socket.emit("call:joined", {
         emergencyId: Number(emergencyId),
         reporterUserId,
-        socketId: socket.id,
-        identity: socket.identity,
+        socketId:    socket.id,
+        identity:    socket.identity,
       });
 
-      // This fires on the React side → triggers createOffer
+      // Notify the other peer that someone new joined — this triggers
+      // createOffer on the React side. Only fires once per actual join.
       socket.to(roomName).emit("call:peer-joined", {
-        emergencyId: Number(emergencyId),
+        emergencyId:  Number(emergencyId),
         reporterUserId,
-        socketId: socket.id,
-        identity: socket.identity,
-        fromSocketId: socket.id, // ← explicit, React uses this
+        socketId:     socket.id,
+        identity:     socket.identity,
+        fromSocketId: socket.id,
       });
     } catch (err) {
       console.error("call:join error:", err);
@@ -98,25 +124,23 @@ const videoCallSocket = (io, socket) => {
     }
   });
 
-  const identityToRoom = (toIdentity) => {
-    if (!toIdentity) return null;
-    const { senderType, id } = toIdentity;
-    if (!senderType || id == null) return null;
-    return `identity_${senderType}_${Number(id)}`;
-  };
-
-  // Always stamps fromSocketId so the receiver knows who sent it
-  const relay = async (eventName, payload) => {
+  // FIX ④: relay() no longer calls ensureCallRoom(). It resolves the room
+  // name from socket.data.callEmergencyId (set during call:join) without
+  // joining again, so call:peer-joined is never re-emitted as a side-effect.
+  const relay = (eventName, payload) => {
     const emergencyId =
       payload?.emergencyId ?? socket.data.callEmergencyId ?? null;
-    const res = await ensureCallRoom({ emergencyId });
-    if (!res) return;
 
-    const { roomName } = res;
+    if (!emergencyId) {
+      socket.emit("call:error", { message: "emergencyId missing — join the call room first." });
+      return;
+    }
+
+    const roomName = roomOnly(Number(emergencyId));
     const enriched = {
       ...payload,
-      emergencyId: Number(emergencyId),
-      fromSocketId: socket.id, // ← always present
+      emergencyId:  Number(emergencyId),
+      fromSocketId: socket.id,
       fromIdentity: socket.identity,
     };
 
@@ -132,42 +156,42 @@ const videoCallSocket = (io, socket) => {
     socket.to(roomName).emit(eventName, enriched);
   };
 
-  socket.on("call:offer", async (payload) => {
+  socket.on("call:offer", (payload) => {
     try {
       if (!payload?.sdp)
         return socket.emit("call:error", { message: "Missing offer sdp." });
-      await relay("call:offer", payload);
+      relay("call:offer", payload);
     } catch (err) {
       console.error("call:offer error:", err);
       socket.emit("call:error", { message: "Failed to relay offer." });
     }
   });
 
-  socket.on("call:answer", async (payload) => {
+  socket.on("call:answer", (payload) => {
     try {
       if (!payload?.sdp)
         return socket.emit("call:error", { message: "Missing answer sdp." });
-      await relay("call:answer", payload);
+      relay("call:answer", payload);
     } catch (err) {
       console.error("call:answer error:", err);
       socket.emit("call:error", { message: "Failed to relay answer." });
     }
   });
 
-  socket.on("call:ice", async (payload) => {
+  socket.on("call:ice", (payload) => {
     try {
       if (!payload?.candidate)
         return socket.emit("call:error", { message: "Missing ICE candidate." });
-      await relay("call:ice", payload);
+      relay("call:ice", payload);
     } catch (err) {
       console.error("call:ice error:", err);
       socket.emit("call:error", { message: "Failed to relay ICE." });
     }
   });
 
-  socket.on("call:hangup", async (payload = {}) => {
+  socket.on("call:hangup", (payload = {}) => {
     try {
-      await relay("call:hangup", payload);
+      relay("call:hangup", payload);
     } catch (err) {
       console.error("call:hangup error:", err);
       socket.emit("call:error", { message: "Failed to relay hangup." });
@@ -179,8 +203,8 @@ const videoCallSocket = (io, socket) => {
     if (!emergencyId) return;
     socket.to(`emergency_${emergencyId}`).emit("call:peer-left", {
       emergencyId,
-      socketId: socket.id,
-      identity: socket.identity,
+      socketId:     socket.id,
+      identity:     socket.identity,
       fromSocketId: socket.id,
     });
   });

@@ -159,10 +159,25 @@ const deleteCase = async (id) => {
   return { success: true, message: "Case purged successfully" };
 };
 
+const updateCaseStatus = async (id, status) => {
+  const singleCase = await Cases.findByPk(id);
+  
+  if (!singleCase) {
+    throw new Error("Case not found.");
+  }
+
+  // Update only the status field
+  await singleCase.update({ status });
+
+  // Return the updated case (localized for consistency)
+  return localize(singleCase, "all", multiLangFields);
+};
+
 module.exports = {
   createCase,
   getAllCases,
   getCaseById,
   updateCase,
+  updateCaseStatus,
   deleteCase,
 };

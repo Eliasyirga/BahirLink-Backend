@@ -1,11 +1,7 @@
-/**
- * HELPER: Localize Data (For GET requests)
- * Handles New JSON, Old Strings, and "Fake" Stringified JSON.
- */
-const localize = (item, lang, fields = ["name"]) => { // Added default fields
+
+const localize = (item, lang, fields = ["name"]) => { 
   if (!item) return null;
 
-  // Handle arrays automatically
   if (Array.isArray(item)) {
     return item.map((i) => localize(i, lang, fields));
   }
@@ -22,7 +18,6 @@ const localize = (item, lang, fields = ["name"]) => { // Added default fields
       } catch (e) { /* ignore */ }
     }
 
-    // 2. Select the language
     if (value && typeof value === "object") {
       plainItem[field] = value[lang] || value["en"] || "";
     } else {

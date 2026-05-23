@@ -25,6 +25,26 @@ const emergencyTypeToAgencyType = {
 const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
 // =========================
+// SHARED KEBELE INCLUDE
+// Reused across all retrieval functions so every response carries
+// kebele.teams — the array the frontend resolveStation() reads from.
+// =========================
+const kebeleWithTeams = {
+  model: Kebele,
+  as: "kebele",
+  attributes: ["id", "name"],
+  include: [
+    {
+      model: ResponderTeam,
+      as: "teams",
+      attributes: ["id", "name"],
+      through: { model: ResponderTeamKebele, attributes: [] },
+      required: false, // LEFT JOIN — still return emergency if no team assigned
+    },
+  ],
+};
+
+// =========================
 // HELPERS
 // =========================
 
@@ -72,7 +92,7 @@ const autoTranslate = async (fieldData) => {
       data.en = toEn.text;
     } catch (err) {
       console.error("am→en translation failed:", err.message);
-      data.en = data.am; // fallback
+      data.en = data.am;
     }
   }
 
@@ -90,6 +110,7 @@ const autoTranslate = async (fieldData) => {
 
 /**
  * Localize a plain emergency object for a specific language.
+ * Also localizes team names nested inside kebele.teams.
  */
 const localizeEmergency = (
   item,
@@ -121,6 +142,17 @@ const localizeEmergency = (
   flattenNested(plain.emergencyType);
   flattenNested(plain.category);
   flattenNested(plain.kebele);
+
+  // Localize team names inside kebele.teams
+  if (Array.isArray(plain.kebele?.teams)) {
+    plain.kebele.teams = plain.kebele.teams.map((t) => ({
+      ...t,
+      name:
+        t.name && typeof t.name === "object"
+          ? t.name[lang] || t.name["en"] || Object.values(t.name)[0]
+          : t.name,
+    }));
+  }
 
   return plain;
 };
@@ -284,19 +316,25 @@ const getEmergencies = async (
   const whereClause = isGuest
     ? { guestId: userOrGuestId }
     : { citizenId: userOrGuestId };
+
   const emergencies = await Emergency.findAll({
     where: whereClause,
     order: [["createdAt", "DESC"]],
     include: [
       { model: EmergencyType, as: "emergencyType" },
-      { model: Kebele, as: "kebele" },
+      kebeleWithTeams,
     ],
   });
+
   return lang === "all"
     ? emergencies
     : emergencies.map((e) => localizeEmergency(e, lang));
 };
 
+// =========================
+// GET EMERGENCIES BY AGENCY
+// Now includes kebele.teams so the frontend resolveStation() works.
+// =========================
 const getEmergenciesByAgency = async (agencyId, lang = "en") => {
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
@@ -324,7 +362,8 @@ const getEmergenciesByAgency = async (agencyId, lang = "en") => {
         attributes: ["id", "name", "description"],
       },
       { model: Category, as: "category", attributes: ["id", "name"] },
-      { model: Kebele, as: "kebele", attributes: ["id", "name"] },
+      // ← kebeleWithTeams replaces the plain Kebele include
+      kebeleWithTeams,
     ],
     order: [["createdAt", "DESC"]],
   });
@@ -336,6 +375,8 @@ const getEmergenciesByAgency = async (agencyId, lang = "en") => {
 
 // =========================
 // GET EMERGENCIES FOR RESPONDER TEAM
+// Already filtered to the team's kebeles. We still embed teams on
+// the kebele so the shape is consistent with every other endpoint.
 // =========================
 const getEmergenciesForResponderTeam = async (
   responderTeamId,
@@ -353,10 +394,14 @@ const getEmergenciesForResponderTeam = async (
         model: Kebele,
         as: "kebele",
         required: true,
+        attributes: ["id", "name"],
         include: [
           {
             model: ResponderTeam,
             as: "teams",
+            attributes: ["id", "name"],
+            // Filter to only the requesting team for this view,
+            // but use required:false so the row still comes through.
             where: { id: responderTeamId },
             required: true,
             through: { model: ResponderTeamKebele, attributes: [] },
@@ -373,10 +418,6 @@ const getEmergenciesForResponderTeam = async (
     order: [["createdAt", "DESC"]],
   });
 
-  /**
-   * Internal Helper: Always prioritize the requested lang.
-   * Falls back to 'en', then the first available string.
-   */
   const toLocale = (field) => {
     if (!field || typeof field !== "object") return field;
     return field[lang] || field["en"] || Object.values(field)[0] || "";
@@ -397,15 +438,17 @@ const getEmergenciesForResponderTeam = async (
           }
         : null,
       category: item.category
-        ? {
-            ...item.category,
-            name: toLocale(item.category.name),
-          }
+        ? { ...item.category, name: toLocale(item.category.name) }
         : null,
       kebele: item.kebele
         ? {
             ...item.kebele,
             name: toLocale(item.kebele.name),
+            // Localize team names so the frontend gets plain strings
+            teams: (item.kebele.teams || []).map((t) => ({
+              ...t,
+              name: toLocale(t.name),
+            })),
           }
         : null,
     };
@@ -414,6 +457,8 @@ const getEmergenciesForResponderTeam = async (
 
 // =========================
 // GET ALL EMERGENCIES FOR ADMIN
+// Includes kebele.teams in the raw query AND surfaces
+// assignedStation as a convenience field in the shaped response.
 // =========================
 const getAllEmergenciesForAdmin = async (lang = "en") => {
   try {
@@ -425,7 +470,8 @@ const getAllEmergenciesForAdmin = async (lang = "en") => {
           attributes: ["id", "name"],
         },
         { model: Category, as: "category", attributes: ["id", "name"] },
-        { model: Kebele, as: "kebele", attributes: ["id", "name"] },
+        // ← kebeleWithTeams so admin view also has team data
+        kebeleWithTeams,
         {
           model: User,
           as: "user",
@@ -441,6 +487,10 @@ const getAllEmergenciesForAdmin = async (lang = "en") => {
         lang === "all"
           ? e.get({ plain: true })
           : localizeEmergency(e, lang);
+
+      // Resolve first assigned team from the kebele relationship
+      const assignedTeam = localized.kebele?.teams?.[0] || null;
+
       return {
         id: localized.id,
         emergencyType:
@@ -456,6 +506,22 @@ const getAllEmergenciesForAdmin = async (lang = "en") => {
           typeof localized.kebele?.name === "object"
             ? localized.kebele.name[lang] || localized.kebele.name["en"]
             : localized.kebele?.name || null,
+        // Full kebele object with teams array kept for the frontend
+        kebeleData: localized.kebele || null,
+        // Convenience top-level field — mirrors what the frontend reads
+        assignedStation: assignedTeam
+          ? {
+              id:     assignedTeam.id,
+              name:
+                typeof assignedTeam.name === "object"
+                  ? assignedTeam.name[lang] || assignedTeam.name["en"]
+                  : assignedTeam.name,
+              kebele:
+                typeof localized.kebele?.name === "object"
+                  ? localized.kebele.name[lang] || localized.kebele.name["en"]
+                  : localized.kebele?.name || null,
+            }
+          : null,
         subdivision: localized.subdivision,
         street: localized.street,
         reporterType: localized.user ? "user" : "guest",
@@ -486,7 +552,7 @@ const getEmergencyById = async (id, lang = "en") => {
           attributes: ["id", "name", "description"],
         },
         { model: Category, as: "category", attributes: ["id", "name"] },
-        { model: Kebele, as: "kebele", attributes: ["id", "name"] },
+        kebeleWithTeams,
         {
           model: User,
           as: "user",
@@ -546,7 +612,7 @@ const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
     where: { deviceId },
     include: [
       { model: Category, as: "category", attributes: ["id", "name"] },
-      { model: Kebele, as: "kebele", attributes: ["id", "name"] },
+      kebeleWithTeams,
       { model: User, as: "user", attributes: ["id", "fullName"] },
       { model: Guest, as: "guest", attributes: ["id", "contactNo"] },
     ],

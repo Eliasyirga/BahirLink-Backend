@@ -1,4 +1,4 @@
-const { Op } = require("sequelize"); // Ensure Op is imported
+const { Op } = require("sequelize");
 const {
   Service,
   ServiceType,
@@ -11,214 +11,302 @@ const {
   ResponderTeamKebele,
 } = require("../models");
 const { sequelize } = require("../config/db");
+const translate = require("google-translate-api-x");
 
+// =========================
+// SHARED KEBELE INCLUDE
+// =========================
+const kebeleWithTeams = {
+  model: Kebele,
+  as: "kebele",
+  attributes: ["id", "name"],
+  include: [
+    {
+      model: ResponderTeam,
+      as: "teams",
+      attributes: ["id", "name"],
+      through: { model: ResponderTeamKebele, attributes: [] },
+      required: false,
+    },
+  ],
+};
+
+const serviceIncludes = [
+  { model: ServiceType,     as: "serviceType",     attributes: ["id", "name"] },
+  { model: ServiceCategory, as: "serviceCategory", attributes: ["id", "name"] },
+  { model: User,            as: "citizen",         attributes: ["id", "fullName", "email"] },
+];
+
+// =========================
+// HELPERS
+// =========================
+
+/**
+ * Auto-translate a field value into { en, am }.
+ */
+const autoTranslate = async (fieldData) => {
+  if (!fieldData) return null;
+
+  let data =
+    typeof fieldData === "string" ? { _raw: fieldData } : { ...fieldData };
+
+  if (data._raw) {
+    const rawText = data._raw;
+    delete data._raw;
+
+    try {
+      const toEn = await translate(rawText, { to: "en" });
+      const detectedLang = toEn.from?.language?.iso || "en";
+
+      if (detectedLang === "am") {
+        data.am = rawText;
+        data.en = toEn.text;
+      } else {
+        data.en = rawText;
+        try {
+          const toAm = await translate(rawText, { to: "am" });
+          data.am = toAm.text;
+        } catch (err) {
+          console.error("en→am translation failed:", err.message);
+          data.am = rawText;
+        }
+      }
+    } catch (err) {
+      console.error("Language detection / translation failed:", err.message);
+      data.en = rawText;
+      data.am = rawText;
+    }
+    return data;
+  }
+
+  if (data.am && !data.en) {
+    try {
+      const toEn = await translate(data.am, { to: "en" });
+      data.en = toEn.text;
+    } catch (err) {
+      console.error("am→en translation failed:", err.message);
+      data.en = data.am;
+    }
+  }
+
+  if (data.en && !data.am) {
+    try {
+      const toAm = await translate(data.en, { to: "am" });
+      data.am = toAm.text;
+    } catch (err) {
+      data.am = data.en;
+    }
+  }
+
+  return data;
+};
+
+/**
+ * Parse a field that may be a double-stringified JSON object.
+ */
 const parseJsonField = (field) => {
   if (typeof field === "string") {
     try {
       const parsed = JSON.parse(field);
       return typeof parsed === "string" ? JSON.parse(parsed) : parsed;
     } catch (e) {
-      return field; // Return as is if it's not JSON
+      return field;
     }
   }
   return field;
 };
 
 /**
- * REUSABLE INCLUDE CONFIG
+ * Resolve a single field value to a locale string.
+ * FIX: extracted as a standalone helper used inside localizeService so the
+ *      logic is consistent and fields that are already plain strings (already
+ *      localized by a prior call) are returned as-is without modification.
  */
-const serviceIncludes = [
-  {
-    model: ServiceType,
-    as: "serviceType",
-    attributes: ["id", "name"],
-  },
-  {
-    model: ServiceCategory,
-    as: "serviceCategory",
-    attributes: ["id", "name"],
-  },
-  {
-    model: User,
-    as: "citizen",
-    attributes: ["id", "fullName", "email"],
-  },
-];
+const resolveLocale = (value, lang) => {
+  if (value == null) return value;
 
-// ✅ CREATE SERVICE
+  // Already a plain string — backend already localized it upstream.
+  if (typeof value === "string") return value;
+
+  const parsed = parseJsonField(value);
+  if (parsed && typeof parsed === "object") {
+    return parsed[lang] || parsed["en"] || Object.values(parsed)[0] || "";
+  }
+  return String(value);
+};
+
+/**
+ * Localize a plain service object for a specific language.
+ */
+const localizeService = (
+  item,
+  lang,
+  fields = ["name", "description", "subdivision", "street"]
+) => {
+  if (!item) return null;
+  const plain =
+    typeof item.get === "function" ? item.get({ plain: true }) : { ...item };
+
+  fields.forEach((field) => {
+    if (plain[field] != null) {
+      plain[field] = resolveLocale(plain[field], lang);
+    }
+  });
+
+  // FIX: use resolveLocale for nested objects to handle both bilingual maps
+  //      and fields that are already plain strings (e.g. from a cached call).
+  const flattenNested = (obj) => {
+    if (!obj) return;
+    ["name", "description"].forEach((f) => {
+      if (obj[f] != null) {
+        obj[f] = resolveLocale(obj[f], lang);
+      }
+    });
+  };
+
+  flattenNested(plain.serviceType);
+  flattenNested(plain.serviceCategory);
+  flattenNested(plain.kebele);
+
+  // Localize team names inside kebele.teams
+  if (Array.isArray(plain.kebele?.teams)) {
+    plain.kebele.teams = plain.kebele.teams.map((t) => ({
+      ...t,
+      name: resolveLocale(t.name, lang),
+    }));
+  }
+
+  return plain;
+};
+
+// =========================
+// CREATE SERVICE
+// =========================
 const createService = async (data, userIdFromParams, file) => {
   let mediaUrl = null;
-
   if (file && file.filename) {
     mediaUrl = `/uploads/${file.filename}`;
   }
 
-  // Parse IDs safely
-  const serviceTypeId = data.serviceTypeId
-    ? parseInt(data.serviceTypeId)
-    : null;
-  const serviceCategoryId = data.serviceCategoryId
-    ? parseInt(data.serviceCategoryId)
-    : null;
-  const citizenId = parseInt(userIdFromParams || data.citizenId);
+  const serviceTypeId     = data.serviceTypeId     ? parseInt(data.serviceTypeId)     : null;
+  const serviceCategoryId = data.serviceCategoryId ? parseInt(data.serviceCategoryId) : null;
+  const citizenId         = parseInt(userIdFromParams || data.citizenId);
 
-  // Parse Location safely
   let finalLocation = data.location;
   if (data.latitude && data.longitude) {
     finalLocation = {
-      latitude: parseFloat(data.latitude),
+      latitude:  parseFloat(data.latitude),
       longitude: parseFloat(data.longitude),
     };
   }
 
-  const timestamp = Date.now();
-
-  const processedName =
-    typeof data.name === "string"
-      ? { en: `${data.name} (${timestamp})`, am: `${data.name}` }
-      : data.name || {
-          en: `Service Request ${timestamp}`,
-          am: `የአገልግሎት ጥያቄ ${timestamp}`,
-        };
-
-  const processedDescription =
-    typeof data.description === "string"
-      ? { en: data.description, am: "" }
-      : data.description || { en: "", am: "" };
-
-  const processedSubdivision =
-    typeof data.subdivision === "string"
-      ? { en: data.subdivision, am: "" }
-      : data.subdivision || { en: "", am: "" };
-
-  const processedStreet =
-    typeof data.street === "string"
-      ? { en: data.street, am: "" }
-      : data.street || { en: "", am: "" };
+  // Bidirectional translation for all text fields
+  const processedName        = await autoTranslate(data.name        || `Service Request`);
+  const processedDescription = await autoTranslate(data.description || "");
+  const processedSubdivision = await autoTranslate(data.subdivision || "");
+  const processedStreet      = await autoTranslate(data.street      || "");
 
   const service = await Service.create({
-    name: processedName,
-    description: processedDescription,
-    subdivision: processedSubdivision,
-    street: processedStreet,
-    kebeleId: data.kebeleId ? parseInt(data.kebeleId) : null,
+    name:             processedName,
+    description:      processedDescription,
+    subdivision:      processedSubdivision,
+    street:           processedStreet,
+    kebeleId:         data.kebeleId ? parseInt(data.kebeleId) : null,
     serviceTypeId,
     serviceCategoryId,
     citizenId,
-    location: finalLocation,
-    mediaUrl: mediaUrl,
-    mediaType: data.mediaType || (file ? "photo" : null),
-    status: "pending",
-    time: data.time || new Date().toLocaleTimeString("it-IT"),
+    location:         finalLocation,
+    mediaUrl,
+    mediaType:        data.mediaType || (file ? "photo" : null),
+    status:           "pending",
+    time:             data.time || new Date().toLocaleTimeString("it-IT"),
   });
 
-  return await Service.findByPk(service.id, {
-    include: serviceIncludes,
-  });
+  return await Service.findByPk(service.id, { include: serviceIncludes });
 };
 
-// ✅ UPDATE SERVICE
+// =========================
+// UPDATE SERVICE
+// =========================
 const updateService = async (serviceId, updates) => {
   const service = await Service.findByPk(serviceId);
   if (!service) throw new Error("Service not found");
 
   const finalUpdates = { ...updates };
 
-  if (updates.name && typeof updates.name === "object") {
-    finalUpdates.name = { ...service.name, ...updates.name };
-  }
-  if (updates.description && typeof updates.description === "object") {
-    finalUpdates.description = {
-      ...service.description,
-      ...updates.description,
-    };
-  }
+  if (updates.name)        finalUpdates.name        = await autoTranslate(updates.name);
+  if (updates.description) finalUpdates.description = await autoTranslate(updates.description);
+  if (updates.subdivision) finalUpdates.subdivision = await autoTranslate(updates.subdivision);
+  if (updates.street)      finalUpdates.street      = await autoTranslate(updates.street);
 
   await service.update(finalUpdates);
-
-  return await Service.findByPk(serviceId, {
-    include: serviceIncludes,
-  });
+  return await Service.findByPk(serviceId, { include: serviceIncludes });
 };
 
-// ✅ GET ALL SERVICES
-// ✅ GET ALL SERVICES (English Only)
-const getAllServices = async () => {
+// =========================
+// GET ALL SERVICES
+// =========================
+const getAllServices = async (lang = "en") => {
   const services = await Service.findAll({
-    include: serviceIncludes,
+    include: [...serviceIncludes, kebeleWithTeams],
     order: [["createdAt", "DESC"]],
   });
 
-  return services.map((s) => {
-    const item = s.get({ plain: true });
-
-    /**
-     * Helper to extract English string or first available translation
-     */
-    const toEnglish = (field) => {
-      const parsed = parseJsonField(field);
-      if (!parsed || typeof parsed !== "object") return parsed;
-      return parsed["en"] || Object.values(parsed)[0] || "";
-    };
-
-    return {
-      ...item,
-      name: toEnglish(item.name),
-      description: toEnglish(item.description),
-      subdivision: toEnglish(item.subdivision),
-      street: toEnglish(item.street),
-      serviceType: item.serviceType
-        ? {
-            ...item.serviceType,
-            name: toEnglish(item.serviceType.name),
-          }
-        : null,
-      serviceCategory: item.serviceCategory
-        ? {
-            ...item.serviceCategory,
-            name: toEnglish(item.serviceCategory.name),
-          }
-        : null,
-    };
-  });
+  return lang === "all"
+    ? services
+    : services.map((s) => localizeService(s, lang));
 };
 
-// ✅ GET SERVICES BY SERVICE TYPE
-const getServicesByType = async (serviceTypeId) => {
-  return await Service.findAll({
+// =========================
+// GET SERVICES BY TYPE
+// =========================
+const getServicesByType = async (serviceTypeId, lang = "en") => {
+  const services = await Service.findAll({
     where: { serviceTypeId: parseInt(serviceTypeId) },
-    include: serviceIncludes,
+    include: [...serviceIncludes, kebeleWithTeams],
     order: [["createdAt", "DESC"]],
   });
+
+  return lang === "all"
+    ? services
+    : services.map((s) => localizeService(s, lang));
 };
 
-// ✅ GET SERVICES BY USER
-const getServicesByUser = async (citizenId) => {
+// =========================
+// GET SERVICES BY USER
+// =========================
+const getServicesByUser = async (citizenId, lang = "en") => {
   const parsedId = parseInt(citizenId);
   if (isNaN(parsedId)) throw new Error("Invalid User ID provided");
 
-  return await Service.findAll({
+  const services = await Service.findAll({
     where: { citizenId: parsedId },
-    include: serviceIncludes,
+    include: [...serviceIncludes, kebeleWithTeams],
     order: [["createdAt", "DESC"]],
   });
+
+  return lang === "all"
+    ? services
+    : services.map((s) => localizeService(s, lang));
 };
 
-// ✅ DELETE SERVICE
+// =========================
+// DELETE SERVICE
+// =========================
 const deleteService = async (serviceId) => {
   const service = await Service.findByPk(serviceId);
   if (!service) throw new Error("Service not found");
-
   await service.destroy();
   return { success: true, message: "Service deleted successfully" };
 };
 
-// ✅ GET SERVICES BY AGENCY
-const getServicesByAgency = async (agencyId) => {
+// =========================
+// GET SERVICES BY AGENCY
+// =========================
+const getServicesByAgency = async (agencyId, lang = "en") => {
   const agency = await Agency.findByPk(agencyId, {
     include: { model: AgencyType, as: "agencyType" },
   });
-
   if (!agency) throw new Error("Agency not found");
 
   const agencyTypeName =
@@ -253,46 +341,21 @@ const getServicesByAgency = async (agencyId) => {
     return [];
   }
 
-  // 1. Fetch the raw services
   const services = await Service.findAll({
     where: { serviceTypeId: serviceType.id },
-    include: serviceIncludes,
+    include: [...serviceIncludes, kebeleWithTeams],
     order: [["createdAt", "DESC"]],
   });
 
-  // 2. Helper to peel back extra stringification layers
-  const cleanJson = (val) => {
-    if (typeof val !== "string") return val;
-    try {
-      const parsed = JSON.parse(val);
-      // If it was double-stringified, parse it one more time
-      return typeof parsed === "string" ? JSON.parse(parsed) : parsed;
-    } catch {
-      return val;
-    }
-  };
-
-  // 3. Map and clean every service before returning to the controller
-  return services.map((s) => {
-    const item = s.get({ plain: true });
-    return {
-      ...item,
-      name: cleanJson(item.name),
-      description: cleanJson(item.description),
-      subdivision: cleanJson(item.subdivision),
-      street: cleanJson(item.street),
-      // Also clean the category name if it exists
-      serviceCategory: item.serviceCategory
-        ? {
-            ...item.serviceCategory,
-            name: cleanJson(item.serviceCategory.name),
-          }
-        : null,
-    };
-  });
+  return lang === "all"
+    ? services
+    : services.map((s) => localizeService(s, lang));
 };
-// ✅ GET SERVICES FOR RESPONDER TEAM (English Only)
-const getServicesForResponderTeam = async (responderTeamId) => {
+
+// =========================
+// GET SERVICES FOR RESPONDER TEAM
+// =========================
+const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
   const team = await ResponderTeam.findByPk(responderTeamId, {
     include: [
       {
@@ -302,42 +365,35 @@ const getServicesForResponderTeam = async (responderTeamId) => {
       },
     ],
   });
-
   if (!team) throw new Error("Responder Team not found");
 
-  // Determine the Agency Type Name (Internal logic still uses 'en' for matching)
   const agencyTypeName =
     typeof team.agency.agencyType?.name === "object"
       ? team.agency.agencyType.name.en
       : team.agency.agencyType?.name;
 
-  // Find matching ServiceType using JSONB query
   const serviceType = await ServiceType.findOne({
     where: sequelize.where(sequelize.json("name.en"), agencyTypeName),
   });
-
   if (!serviceType) return [];
 
   const services = await Service.findAll({
-    where: {
-      serviceTypeId: serviceType.id,
-    },
+    where: { serviceTypeId: serviceType.id },
     subQuery: false,
     include: [
       {
         model: Kebele,
         as: "kebele",
         required: true,
+        attributes: ["id", "name"],
         include: [
           {
             model: ResponderTeam,
             as: "teams",
+            attributes: ["id", "name"],
             where: { id: responderTeamId },
             required: true,
-            through: {
-              model: ResponderTeamKebele,
-              attributes: [],
-            },
+            through: { model: ResponderTeamKebele, attributes: [] },
           },
         ],
       },
@@ -346,56 +402,129 @@ const getServicesForResponderTeam = async (responderTeamId) => {
     order: [["createdAt", "DESC"]],
   });
 
-  // Flatten the response to return ONLY English strings
   return services.map((s) => {
     const item = s.get({ plain: true });
-
-    /**
-     * Internal Helper: Always prioritize 'en'.
-     * If 'en' is missing, it falls back to the first available string
-     * to prevent the dashboard from appearing empty.
-     */
-    const toEnglish = (field) => {
-      const parsed = parseJsonField(field);
-      if (!parsed || typeof parsed !== "object") return parsed;
-      return parsed["en"] || Object.values(parsed)[0] || "";
-    };
-
     return {
       ...item,
-      name: toEnglish(item.name),
-      description: toEnglish(item.description),
-      subdivision: toEnglish(item.subdivision),
-      street: toEnglish(item.street),
+      name:        resolveLocale(item.name, lang),
+      description: resolveLocale(item.description, lang),
+      subdivision: resolveLocale(item.subdivision, lang),
+      street:      resolveLocale(item.street, lang),
       serviceType: item.serviceType
-        ? {
-            ...item.serviceType,
-            name: toEnglish(item.serviceType.name),
-          }
+        ? { ...item.serviceType, name: resolveLocale(item.serviceType.name, lang) }
         : null,
       serviceCategory: item.serviceCategory
-        ? {
-            ...item.serviceCategory,
-            name: toEnglish(item.serviceCategory.name),
-          }
+        ? { ...item.serviceCategory, name: resolveLocale(item.serviceCategory.name, lang) }
         : null,
       kebele: item.kebele
         ? {
             ...item.kebele,
-            name: toEnglish(item.kebele.name),
+            name: resolveLocale(item.kebele.name, lang),
+            teams: (item.kebele.teams || []).map((t) => ({
+              ...t,
+              name: resolveLocale(t.name, lang),
+            })),
           }
         : null,
     };
   });
 };
 
+// =========================
+// GET ALL SERVICES FOR ADMIN
+// =========================
+const getAllServicesForAdmin = async (lang = "en") => {
+  try {
+    const services = await Service.findAll({
+      include: [
+        ...serviceIncludes,
+        kebeleWithTeams,
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    return services.map((s) => {
+      const localized =
+        lang === "all" ? s.get({ plain: true }) : localizeService(s, lang);
+
+      const assignedTeam = localized.kebele?.teams?.[0] || null;
+
+      return {
+        id:              localized.id,
+        name:            localized.name,
+        description:     localized.description,
+        subdivision:     localized.subdivision,
+        street:          localized.street,
+        serviceType:     resolveLocale(localized.serviceType?.name, lang) || null,
+        serviceCategory: resolveLocale(localized.serviceCategory?.name, lang) || null,
+        kebele:          resolveLocale(localized.kebele?.name, lang) || null,
+        kebeleData:      localized.kebele || null,
+        assignedStation: assignedTeam
+          ? {
+              id:     assignedTeam.id,
+              name:   resolveLocale(assignedTeam.name, lang),
+              kebele: resolveLocale(localized.kebele?.name, lang) || null,
+            }
+          : null,
+        reporterName:    localized.citizen?.fullName || "Registered User",
+        status:          localized.status,
+        createdAt:       localized.createdAt,
+      };
+    });
+  } catch (err) {
+    console.error("❌ Error in getAllServicesForAdmin:", err);
+    throw err;
+  }
+};
+
+// =========================
+// GET SINGLE SERVICE BY ID
+// =========================
+const getServiceById = async (id, lang = "en") => {
+  try {
+    const service = await Service.findByPk(id, {
+      include: [...serviceIncludes, kebeleWithTeams],
+    });
+    if (!service) return null;
+
+    const base =
+      lang === "all" ? service.toJSON() : localizeService(service, lang);
+
+    return {
+      ...base,
+      reporterName: service.citizen?.fullName || "Registered User",
+      location:
+        typeof base.location === "string"
+          ? JSON.parse(base.location)
+          : base.location,
+    };
+  } catch (err) {
+    console.error("❌ Error in getServiceById:", err);
+    throw err;
+  }
+};
+
+// =========================
+// UPDATE SERVICE STATUS
+// =========================
+const updateServiceStatus = async (serviceId, status, report = null) => {
+  const service = await Service.findByPk(serviceId);
+  if (!service) throw new Error("Service record not found in database");
+  service.status = status;
+  if (report) service.report = report;
+  return await service.save();
+};
+
 module.exports = {
   createService,
   updateService,
   getAllServices,
+  getAllServicesForAdmin,
+  getServiceById,
   getServicesByType,
   getServicesByUser,
   deleteService,
   getServicesByAgency,
   getServicesForResponderTeam,
+  updateServiceStatus,
 };

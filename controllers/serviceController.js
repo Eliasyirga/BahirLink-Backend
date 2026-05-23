@@ -1,8 +1,23 @@
 const serviceService = require("../services/serviceService");
 
 /**
+ * Reads the preferred language from:
+ *  1. Accept-Language header  (Flutter client sends "am" or "en")
+ *  2. ?lang= query param      (admin / web dashboards)
+ *  3. Defaults to "en"
+ */
+const parseLang = (req) => {
+  // Query param wins if explicitly set (admin panel use-case).
+  if (req.query.lang && req.query.lang !== "en") return req.query.lang;
+
+  const header = (req.headers["accept-language"] || "").split(/[,;]/)[0].trim().toLowerCase();
+  if (header === "am" || header.startsWith("am-")) return "am";
+
+  return req.query.lang || "en";
+};
+
+/**
  * ✅ CREATE SERVICE
- * Handles file uploads and initial data creation.
  */
 exports.create = async (req, res) => {
   try {
@@ -38,7 +53,7 @@ exports.create = async (req, res) => {
  */
 exports.getAll = async (req, res) => {
   try {
-    const lang = req.query.lang || "en";
+    const lang = parseLang(req);
     const services = await serviceService.getAllServices(lang);
 
     return res.status(200).json({
@@ -54,11 +69,12 @@ exports.getAll = async (req, res) => {
 
 /**
  * ✅ GET SERVICES BY USER
+ * Flutter sends Accept-Language: am or Accept-Language: en
  */
 exports.getByUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const lang = req.query.lang || "en";
+    const lang = parseLang(req);   // ← was: req.query.lang || "en"
 
     if (!userId || isNaN(parseInt(userId))) {
       return res.status(400).json({
@@ -90,7 +106,7 @@ exports.getByUser = async (req, res) => {
 exports.getByServiceType = async (req, res) => {
   try {
     const { serviceTypeId } = req.params;
-    const lang = req.query.lang || "en";
+    const lang = parseLang(req);
 
     const services = await serviceService.getServicesByType(
       serviceTypeId,
@@ -114,7 +130,7 @@ exports.getByServiceType = async (req, res) => {
 exports.getServicesByAgency = async (req, res) => {
   try {
     const { agencyId } = req.params;
-    const lang = req.query.lang || "en";
+    const lang = parseLang(req);
 
     if (!agencyId || isNaN(parseInt(agencyId))) {
       return res
@@ -141,7 +157,6 @@ exports.getServicesByAgency = async (req, res) => {
 
 /**
  * ✅ UPDATE SERVICE
- * Handles deep merging of JSONB fields (name/description)
  */
 exports.update = async (req, res) => {
   try {
@@ -182,7 +197,7 @@ exports.delete = async (req, res) => {
 exports.getResponderTeamServices = async (req, res) => {
   try {
     const responderTeamId = req.params.id;
-    const lang = req.query.lang || "en";
+    const lang = parseLang(req);
 
     if (!responderTeamId) {
       return res.status(400).json({

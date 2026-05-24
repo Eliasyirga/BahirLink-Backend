@@ -2,22 +2,19 @@ const express = require("express");
 const router = express.Router();
 const caseReportsController = require("../controllers/caseReportsController");
 
-// ✅ Create a new report
+// ── CREATE ────────────────────────────────────────────────────────────────────
 router.post("/", caseReportsController.createReport);
 
-// ✅ Get all reports
+// ── READ ──────────────────────────────────────────────────────────────────────
 router.get("/", caseReportsController.getAllReports);
-
-// ✅ Specific filtering routes (Changed to unique paths)
-router.get("/case/:caseId", caseReportsController.getReportsByCase);
-
-router.get("/type/:caseTypeId", caseReportsController.getReportsByCaseType);
-
+router.get("/case/:caseId",         caseReportsController.getReportsByCase);
+router.get("/type/:caseTypeId",     caseReportsController.getReportsByCaseType);
 router.get("/reporter/:reporterId", caseReportsController.getReportsByReporter);
 
-// ✅ Status update and deletion
+// ── UPDATE ────────────────────────────────────────────────────────────────────
 router.patch("/status/:id", caseReportsController.updateReportStatus);
 
+// ── DELETE ────────────────────────────────────────────────────────────────────
 router.delete("/:id", caseReportsController.deleteReport);
 
 module.exports = router;

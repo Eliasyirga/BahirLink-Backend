@@ -1,87 +1,102 @@
 const caseReportsService = require("../services/caseReportsService");
 
-/**
- * HELPER: Get Language
- * Extracts 'lang' from headers (e.g., 'accept-language') or query string.
- */
-const getLang = (req) => req.query.lang || req.headers["accept-language"] || "en";
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ✅ CREATE REPORT
+/**
+ * Extract and normalize lang from ?lang= query param or Accept-Language header.
+ * Normalization happens again in the service, but keeping it here avoids
+ * passing garbage strings deeper into the stack.
+ */
+const getLang = (req) => {
+  const raw = req.query.lang || req.headers["accept-language"] || "en";
+  return raw.split(/[,;-]/)[0].trim().toLowerCase() || "en";
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTROLLERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** POST /api/case-reports */
 const createReport = async (req, res) => {
   try {
-    // If authenticated, you can auto-assign reporterId:
-    // const data = { ...req.body, reporterId: req.user?.id };
-    
     const report = await caseReportsService.createReport(req.body);
-    res.status(201).json({ success: true, report });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    res.status(201).json({ success: true, data: report });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
 };
 
-// ✅ GET ALL REPORTS
+/** GET /api/case-reports */
 const getAllReports = async (req, res) => {
   try {
-    const lang = getLang(req);
-    const reports = await caseReportsService.getAllReports(lang);
-    res.status(200).json({ success: true, reports });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    const reports = await caseReportsService.getAllReports(getLang(req));
+    res.status(200).json({ success: true, data: reports });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
-// ✅ GET REPORTS BY CASE
+/** GET /api/case-reports/case/:caseId  ← used by CaseDetailPage */
 const getReportsByCase = async (req, res) => {
   try {
-    const lang = getLang(req);
-    const reports = await caseReportsService.getReportsByCase(req.params.caseId, lang);
-    res.status(200).json({ success: true, reports });
-  } catch (error) {
-    res.status(404).json({ success: false, error: error.message });
+    const reports = await caseReportsService.getReportsByCase(
+      req.params.caseId,
+      getLang(req)
+    );
+    res.status(200).json({ success: true, data: reports });
+  } catch (err) {
+    res.status(404).json({ success: false, error: err.message });
   }
 };
 
-// ✅ GET REPORTS BY CASE TYPE
+/** GET /api/case-reports/type/:caseTypeId */
 const getReportsByCaseType = async (req, res) => {
   try {
-    const lang = getLang(req);
-    // Note: ensure your service has getReportsByCaseType implemented with lang support
-    const reports = await caseReportsService.getReportsByCaseType(req.params.caseTypeId, lang);
-    res.status(200).json({ success: true, reports });
-  } catch (error) {
-    res.status(404).json({ success: false, error: error.message });
+    const reports = await caseReportsService.getReportsByCaseType(
+      req.params.caseTypeId,
+      getLang(req)
+    );
+    res.status(200).json({ success: true, data: reports });
+  } catch (err) {
+    res.status(404).json({ success: false, error: err.message });
   }
 };
 
-// ✅ GET REPORTS BY REPORTER
+/** GET /api/case-reports/reporter/:reporterId */
 const getReportsByReporter = async (req, res) => {
   try {
-    const lang = getLang(req);
-    const reports = await caseReportsService.getReportsByReporter(req.params.reporterId, lang);
-    res.status(200).json({ success: true, reports });
-  } catch (error) {
-    res.status(404).json({ success: false, error: error.message });
+    const reports = await caseReportsService.getReportsByReporter(
+      req.params.reporterId,
+      getLang(req)
+    );
+    res.status(200).json({ success: true, data: reports });
+  } catch (err) {
+    res.status(404).json({ success: false, error: err.message });
   }
 };
 
-// ✅ UPDATE REPORT STATUS
+/** PATCH /api/case-reports/status/:id */
 const updateReportStatus = async (req, res) => {
   try {
-    const { status } = req.body;
-    const report = await caseReportsService.updateReportStatus(req.params.id, status);
-    res.status(200).json({ success: true, report });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    const report = await caseReportsService.updateReportStatus(
+      req.params.id,
+      req.body.status
+    );
+    res.status(200).json({ success: true, data: report });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
 };
 
-// ✅ DELETE REPORT
+/** DELETE /api/case-reports/:id */
 const deleteReport = async (req, res) => {
   try {
     const result = await caseReportsService.deleteReport(req.params.id);
     res.status(200).json({ success: true, ...result });
-  } catch (error) {
-    res.status(404).json({ success: false, error: error.message });
+  } catch (err) {
+    res.status(404).json({ success: false, error: err.message });
   }
 };
 

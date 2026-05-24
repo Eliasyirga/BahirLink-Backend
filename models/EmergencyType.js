@@ -11,18 +11,18 @@ const EmergencyType = sequelize.define(
     },
     // name will now store: { "en": "Police", "am": "ፖሊስ" }
     name: {
-      type: DataTypes.JSONB, // Change from JSON to JSONB
+      type: DataTypes.JSONB,
       allowNull: false,
     },
     description: {
-      type: DataTypes.JSONB, // Change from JSON to JSONB
+      type: DataTypes.JSONB, 
       allowNull: true,
     },
   },
   {
     tableName: "emergency_types",
     timestamps: true,
-  }
+  },
 );
 
 module.exports = EmergencyType;

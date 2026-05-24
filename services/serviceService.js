@@ -32,9 +32,9 @@ const kebeleWithTeams = {
 };
 
 const serviceIncludes = [
-  { model: ServiceType,     as: "serviceType",     attributes: ["id", "name"] },
+  { model: ServiceType, as: "serviceType", attributes: ["id", "name"] },
   { model: ServiceCategory, as: "serviceCategory", attributes: ["id", "name"] },
-  { model: User,            as: "citizen",         attributes: ["id", "fullName", "email"] },
+  { model: User, as: "citizen", attributes: ["id", "fullName", "email"] },
 ];
 
 // =========================
@@ -141,7 +141,7 @@ const resolveLocale = (value, lang) => {
 const localizeService = (
   item,
   lang,
-  fields = ["name", "description", "subdivision", "street"]
+  fields = ["name", "description", "subdivision", "street"],
 ) => {
   if (!item) return null;
   const plain =
@@ -188,73 +188,106 @@ const createService = async (data, userIdFromParams, file) => {
     mediaUrl = `/uploads/${file.filename}`;
   }
 
-  const serviceTypeId     = data.serviceTypeId     ? parseInt(data.serviceTypeId)     : null;
-  const serviceCategoryId = data.serviceCategoryId ? parseInt(data.serviceCategoryId) : null;
-  const citizenId         = parseInt(userIdFromParams || data.citizenId);
+  const serviceTypeId = data.serviceTypeId
+    ? parseInt(data.serviceTypeId)
+    : null;
+  const serviceCategoryId = data.serviceCategoryId
+    ? parseInt(data.serviceCategoryId)
+    : null;
+  const citizenId = parseInt(userIdFromParams || data.citizenId);
 
   let finalLocation = data.location;
   if (data.latitude && data.longitude) {
     finalLocation = {
-      latitude:  parseFloat(data.latitude),
+      latitude: parseFloat(data.latitude),
       longitude: parseFloat(data.longitude),
     };
   }
 
-  // Bidirectional translation for all text fields
-  const processedName        = await autoTranslate(data.name        || `Service Request`);
+  const processedName = await autoTranslate(data.name || `Service Request`);
   const processedDescription = await autoTranslate(data.description || "");
   const processedSubdivision = await autoTranslate(data.subdivision || "");
-  const processedStreet      = await autoTranslate(data.street      || "");
+  const processedStreet = await autoTranslate(data.street || "");
 
   const service = await Service.create({
-    name:             processedName,
-    description:      processedDescription,
-    subdivision:      processedSubdivision,
-    street:           processedStreet,
-    kebeleId:         data.kebeleId ? parseInt(data.kebeleId) : null,
+    name: processedName,
+    description: processedDescription,
+    subdivision: processedSubdivision,
+    street: processedStreet,
+    kebeleId: data.kebeleId ? parseInt(data.kebeleId) : null,
     serviceTypeId,
     serviceCategoryId,
     citizenId,
-    location:         finalLocation,
+    location: finalLocation,
     mediaUrl,
-    mediaType:        data.mediaType || (file ? "photo" : null),
-    status:           "pending",
-    time:             data.time || new Date().toLocaleTimeString("it-IT"),
+    mediaType: data.mediaType || (file ? "photo" : null),
+    status: "pending",
+    time: data.time || new Date().toLocaleTimeString("it-IT"),
   });
 
   return await Service.findByPk(service.id, { include: serviceIncludes });
 };
 
-// =========================
-// UPDATE SERVICE
-// =========================
 const updateService = async (serviceId, updates) => {
   const service = await Service.findByPk(serviceId);
   if (!service) throw new Error("Service not found");
 
   const finalUpdates = { ...updates };
 
-  if (updates.name)        finalUpdates.name        = await autoTranslate(updates.name);
-  if (updates.description) finalUpdates.description = await autoTranslate(updates.description);
-  if (updates.subdivision) finalUpdates.subdivision = await autoTranslate(updates.subdivision);
-  if (updates.street)      finalUpdates.street      = await autoTranslate(updates.street);
+  if (updates.name) finalUpdates.name = await autoTranslate(updates.name);
+  if (updates.description)
+    finalUpdates.description = await autoTranslate(updates.description);
+  if (updates.subdivision)
+    finalUpdates.subdivision = await autoTranslate(updates.subdivision);
+  if (updates.street) finalUpdates.street = await autoTranslate(updates.street);
 
   await service.update(finalUpdates);
   return await Service.findByPk(serviceId, { include: serviceIncludes });
 };
 
-// =========================
-// GET ALL SERVICES
-// =========================
 const getAllServices = async (lang = "en") => {
   const services = await Service.findAll({
     include: [...serviceIncludes, kebeleWithTeams],
     order: [["createdAt", "DESC"]],
   });
 
-  return lang === "all"
-    ? services
-    : services.map((s) => localizeService(s, lang));
+  if (lang === "all") return services;
+
+  return services.map((s) => {
+    // Localize relational objects using your core utility
+    const localized = localizeService(s, lang);
+    const plainService =
+      typeof localized.get === "function"
+        ? localized.get({ plain: true })
+        : localized;
+
+    // Helper to safely unpack nested JSON strings for core string text fields
+    const unpackField = (field) => {
+      if (!field) return "";
+      let val = field;
+      if (typeof val === "string") {
+        const trimmed = val.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          try {
+            val = JSON.parse(trimmed);
+          } catch (e) {
+            return val;
+          }
+        }
+      }
+      if (typeof val === "object" && val !== null) {
+        return val[lang] || val["en"] || "";
+      }
+      return String(val);
+    };
+
+    return {
+      ...plainService,
+      name: unpackField(plainService.name),
+      description: unpackField(plainService.description),
+      subdivision: unpackField(plainService.subdivision),
+    };
+  });
 };
 
 // =========================
@@ -267,14 +300,49 @@ const getServicesByType = async (serviceTypeId, lang = "en") => {
     order: [["createdAt", "DESC"]],
   });
 
-  return lang === "all"
-    ? services
-    : services.map((s) => localizeService(s, lang));
+  if (lang === "all") return services;
+
+  return services.map((s) => {
+    // Localize relational objects using your core utility
+    const localized = localizeService(s, lang);
+    const plainService =
+      typeof localized.get === "function"
+        ? localized.get({ plain: true })
+        : localized;
+
+    // Helper to safely unpack nested JSON strings for core string text fields
+    const unpackField = (field) => {
+      if (!field) return "";
+      let val = field;
+      if (typeof val === "string") {
+        const trimmed = val.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          try {
+            val = JSON.parse(trimmed);
+          } catch (e) {
+            return val;
+          }
+        }
+      }
+      if (typeof val === "object" && val !== null) {
+        return val[lang] || val["en"] || "";
+      }
+      return String(val);
+    };
+
+    return {
+      ...plainService,
+      name: unpackField(plainService.name),
+      description: unpackField(plainService.description),
+      subdivision: unpackField(plainService.subdivision),
+    };
+  });
 };
 
 // =========================
 // GET SERVICES BY USER
 // =========================
+
 const getServicesByUser = async (citizenId, lang = "en") => {
   const parsedId = parseInt(citizenId);
   if (isNaN(parsedId)) throw new Error("Invalid User ID provided");
@@ -406,15 +474,21 @@ const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
     const item = s.get({ plain: true });
     return {
       ...item,
-      name:        resolveLocale(item.name, lang),
+      name: resolveLocale(item.name, lang),
       description: resolveLocale(item.description, lang),
       subdivision: resolveLocale(item.subdivision, lang),
-      street:      resolveLocale(item.street, lang),
+      street: resolveLocale(item.street, lang),
       serviceType: item.serviceType
-        ? { ...item.serviceType, name: resolveLocale(item.serviceType.name, lang) }
+        ? {
+            ...item.serviceType,
+            name: resolveLocale(item.serviceType.name, lang),
+          }
         : null,
       serviceCategory: item.serviceCategory
-        ? { ...item.serviceCategory, name: resolveLocale(item.serviceCategory.name, lang) }
+        ? {
+            ...item.serviceCategory,
+            name: resolveLocale(item.serviceCategory.name, lang),
+          }
         : null,
       kebele: item.kebele
         ? {
@@ -436,39 +510,60 @@ const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
 const getAllServicesForAdmin = async (lang = "en") => {
   try {
     const services = await Service.findAll({
-      include: [
-        ...serviceIncludes,
-        kebeleWithTeams,
-      ],
+      include: [...serviceIncludes, kebeleWithTeams],
       order: [["createdAt", "DESC"]],
     });
 
     return services.map((s) => {
+      // 1. Core localization extraction helper
       const localized =
         lang === "all" ? s.get({ plain: true }) : localizeService(s, lang);
+
+      // 2. BACKEND SAFETY NET: Inline parse double-stringified objects if present
+      const parseField = (field) => {
+        if (!field) return "";
+        let current = field;
+
+        // If it arrives as an escaped text string, parse it to a true object
+        if (typeof current === "string") {
+          try {
+            current = JSON.parse(current);
+          } catch (e) {
+            return current; // Not JSON, return plain string fallback
+          }
+        }
+
+        // Extract target language value safely
+        if (typeof current === "object" && current !== null) {
+          return current[lang] || current["en"] || "";
+        }
+        return String(current);
+      };
 
       const assignedTeam = localized.kebele?.teams?.[0] || null;
 
       return {
-        id:              localized.id,
-        name:            localized.name,
-        description:     localized.description,
-        subdivision:     localized.subdivision,
-        street:          localized.street,
-        serviceType:     resolveLocale(localized.serviceType?.name, lang) || null,
-        serviceCategory: resolveLocale(localized.serviceCategory?.name, lang) || null,
-        kebele:          resolveLocale(localized.kebele?.name, lang) || null,
-        kebeleData:      localized.kebele || null,
+        id: localized.id,
+        // Apply the safe extraction filter directly to main database properties
+        name: parseField(localized.name),
+        description: parseField(localized.description),
+        subdivision: parseField(localized.subdivision),
+        street: localized.street,
+        serviceType: resolveLocale(localized.serviceType?.name, lang) || null,
+        serviceCategory:
+          resolveLocale(localized.serviceCategory?.name, lang) || null,
+        kebele: resolveLocale(localized.kebele?.name, lang) || null,
+        kebeleData: localized.kebele || null,
         assignedStation: assignedTeam
           ? {
-              id:     assignedTeam.id,
-              name:   resolveLocale(assignedTeam.name, lang),
+              id: assignedTeam.id,
+              name: resolveLocale(assignedTeam.name, lang),
               kebele: resolveLocale(localized.kebele?.name, lang) || null,
             }
           : null,
-        reporterName:    localized.citizen?.fullName || "Registered User",
-        status:          localized.status,
-        createdAt:       localized.createdAt,
+        reporterName: localized.citizen?.fullName || "Registered User",
+        status: localized.status,
+        createdAt: localized.createdAt,
       };
     });
   } catch (err) {

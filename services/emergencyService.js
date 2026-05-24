@@ -14,14 +14,12 @@ const {
 } = require("../models");
 const translate = require("google-translate-api-x");
 
-// Hard-coded mapping for agency types
 const emergencyTypeToAgencyType = {
   Crime: "Police",
-  Health: "Health",
+  Medical: "Health",
   Fire: "Fire",
 };
 
-// Default EmergencyType ID for fallback
 const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
 // =========================
@@ -115,7 +113,7 @@ const autoTranslate = async (fieldData) => {
 const localizeEmergency = (
   item,
   lang,
-  fields = ["description", "subdivision"]
+  fields = ["description", "subdivision"],
 ) => {
   if (!item) return null;
   const plain =
@@ -166,7 +164,7 @@ const createGuestEmergency = async (data, file, transaction) => {
 
   if (emergencyData.kebeleId || emergencyData.kebele) {
     emergencyData.kebeleId = parseInt(
-      emergencyData.kebeleId || emergencyData.kebele
+      emergencyData.kebeleId || emergencyData.kebele,
     );
     delete emergencyData.kebele;
   }
@@ -209,7 +207,7 @@ const createGuestEmergency = async (data, file, transaction) => {
 
   return await Emergency.create(
     emergencyData,
-    transaction ? { transaction } : {}
+    transaction ? { transaction } : {},
   );
 };
 
@@ -261,7 +259,7 @@ const updateEmergency = async (
   emergencyId,
   updatedData,
   file,
-  isGuest = false
+  isGuest = false,
 ) => {
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
@@ -286,14 +284,7 @@ const updateEmergency = async (
   return await emergency.update(updatedData);
 };
 
-// =========================
-// DELETE EMERGENCY
-// =========================
-const deleteEmergency = async (
-  userOrGuestId,
-  emergencyId,
-  isGuest = false
-) => {
+const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
   const whereClause = isGuest
     ? { id: emergencyId, guestId: userOrGuestId }
     : { id: emergencyId, citizenId: userOrGuestId };
@@ -304,15 +295,7 @@ const deleteEmergency = async (
   return { message: "Emergency deleted successfully" };
 };
 
-// =========================
-// RETRIEVAL LOGIC
-// =========================
-
-const getEmergencies = async (
-  userOrGuestId,
-  isGuest = false,
-  lang = "en"
-) => {
+const getEmergencies = async (userOrGuestId, isGuest = false, lang = "en") => {
   const whereClause = isGuest
     ? { guestId: userOrGuestId }
     : { citizenId: userOrGuestId };
@@ -320,10 +303,7 @@ const getEmergencies = async (
   const emergencies = await Emergency.findAll({
     where: whereClause,
     order: [["createdAt", "DESC"]],
-    include: [
-      { model: EmergencyType, as: "emergencyType" },
-      kebeleWithTeams,
-    ],
+    include: [{ model: EmergencyType, as: "emergencyType" }, kebeleWithTeams],
   });
 
   return lang === "all"
@@ -362,7 +342,6 @@ const getEmergenciesByAgency = async (agencyId, lang = "en") => {
         attributes: ["id", "name", "description"],
       },
       { model: Category, as: "category", attributes: ["id", "name"] },
-      // ← kebeleWithTeams replaces the plain Kebele include
       kebeleWithTeams,
     ],
     order: [["createdAt", "DESC"]],
@@ -378,17 +357,37 @@ const getEmergenciesByAgency = async (agencyId, lang = "en") => {
 // Already filtered to the team's kebeles. We still embed teams on
 // the kebele so the shape is consistent with every other endpoint.
 // =========================
-const getEmergenciesForResponderTeam = async (
-  responderTeamId,
-  lang = "en"
-) => {
+const getEmergenciesForResponderTeam = async (responderTeamId, lang = "en") => {
   const team = await ResponderTeam.findByPk(responderTeamId, {
-    include: [{ model: Agency, as: "agency" }],
+    include: [
+      {
+        model: Agency,
+        as: "agency",
+        include: { model: AgencyType, as: "agencyType" },
+      },
+    ],
   });
   if (!team) throw new Error("Team not found");
+  if (!team.agency) throw new Error("Agency not found for this team");
+
+  const agencyTypeName =
+    typeof team.agency.agencyType?.name === "object"
+      ? team.agency.agencyType.name.en
+      : team.agency.agencyType?.name;
+
+  if (!agencyTypeName) return [];
+
+  const handledEmergencyTypes = Object.entries(emergencyTypeToAgencyType)
+    .filter(([, aType]) => aType === agencyTypeName)
+    .map(([etype]) => etype);
+
+  if (!handledEmergencyTypes.length) return [];
 
   const emergencies = await Emergency.findAll({
-    where: { status: { [Op.ne]: "resolved" } },
+    where: {
+      status: { [Op.ne]: "resolved" },
+      "$kebele.teams.id$": responderTeamId,
+    },
     include: [
       {
         model: Kebele,
@@ -400,27 +399,44 @@ const getEmergenciesForResponderTeam = async (
             model: ResponderTeam,
             as: "teams",
             attributes: ["id", "name"],
-            // Filter to only the requesting team for this view,
-            // but use required:false so the row still comes through.
             where: { id: responderTeamId },
             required: true,
-            through: { model: ResponderTeamKebele, attributes: [] },
+            through: { attributes: [] },
           },
         ],
       },
       {
         model: EmergencyType,
         as: "emergencyType",
+        where: { name: { en: { [Op.in]: handledEmergencyTypes } } },
+        attributes: ["id", "name", "description"],
+      },
+      {
+        model: Category,
+        as: "category",
         attributes: ["id", "name"],
       },
-      { model: Category, as: "category", attributes: ["id", "name"] },
     ],
     order: [["createdAt", "DESC"]],
   });
 
   const toLocale = (field) => {
-    if (!field || typeof field !== "object") return field;
-    return field[lang] || field["en"] || Object.values(field)[0] || "";
+    if (!field) return "";
+    let target = field;
+
+    if (typeof field === "string" && field.trim().startsWith("{")) {
+      try {
+        target = JSON.parse(field);
+      } catch (e) {
+        return field;
+      }
+    }
+
+    if (typeof target === "object" && target !== null) {
+      return target[lang] || target["en"] || Object.values(target)[0] || "";
+    }
+
+    return target;
   };
 
   return emergencies.map((e) => {
@@ -444,7 +460,6 @@ const getEmergenciesForResponderTeam = async (
         ? {
             ...item.kebele,
             name: toLocale(item.kebele.name),
-            // Localize team names so the frontend gets plain strings
             teams: (item.kebele.teams || []).map((t) => ({
               ...t,
               name: toLocale(t.name),
@@ -470,7 +485,6 @@ const getAllEmergenciesForAdmin = async (lang = "en") => {
           attributes: ["id", "name"],
         },
         { model: Category, as: "category", attributes: ["id", "name"] },
-        // ← kebeleWithTeams so admin view also has team data
         kebeleWithTeams,
         {
           model: User,
@@ -484,11 +498,8 @@ const getAllEmergenciesForAdmin = async (lang = "en") => {
 
     return emergencies.map((e) => {
       const localized =
-        lang === "all"
-          ? e.get({ plain: true })
-          : localizeEmergency(e, lang);
+        lang === "all" ? e.get({ plain: true }) : localizeEmergency(e, lang);
 
-      // Resolve first assigned team from the kebele relationship
       const assignedTeam = localized.kebele?.teams?.[0] || null;
 
       return {
@@ -506,12 +517,10 @@ const getAllEmergenciesForAdmin = async (lang = "en") => {
           typeof localized.kebele?.name === "object"
             ? localized.kebele.name[lang] || localized.kebele.name["en"]
             : localized.kebele?.name || null,
-        // Full kebele object with teams array kept for the frontend
         kebeleData: localized.kebele || null,
-        // Convenience top-level field — mirrors what the frontend reads
         assignedStation: assignedTeam
           ? {
-              id:     assignedTeam.id,
+              id: assignedTeam.id,
               name:
                 typeof assignedTeam.name === "object"
                   ? assignedTeam.name[lang] || assignedTeam.name["en"]
@@ -565,9 +574,7 @@ const getEmergencyById = async (id, lang = "en") => {
     if (!emergency) return null;
 
     const base =
-      lang === "all"
-        ? emergency.toJSON()
-        : localizeEmergency(emergency, lang);
+      lang === "all" ? emergency.toJSON() : localizeEmergency(emergency, lang);
 
     return {
       ...base,
@@ -588,11 +595,7 @@ const getEmergencyById = async (id, lang = "en") => {
 // =========================
 // UPDATE EMERGENCY STATUS
 // =========================
-const updateEmergencyStatus = async (
-  emergencyId,
-  status,
-  report = null
-) => {
+const updateEmergencyStatus = async (emergencyId, status, report = null) => {
   const emergency = await Emergency.findByPk(emergencyId);
   if (!emergency) throw new Error("Emergency record not found in database");
 

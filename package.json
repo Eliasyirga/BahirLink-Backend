@@ -17,6 +17,7 @@
     "@vladmandic/face-api": "^1.4.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
+    "debug": "^4.4.3",
     "dotenv": "^17.2.3",
     "express": "^4.22.1",
     "google-translate-api-x": "^10.7.2",

@@ -19,7 +19,7 @@
     "cors": "^2.8.5",
     "debug": "^4.4.3",
     "dotenv": "^17.2.3",
-    "express": "^4.22.1",
+    "express": "^4.21.2",
     "google-translate-api-x": "^10.7.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.20.1",

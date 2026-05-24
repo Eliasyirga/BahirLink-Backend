@@ -1,7 +1,12 @@
-const { ResponderTeam, Kebele, ResponderTeamKebele } = require("../models");
+const {
+  ResponderTeam,
+  Kebele,
+  ResponderTeamKebele,
+  Agency,
+} = require("../models");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
+const { Op } = require("sequelize");
 
 const createTeam = async (data) => {
   const { name, username, email, password, phone, agencyId, status, kebeles } =
@@ -190,8 +195,24 @@ const getTeamById = async (id) => {
     include: [
       {
         model: Kebele,
-        as: "kebeles", // make sure your association uses this alias
-        through: { attributes: [] }, // if using a join table
+        as: "kebeles",
+        through: { attributes: [] },
+      },
+    ],
+  });
+};
+const fetchTeamsByMultipleAgencyTypeNames = async (namesList) => {
+  return await ResponderTeam.findAll({
+    include: [
+      {
+        model: Agency,
+        as: "agency", // ◄── ADD THIS ALIAS PROPERTY HERE
+        required: true,
+        where: {
+          name: {
+            [Op.in]: namesList,
+          },
+        },
       },
     ],
   });
@@ -205,4 +226,5 @@ module.exports = {
   getAllTeams,
   getTeamsByAgency,
   getTeamById,
+  fetchTeamsByMultipleAgencyTypeNames,
 };

@@ -29,9 +29,6 @@ const caseReportsRoutes = require("./routes/caseReportsRoutes");
 const emergedRoutes = require("./routes/emergedRoutes");
 const finalReportRoutes = require("./routes/finalReportRoutes");
 
-// NOTE: messageRoutes is a factory — imported below AFTER io is created.
-
-// --- Socket logic & Middleware ---
 const chatSocket = require("./socket/chatSocket");
 const videoCallSocket = require("./socket/videoCallSocket");
 const socketAuth = require("./middleware/socketAuth");
@@ -40,11 +37,6 @@ const langMiddleware = require("./middleware/lang.middleware");
 const app = express();
 const server = http.createServer(app);
 
-/**
- * ======================
- * SOCKET.IO SETUP
- * ======================
- */
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -62,11 +54,6 @@ io.on("connection", (socket) => {
   videoCallSocket(io, socket);
 });
 
-/**
- * ======================
- * EXPRESS MIDDLEWARE
- * ======================
- */
 app.use(express.json());
 app.use(
   cors({
@@ -78,12 +65,6 @@ app.use(
 // Static File Serving
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 app.use("/public", express.static("public"));
-
-/**
- * ======================
- * REST API ROUTES
- * ======================
- */
 
 app.get("/", (req, res) =>
   res.send("BahirLink Mission-Critical Backend is Live."),
@@ -112,15 +93,8 @@ app.use("/api/caseReports", caseReportsRoutes);
 app.use("/api/emerged", emergedRoutes);
 app.use("/api/finalReport", finalReportRoutes);
 
-// FIX: messageRoutes is a factory function — pass io so the audio upload
-// endpoint can broadcast to the socket room after saving the file.
 app.use("/api/message", require("./routes/messageRoutes")(io));
 
-/**
- * ======================
- * GLOBAL ERROR HANDLER
- * ======================
- */
 app.use((err, req, res, next) => {
   console.error("❌ System Error:", err.stack);
   res.status(500).json({
@@ -130,11 +104,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-/**
- * ======================
- * DATABASE & STARTUP
- * ======================
- */
 const PORT = process.env.PORT || 5000;
 
 connectDB()

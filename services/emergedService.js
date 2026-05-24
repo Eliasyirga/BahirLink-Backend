@@ -61,9 +61,6 @@ const createEmergedFromEmergencies = async (
       throw new Error("Cannot merge different emergency types");
     }
 
-    // ===============================
-    // 🔒 responder restriction (optional safety)
-    // ===============================
     if (
       responderKebeleId &&
       Number(main.kebeleId) !== Number(responderKebeleId)
@@ -71,9 +68,6 @@ const createEmergedFromEmergencies = async (
       throw new Error("Not allowed outside assigned kebele");
     }
 
-    // ===============================
-    // 🔍 check existing group
-    // ===============================
     const existingGroupId = emergencies.find((e) => e.emergedId)?.emergedId;
 
     let group;
@@ -83,7 +77,6 @@ const createEmergedFromEmergencies = async (
 
       if (!group) throw new Error("Existing group not found");
     } else {
-      // 🆕 CREATE GROUP
       group = await Emerged.create(
         {
           summary: main.description || "Grouped emergency case",
@@ -96,9 +89,6 @@ const createEmergedFromEmergencies = async (
       );
     }
 
-    // ===============================
-    // 🔗 LINK EMERGENCIES
-    // ===============================
     await Emergency.update(
       { emergedId: group.id },
       {
@@ -115,9 +105,6 @@ const createEmergedFromEmergencies = async (
   }
 };
 
-// ===============================
-// 📦 GET GROUPED EMERGENCIES
-// ===============================
 const getAllEmerged = async (kebeleId = null) => {
   const whereClause = kebeleId ? { kebeleId } : {};
 

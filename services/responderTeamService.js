@@ -206,7 +206,7 @@ const fetchTeamsByMultipleAgencyTypeNames = async (namesList) => {
     include: [
       {
         model: Agency,
-        as: "agency", // ◄── ADD THIS ALIAS PROPERTY HERE
+        as: "agency",
         required: true,
         where: {
           name: {

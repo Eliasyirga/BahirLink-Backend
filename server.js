@@ -57,7 +57,7 @@ io.on("connection", (socket) => {
 app.use(express.json());
 app.use(
   cors({
-    origin: /http:\/\/localhost:\d+/,
+    origin: "*",
     credentials: true,
   }),
 );

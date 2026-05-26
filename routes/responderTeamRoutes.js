@@ -9,11 +9,14 @@ const {
   getTeamsByAgencyHandler,
   responderLoginHandler,
   getTeamByIdHandler,
+  getTeamsByAgencyTypeHandler,
 } = require("../controllers/responderTeamController");
 
 router.post("/", createTeamHandler);
 
 router.post("/login", responderLoginHandler);
+
+router.get("/type", getTeamsByAgencyTypeHandler);
 
 router.get("/", getAllTeamsHandler);
 

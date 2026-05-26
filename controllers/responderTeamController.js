@@ -5,13 +5,22 @@ const {
   getAllTeams,
   getTeamsByAgency,
   loginResponder,
-  getTeamById, // Ensure this is exported from your service
+  getTeamById,
+  fetchTeamsByMultipleAgencyTypeNames,
 } = require("../services/responderTeamService");
 
-/**
- * Get Single Team by ID
- * REQUIRED for frontend AddCasePage to sync agencyId
- */
+const AGENCY_MAP = {
+  service: [
+    "medical", // Must match the database name exactly
+    "municipal",
+    "other",
+  ],
+  emergency: [
+    "fire", // Must match the database name exactly
+    "police",
+  ],
+};
+
 const getTeamByIdHandler = async (req, res) => {
   try {
     const { id } = req.params;
@@ -190,6 +199,43 @@ const getTeamsByAgencyHandler = async (req, res) => {
   }
 };
 
+const getTeamsByAgencyTypeHandler = async (req, res) => {
+  try {
+    const { category } = req.query; // Expecting 'service' or 'emergency'
+
+    if (!category) {
+      return res.status(400).json({
+        success: false,
+        message: "Category parameter ('service' or 'emergency') is required.",
+      });
+    }
+
+    // Grab the array of name strings ("Fire", "Police", etc.)
+    const targetNamesList = AGENCY_MAP[category.toLowerCase()];
+
+    if (!targetNamesList) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid category. Must be 'service' or 'emergency'.",
+      });
+    }
+
+    const teams = await fetchTeamsByMultipleAgencyTypeNames(targetNamesList);
+
+    return res.status(200).json({
+      success: true,
+      count: teams.length,
+      data: teams,
+    });
+  } catch (error) {
+    console.error("Error in getTeamsByAgencyTypeHandler:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while processing mapped type names.",
+    });
+  }
+};
+
 module.exports = {
   createTeamHandler,
   responderLoginHandler,
@@ -198,4 +244,5 @@ module.exports = {
   getAllTeamsHandler,
   getTeamsByAgencyHandler,
   getTeamByIdHandler, // Exported for your routes
+  getTeamsByAgencyTypeHandler,
 };

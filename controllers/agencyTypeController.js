@@ -3,103 +3,76 @@ const {
   updateAgencyType,
   deleteAgencyType,
   getAllAgencyTypes,
-  getAgencyTypesByCreator, // Import the new filter service
+  getAgencyTypesByCreator,
 } = require("../services/AgencyTypeService");
 
-/**
- * ✅ CREATE
- */
 const createAgencyTypeHandler = async (req, res) => {
   try {
-    const { name, description } = req.body;
-
-    if (!name) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Name is required" });
+    // Guard: ensure auth middleware ran
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    // Pass req.user.id as the creatorId
-    const agencyType = await createAgencyType(
-      { name, description },
-      req.user.id,
-    );
+    const { name, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Name is required" });
+    }
 
+    const agencyType = await createAgencyType({ name, description }, req.user.id);
     res.status(201).json({
       success: true,
       message: "Agency type created successfully",
       data: agencyType,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    // 409 for duplicates, 500 for everything else
+    const status = error.message.includes("already exists") ? 409 : 500;
+    res.status(status).json({ success: false, message: error.message });
   }
 };
 
-/**
- * ✅ UPDATE
- */
 const updateAgencyTypeHandler = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    // Pass req.user.id to ensure only the owner can update
-    const agencyType = await updateAgencyType(id, req.body, req.user.id);
-
-    res.status(200).json({
-      success: true,
-      message: "Agency type updated successfully",
-      data: agencyType,
-    });
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    const agencyType = await updateAgencyType(req.params.id, req.body, req.user.id);
+    res.status(200).json({ success: true, message: "Agency type updated successfully", data: agencyType });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    const status = error.message.includes("not found") ? 404 : 500;
+    res.status(status).json({ success: false, message: error.message });
   }
 };
 
-/**
- * ✅ DELETE
- */
 const deleteAgencyTypeHandler = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    // Pass req.user.id to ensure only the owner can delete
-    const result = await deleteAgencyType(id, req.user.id);
-
-    res.status(200).json({
-      success: true,
-      message: result.message,
-    });
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    const result = await deleteAgencyType(req.params.id, req.user.id);
+    res.status(200).json({ success: true, message: result.message });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    const status = error.message.includes("not found") ? 404 : 500;
+    res.status(status).json({ success: false, message: error.message });
   }
 };
 
-/**
- * ✅ GET ALL (Global)
- */
 const getAllAgencyTypesHandler = async (req, res) => {
   try {
     const agencyTypes = await getAllAgencyTypes();
-    res.status(200).json({
-      success: true,
-      data: agencyTypes,
-    });
+    res.status(200).json({ success: true, data: agencyTypes });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-/**
- * ✅ GET BY CREATOR (Your "my-agents" logic)
- */
 const getAgentsByCreatorIdHandler = async (req, res) => {
   try {
-    // Filter by the logged-in user's ID
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
     const agencyTypes = await getAgencyTypesByCreator(req.user.id);
-    res.status(200).json({
-      success: true,
-      data: agencyTypes,
-    });
+    res.status(200).json({ success: true, data: agencyTypes });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -110,5 +83,5 @@ module.exports = {
   updateAgencyTypeHandler,
   deleteAgencyTypeHandler,
   getAllAgencyTypesHandler,
-  getAgentsByCreatorIdHandler, // Export this for your route
+  getAgentsByCreatorIdHandler,
 };

@@ -1,18 +1,9 @@
 const emergencyTypeService = require("../services/emergencyTypeService");
 
-/**
- * CREATE Emergency Type
- */
 const createEmergencyType = async (req, res) => {
   try {
-    // Pass the body directly. The service should handle 
-    // string-to-object conversion/translation.
     const emergencyType = await emergencyTypeService.createEmergencyType(req.body);
-
-    return res.status(201).json({
-      success: true,
-      data: emergencyType,
-    });
+    return res.status(201).json({ success: true, data: emergencyType });
   } catch (err) {
     return res.status(500).json({
       success: false,
@@ -22,24 +13,13 @@ const createEmergencyType = async (req, res) => {
   }
 };
 
-/**
- * DELETE Emergency Type
- */
 const deleteEmergencyType = async (req, res) => {
   try {
     const success = await emergencyTypeService.deleteEmergencyType(req.params.id);
-
     if (!success) {
-      return res.status(404).json({
-        success: false,
-        message: "Emergency Type not found",
-      });
+      return res.status(404).json({ success: false, message: "Emergency Type not found" });
     }
-
-    return res.json({
-      success: true,
-      message: "Emergency Type deleted successfully",
-    });
+    return res.json({ success: true, message: "Emergency Type deleted successfully" });
   } catch (err) {
     return res.status(500).json({
       success: false,
@@ -49,29 +29,16 @@ const deleteEmergencyType = async (req, res) => {
   }
 };
 
-/**
- * GET ALL Emergency Types
- * FIX: This intelligently decides whether to return a single language 
- * string or the raw JSON object for debugging.
- */
 const getAllEmergencyTypes = async (req, res) => {
   try {
-    /**
-     * LOGIC FIX:
-     * 1. In Postman, if you send Header 'Accept-Language: am', you get Amharic strings.
-     * 2. In Postman, if you send Header 'Accept-Language: all', you get the full JSON objects.
-     * 3. Default is English ('en').
-     */
-    const lang = req.headers['accept-language'] || 'en';
+    // Priority order:
+    // 1. ?lang=raw  query param (used by CategoryPage internally)
+    // 2. Accept-Language header (used by Postman / external consumers)
+    // 3. Default to "en"
+    const lang = req.query.lang || req.headers["accept-language"] || "en";
 
-    // Call service. If lang is 'all', service should return the raw DB rows.
     const emergencyTypes = await emergencyTypeService.getAllEmergencyTypes(lang);
-
-    return res.json({
-      success: true,
-      count: emergencyTypes.length,
-      data: emergencyTypes, 
-    });
+    return res.json({ success: true, count: emergencyTypes.length, data: emergencyTypes });
   } catch (err) {
     console.error("Error in getAllEmergencyTypes:", err);
     return res.status(500).json({
@@ -82,8 +49,4 @@ const getAllEmergencyTypes = async (req, res) => {
   }
 };
 
-module.exports = {
-  createEmergencyType,
-  deleteEmergencyType,
-  getAllEmergencyTypes,
-};
+module.exports = { createEmergencyType, deleteEmergencyType, getAllEmergencyTypes };

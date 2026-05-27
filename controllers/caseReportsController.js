@@ -6,8 +6,6 @@ const caseReportsService = require("../services/caseReportsService");
 
 /**
  * Extract and normalize lang from ?lang= query param or Accept-Language header.
- * Normalization happens again in the service, but keeping it here avoids
- * passing garbage strings deeper into the stack.
  */
 const getLang = (req) => {
   const raw = req.query.lang || req.headers["accept-language"] || "en";
@@ -21,7 +19,11 @@ const getLang = (req) => {
 /** POST /api/case-reports */
 const createReport = async (req, res) => {
   try {
-    const report = await caseReportsService.createReport(req.body);
+    // Pass req.body and the language context to the service
+    const report = await caseReportsService.createReport(
+      req.body,
+      getLang(req),
+    );
     res.status(201).json({ success: true, data: report });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -38,12 +40,12 @@ const getAllReports = async (req, res) => {
   }
 };
 
-/** GET /api/case-reports/case/:caseId  ← used by CaseDetailPage */
+/** GET /api/case-reports/case/:caseId */
 const getReportsByCase = async (req, res) => {
   try {
     const reports = await caseReportsService.getReportsByCase(
       req.params.caseId,
-      getLang(req)
+      getLang(req),
     );
     res.status(200).json({ success: true, data: reports });
   } catch (err) {
@@ -56,7 +58,7 @@ const getReportsByCaseType = async (req, res) => {
   try {
     const reports = await caseReportsService.getReportsByCaseType(
       req.params.caseTypeId,
-      getLang(req)
+      getLang(req),
     );
     res.status(200).json({ success: true, data: reports });
   } catch (err) {
@@ -69,7 +71,7 @@ const getReportsByReporter = async (req, res) => {
   try {
     const reports = await caseReportsService.getReportsByReporter(
       req.params.reporterId,
-      getLang(req)
+      getLang(req),
     );
     res.status(200).json({ success: true, data: reports });
   } catch (err) {
@@ -82,7 +84,7 @@ const updateReportStatus = async (req, res) => {
   try {
     const report = await caseReportsService.updateReportStatus(
       req.params.id,
-      req.body.status
+      req.body.status,
     );
     res.status(200).json({ success: true, data: report });
   } catch (err) {

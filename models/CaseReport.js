@@ -13,10 +13,18 @@ const CaseReport = sequelize.define(
       primaryKey: true,
     },
 
-    // description now stores localized text: { "en": "...", "am": "..." }
     description: {
-      type: DataTypes.JSONB, 
+      type: DataTypes.JSONB,
       allowNull: true,
+    },
+
+    phoneNumber: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        isNumeric: true, // This ensures only numbers are allowed
+        len: [10, 15], // You can enforce a length constraint (e.g., 10 to 15 digits)
+      },
     },
 
     kebeleId: {
@@ -26,7 +34,6 @@ const CaseReport = sequelize.define(
       onDelete: "CASCADE",
     },
 
-    // The specific date and time they saw the person
     spottedAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -61,7 +68,7 @@ const CaseReport = sequelize.define(
   {
     tableName: "case_reports",
     timestamps: true,
-  }
+  },
 );
 
 module.exports = CaseReport;

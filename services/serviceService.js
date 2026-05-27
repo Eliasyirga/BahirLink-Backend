@@ -13,9 +13,6 @@ const {
 const { sequelize } = require("../config/db");
 const translate = require("google-translate-api-x");
 
-// =========================
-// SHARED KEBELE INCLUDE
-// =========================
 const kebeleWithTeams = {
   model: Kebele,
   as: "kebele",
@@ -183,9 +180,13 @@ const localizeService = (
 // CREATE SERVICE
 // =========================
 const createService = async (data, userIdFromParams, file) => {
+  // UPDATED: Destructure cloud paths from Multer configuration streams
   let mediaUrl = null;
-  if (file && file.filename) {
-    mediaUrl = `/uploads/${file.filename}`;
+  let mediaPublicId = null;
+
+  if (file) {
+    mediaUrl = file.path;
+    mediaPublicId = file.filename;
   }
 
   const serviceTypeId = data.serviceTypeId
@@ -220,7 +221,10 @@ const createService = async (data, userIdFromParams, file) => {
     citizenId,
     location: finalLocation,
     mediaUrl,
-    mediaType: data.mediaType || (file ? "photo" : null),
+    mediaPublicId, // Tracking attribute safely injected
+    mediaType:
+      data.mediaType ||
+      (file ? (file.mimetype?.startsWith("video") ? "video" : "photo") : null),
     status: "pending",
     time: data.time || new Date().toLocaleTimeString("it-IT"),
   });
@@ -228,7 +232,7 @@ const createService = async (data, userIdFromParams, file) => {
   return await Service.findByPk(service.id, { include: serviceIncludes });
 };
 
-const updateService = async (serviceId, updates) => {
+const updateService = async (serviceId, updates, file) => {
   const service = await Service.findByPk(serviceId);
   if (!service) throw new Error("Service not found");
 
@@ -240,6 +244,15 @@ const updateService = async (serviceId, updates) => {
   if (updates.subdivision)
     finalUpdates.subdivision = await autoTranslate(updates.subdivision);
   if (updates.street) finalUpdates.street = await autoTranslate(updates.street);
+
+  // UPDATED: Clean local references inside dynamic asset updates
+  if (file) {
+    finalUpdates.mediaUrl = file.path;
+    finalUpdates.mediaPublicId = file.filename;
+    finalUpdates.mediaType = file.mimetype?.startsWith("video")
+      ? "video"
+      : "photo";
+  }
 
   await service.update(finalUpdates);
   return await Service.findByPk(serviceId, { include: serviceIncludes });

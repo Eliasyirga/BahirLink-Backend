@@ -160,55 +160,106 @@ const localizeEmergency = (
 // =========================
 
 const createGuestEmergency = async (data, file, transaction) => {
-  const emergencyData = { ...data };
+  try {
+    const emergencyData = { ...data };
 
-  if (emergencyData.kebeleId || emergencyData.kebele) {
-    emergencyData.kebeleId = parseInt(
-      emergencyData.kebeleId || emergencyData.kebele,
-    );
+    let rawKebele = emergencyData.kebeleId || emergencyData.kebele;
+    let validKebeleId = null;
+
+    if (rawKebele) {
+      // Try to parse it as an integer first (in case it's already an ID)
+      const parsedId = parseInt(rawKebele, 10);
+
+      if (!isNaN(parsedId)) {
+        validKebeleId = parsedId;
+      } else {
+        const foundKebele = await Kebele.findOne({
+          where: {
+            name: {
+              [Op.iLike]: `%${rawKebele.trim()}%`, // Case-insensitive partial match
+            },
+          },
+          transaction,
+        });
+
+        if (foundKebele) {
+          validKebeleId = foundKebele.id;
+        }
+      }
+    }
+
     delete emergencyData.kebele;
-  }
 
-  if (!emergencyData.kebeleId) {
-    throw new Error("kebeleId is required");
-  }
+    if (!validKebeleId) {
+      const error = new Error(
+        `Could not resolve location reference '${rawKebele}' to a valid Kebele ID.`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+    emergencyData.kebeleId = validKebeleId;
 
-  if (emergencyData.latitude && emergencyData.longitude) {
-    emergencyData.location = {
-      latitude: parseFloat(emergencyData.latitude),
-      longitude: parseFloat(emergencyData.longitude),
-    };
-    delete emergencyData.latitude;
-    delete emergencyData.longitude;
-  }
+    if (emergencyData.latitude && emergencyData.longitude) {
+      const lat = parseFloat(emergencyData.latitude);
+      const lng = parseFloat(emergencyData.longitude);
 
-  if (emergencyData.time) {
-    const d = new Date(emergencyData.time);
-    emergencyData.time = [
-      String(d.getHours()).padStart(2, "0"),
-      String(d.getMinutes()).padStart(2, "0"),
-      String(d.getSeconds()).padStart(2, "0"),
-    ].join(":");
-  }
+      if (!isNaN(lat) && !isNaN(lng)) {
+        emergencyData.location = {
+          type: "Point",
+          coordinates: [lng, lat],
+        };
+      }
+      delete emergencyData.latitude;
+      delete emergencyData.longitude;
+    }
 
-  if (emergencyData.description) {
-    emergencyData.description = await autoTranslate(emergencyData.description);
-  }
-  if (emergencyData.subdivision) {
-    emergencyData.subdivision = await autoTranslate(emergencyData.subdivision);
-  }
+    // 3. Safe Time Formatting
+    if (emergencyData.time) {
+      const d = new Date(emergencyData.time);
+      if (!isNaN(d.getTime())) {
+        emergencyData.time = [
+          String(d.getHours()).padStart(2, "0"),
+          String(d.getMinutes()).padStart(2, "0"),
+          String(d.getSeconds()).padStart(2, "0"),
+        ].join(":");
+      } else {
+        delete emergencyData.time;
+      }
+    }
 
-  if (file) {
-    emergencyData.mediaUrl = `/uploads/${file.filename}`;
+    // 4. Handle Translations
+    if (emergencyData.description) {
+      emergencyData.description = await autoTranslate(
+        emergencyData.description,
+      );
+    }
+    if (emergencyData.subdivision) {
+      emergencyData.subdivision = await autoTranslate(
+        emergencyData.subdivision,
+      );
+    }
+
+    // 5. Cloudinary Media Assets
+    if (file) {
+      emergencyData.mediaUrl = file.path;
+      emergencyData.mediaPublicId = file.filename;
+    }
+
+    emergencyData.reporterType = "guest";
+    emergencyData.status = "reported";
+
+    // 6. Persist to Database
+    return await Emergency.create(
+      emergencyData,
+      transaction ? { transaction } : {},
+    );
+  } catch (error) {
+    console.error("❌ Error inside createGuestEmergency:", error.message);
+    if (error.parent) {
+      console.error("SQL Detail:", error.parent.detail || error.parent.message);
+    }
+    throw error;
   }
-
-  emergencyData.reporterType = "guest";
-  emergencyData.status = "reported";
-
-  return await Emergency.create(
-    emergencyData,
-    transaction ? { transaction } : {},
-  );
 };
 
 const createUserEmergency = async (userId, emergencyData, file) => {
@@ -245,7 +296,9 @@ const createUserEmergency = async (userId, emergencyData, file) => {
     street,
     description: translatedDescription,
     location,
-    mediaUrl: file ? `/public/uploads/${file.filename}` : null,
+    // FIXED: Maps to Cloudinary secure URL string and records public ID
+    mediaUrl: file ? file.path : null,
+    mediaPublicId: file ? file.filename : null,
     emergencyTypeId,
     categoryId,
     citizenId: userId,
@@ -275,8 +328,10 @@ const updateEmergency = async (
     updatedData.subdivision = await autoTranslate(updatedData.subdivision);
   }
 
+  // FIXED: Captures Cloudinary secure paths and stores the public ID for tracking
   if (file) {
-    updatedData.mediaUrl = `/public/uploads/${file.filename}`;
+    updatedData.mediaUrl = file.path;
+    updatedData.mediaPublicId = file.filename;
     updatedData.mediaType = file.mimetype.startsWith("video")
       ? "video"
       : "photo";
@@ -470,11 +525,6 @@ const getEmergenciesForResponderTeam = async (responderTeamId, lang = "en") => {
   });
 };
 
-// =========================
-// GET ALL EMERGENCIES FOR ADMIN
-// Includes kebele.teams in the raw query AND surfaces
-// assignedStation as a convenience field in the shaped response.
-// =========================
 const getAllEmergenciesForAdmin = async (lang = "en") => {
   try {
     const emergencies = await Emergency.findAll({
@@ -548,9 +598,6 @@ const getAllEmergenciesForAdmin = async (lang = "en") => {
   }
 };
 
-// =========================
-// GET SINGLE EMERGENCY BY ID
-// =========================
 const getEmergencyById = async (id, lang = "en") => {
   try {
     const emergency = await Emergency.findByPk(id, {
@@ -592,9 +639,6 @@ const getEmergencyById = async (id, lang = "en") => {
   }
 };
 
-// =========================
-// UPDATE EMERGENCY STATUS
-// =========================
 const updateEmergencyStatus = async (emergencyId, status, report = null) => {
   const emergency = await Emergency.findByPk(emergencyId);
   if (!emergency) throw new Error("Emergency record not found in database");
@@ -605,9 +649,6 @@ const updateEmergencyStatus = async (emergencyId, status, report = null) => {
   return await emergency.save();
 };
 
-// =========================
-// GET EMERGENCIES BY DEVICE ID
-// =========================
 const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
   if (!deviceId) throw new Error("deviceId is required");
 

@@ -14,7 +14,8 @@ const Emergency = sequelize.define(
     description: {
       type: DataTypes.JSONB,
       allowNull: true,
-      comment: "Localised description e.g. { en: 'Fire on 2nd floor', am: '...' }",
+      comment:
+        "Localised description e.g. { en: 'Fire on 2nd floor', am: '...' }",
     },
     subdivision: {
       type: DataTypes.JSONB,
@@ -38,9 +39,10 @@ const Emergency = sequelize.define(
       comment: "{ latitude: float, longitude: float }",
     },
     mediaUrl: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT, // ✅ FIXED: Removes character limits for massive cloud URLs
       allowNull: true,
     },
+
     mediaType: {
       type: DataTypes.ENUM("photo", "video", "audio"),
       allowNull: true,
@@ -69,7 +71,6 @@ const Emergency = sequelize.define(
       comment: "HH:MM:SS string extracted from the reported datetime",
     },
 
-    // ─── Foreign keys ─────────────────────────────────────────────────────────
     citizenId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -92,11 +93,6 @@ const Emergency = sequelize.define(
       allowNull: true,
       references: { model: "categories", key: "id" },
     },
-
-    // ─── Chat fields ──────────────────────────────────────────────────────────
-    // These three columns are required by chatSocket and messageService.
-    // Without them Sequelize returns `undefined` for every chat read/write,
-    // making isChatEnabled always falsy and blocking citizens permanently.
     isChatEnabled: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -118,7 +114,7 @@ const Emergency = sequelize.define(
   {
     tableName: "emergencies",
     timestamps: true,
-  }
+  },
 );
 
 module.exports = Emergency;

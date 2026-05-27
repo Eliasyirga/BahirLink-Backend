@@ -50,9 +50,6 @@ const createEmergedFromEmergencies = async (
       throw new Error("Cannot merge emergencies from different kebeles");
     }
 
-    // ===============================
-    // ⚠️ SAME TYPE RULE (YOUR REQUIREMENT)
-    // ===============================
     const sameType = emergencies.every(
       (e) => e.emergencyTypeId === main.emergencyTypeId,
     );
@@ -151,9 +148,7 @@ const getAllEmerged = async (kebeleId = null) => {
     };
   });
 };
-// ===============================
-// 🟡 UNASSIGNED EMERGENCIES
-// ===============================
+
 const getUnassignedEmergencies = async (kebeleId) => {
   if (!kebeleId) throw new Error("kebeleId is required");
 
@@ -166,9 +161,6 @@ const getUnassignedEmergencies = async (kebeleId) => {
   });
 };
 
-// ===============================
-// ✏️ UPDATE GROUP
-// ===============================
 const updateEmerged = async (id, data, kebeleId) => {
   const group = await Emerged.findByPk(id);
 

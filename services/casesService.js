@@ -1,20 +1,12 @@
 const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models");
 const translate = require("google-translate-api-x");
 
-// ─── autoTranslate ────────────────────────────────────────────────────────────
-// Mirrors the emergency service pattern:
-//  • Detects input language automatically (no assumption it's English)
-//  • Handles am→en as well as en→am
-//  • Treats missing, null, or empty am as "needs translation"
-//  • Falls back gracefully on any translate failure
 const autoTranslate = async (fieldData) => {
   if (fieldData === null || fieldData === undefined) return null;
 
-  // Normalise to a working object
   let data =
     typeof fieldData === "string" ? { _raw: fieldData } : { ...fieldData };
 
-  // ── Raw string: detect language, then fill whichever side is missing ───────
   if (data._raw) {
     const rawText = data._raw;
     delete data._raw;
@@ -24,11 +16,9 @@ const autoTranslate = async (fieldData) => {
       const detectedLang = toEn.from?.language?.iso || "en";
 
       if (detectedLang === "am") {
-        // Input was Amharic → store as am, translate to en
         data.am = rawText;
         data.en = toEn.text;
       } else {
-        // Input was English (or other) → store as en, translate to am
         data.en = rawText;
         try {
           const toAm = await translate(rawText, { to: "am" });
@@ -47,7 +37,6 @@ const autoTranslate = async (fieldData) => {
     return data;
   }
 
-  // ── Already an object: fill whichever side is missing ────────────────────
   const amMissing = !data.am || data.am.toString().trim() === "";
   const enMissing = !data.en || data.en.toString().trim() === "";
 
@@ -84,7 +73,9 @@ const localize = (item, lang, fields) => {
   fields.forEach((field) => {
     let value = plain[field];
     if (typeof value === "string") {
-      try { value = JSON.parse(value); } catch (_) {}
+      try {
+        value = JSON.parse(value);
+      } catch (_) {}
     }
     if (value && typeof value === "object") {
       plain[field] =
@@ -98,7 +89,9 @@ const localize = (item, lang, fields) => {
   if (plain.caseType?.name) {
     let ctName = plain.caseType.name;
     if (typeof ctName === "string") {
-      try { ctName = JSON.parse(ctName); } catch (_) {}
+      try {
+        ctName = JSON.parse(ctName);
+      } catch (_) {}
     }
     if (typeof ctName === "object") {
       plain.caseType.name =
@@ -114,17 +107,20 @@ const localize = (item, lang, fields) => {
 const multiLangFields = ["fullName", "description", "distinctiveFeatures"];
 
 const caseIncludes = [
-  { model: Agency,        as: "agency",          attributes: ["id", "name"] },
-  { model: CaseType,      as: "caseType",         attributes: ["id", "name"] },
-  { model: ResponderTeam, as: "responderTeam",    attributes: ["id", "name"] },
-  { model: Kebele,        as: "lastSeenLocation", attributes: ["id", "name"] },
+  { model: Agency, as: "agency", attributes: ["id", "name"] },
+  { model: CaseType, as: "caseType", attributes: ["id", "name"] },
+  { model: ResponderTeam, as: "responderTeam", attributes: ["id", "name"] },
+  { model: Kebele, as: "lastSeenLocation", attributes: ["id", "name"] },
 ];
 
 // ─── GET ALL ──────────────────────────────────────────────────────────────────
 const getAllCases = async (lang = "en") => {
   const cases = await Cases.findAll({
     include: caseIncludes,
-    order: [["priority", "DESC"], ["createdAt", "DESC"]],
+    order: [
+      ["priority", "DESC"],
+      ["createdAt", "DESC"],
+    ],
   });
   return cases.map((c) => localize(c, lang, multiLangFields));
 };
@@ -136,10 +132,8 @@ const getCaseById = async (id, lang = "en") => {
   return localize(singleCase, lang, multiLangFields);
 };
 
-// ─── CREATE ───────────────────────────────────────────────────────────────────
-// Controller always passes plain strings — autoTranslate detects language and
-// fills both en + am, so every new case is stored bilingual from day one.
-const createCase = async (data) => {
+const createCase = async (data, file) => {
+  // Added file parameter
   const rTeamId = data.responderTeamId ? Number(data.responderTeamId) : null;
   if (!rTeamId) throw new Error("Responder Team ID is required.");
 
@@ -147,9 +141,16 @@ const createCase = async (data) => {
   if (!team) throw new Error(`Responder Team ID ${rTeamId} not found.`);
 
   const {
-    caseTypeId, lastSeenLocationId,
-    age, reward, height, weight, isDangerous,
-    fullName, description, distinctiveFeatures,
+    caseTypeId,
+    lastSeenLocationId,
+    age,
+    reward,
+    height,
+    weight,
+    isDangerous,
+    fullName,
+    description,
+    distinctiveFeatures,
     ...rest
   } = data;
 
@@ -160,38 +161,51 @@ const createCase = async (data) => {
       autoTranslate(distinctiveFeatures || ""),
     ]);
 
+  // Extract Cloudinary dynamic links safely if a file is present
+  let mediaUrl = null;
+  let mediaPublicId = null;
+  if (file) {
+    mediaUrl = file.path;
+    mediaPublicId = file.filename;
+  }
+
   const newCase = await Cases.create({
     ...rest,
-    fullName:            translatedName,
-    description:         translatedDesc,
+    fullName: translatedName,
+    description: translatedDesc,
     distinctiveFeatures: translatedFeatures,
+    mediaUrl, // Saved as clean cloud link string
+    mediaPublicId, // Saved for asset mutations/deletion tracking
 
-    responderTeamId:    rTeamId,
-    agencyId:           team.agencyId,
-    caseTypeId:         caseTypeId         ? parseInt(caseTypeId, 10)         : null,
-    lastSeenLocationId: lastSeenLocationId ? parseInt(lastSeenLocationId, 10) : null,
-    age:                age                ? parseInt(age, 10)                : null,
-    height:             height             ? parseInt(height, 10)             : null,
-    weight:             weight             ? parseInt(weight, 10)             : null,
-    reward:             reward             ? parseFloat(reward)               : 0.0,
-    isDangerous:        isDangerous === "true" || isDangerous === true,
-    status:             "pending",
+    responderTeamId: rTeamId,
+    agencyId: team.agencyId,
+    caseTypeId: caseTypeId ? parseInt(caseTypeId, 10) : null,
+    lastSeenLocationId: lastSeenLocationId
+      ? parseInt(lastSeenLocationId, 10)
+      : null,
+    age: age ? parseInt(age, 10) : null,
+    height: height ? parseInt(height, 10) : null,
+    weight: weight ? parseInt(weight, 10) : null,
+    reward: reward ? parseFloat(reward) : 0.0,
+    isDangerous: isDangerous === "true" || isDangerous === true,
+    status: "pending",
   });
 
   return await getCaseById(newCase.id, "all");
 };
 
-// ─── UPDATE ───────────────────────────────────────────────────────────────────
-const updateCase = async (id, updates) => {
+const updateCase = async (id, updates, file) => {
+  // Added file parameter
   const singleCase = await Cases.findByPk(id);
   if (!singleCase) throw new Error("Case not found.");
 
+  const finalUpdates = { ...updates };
+
   for (const field of multiLangFields) {
-    if (!updates[field]) continue;
+    if (!finalUpdates[field]) continue;
 
-    const incoming = updates[field];
+    const incoming = finalUpdates[field];
 
-    // Needs translation when it's a raw string or the am side is missing/empty
     const amMissing =
       typeof incoming === "string" ||
       (typeof incoming === "object" &&
@@ -199,16 +213,20 @@ const updateCase = async (id, updates) => {
         (!incoming.am || incoming.am.toString().trim() === ""));
 
     if (amMissing) {
-      updates[field] = await autoTranslate(
-        typeof incoming === "string" ? incoming : incoming.en
+      finalUpdates[field] = await autoTranslate(
+        typeof incoming === "string" ? incoming : incoming.en,
       );
     } else {
-      // Both sides present — merge to preserve existing keys
-      updates[field] = { ...singleCase[field], ...incoming };
+      finalUpdates[field] = { ...singleCase[field], ...incoming };
     }
   }
 
-  await singleCase.update(updates);
+  if (file) {
+    finalUpdates.mediaUrl = file.path;
+    finalUpdates.mediaPublicId = file.filename;
+  }
+
+  await singleCase.update(finalUpdates);
   return await getCaseById(id, "all");
 };
 
@@ -247,7 +265,9 @@ const backfillTranslations = async () => {
 
       // Parse if stored as a JSON string
       if (typeof value === "string") {
-        try { value = JSON.parse(value); } catch (_) {}
+        try {
+          value = JSON.parse(value);
+        } catch (_) {}
       }
 
       // Case A: plain string — needs full translate
@@ -285,7 +305,10 @@ const backfillTranslations = async () => {
         summary.updated++;
         console.log(`✅ Backfilled case ${c.id}`);
       } catch (err) {
-        console.error(`❌ Failed to save backfill for case ${c.id}:`, err.message);
+        console.error(
+          `❌ Failed to save backfill for case ${c.id}:`,
+          err.message,
+        );
         summary.failed++;
       }
     } else {

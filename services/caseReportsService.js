@@ -112,7 +112,7 @@ const createReport = async (data, rawLang = "en") => {
     kebeleId: data.kebeleId,
     spottedAt: data.spottedAt,
     reporterId: data.reporterId ?? null,
-    phoneNumber: data.phoneNumber ?? null, // Added: Saved as string to preserve leading zeros
+    phoneNumber: data.phoneNumber ?? null, // Saved as string to preserve leading zeros
   });
 
   const freshRecord = await CaseReport.findByPk(report.id, {

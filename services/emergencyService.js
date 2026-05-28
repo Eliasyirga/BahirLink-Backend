@@ -407,11 +407,6 @@ const getEmergenciesByAgency = async (agencyId, lang = "en") => {
     : emergencies.map((e) => localizeEmergency(e, lang));
 };
 
-// =========================
-// GET EMERGENCIES FOR RESPONDER TEAM
-// Already filtered to the team's kebeles. We still embed teams on
-// the kebele so the shape is consistent with every other endpoint.
-// =========================
 const getEmergenciesForResponderTeam = async (responderTeamId, lang = "en") => {
   const team = await ResponderTeam.findByPk(responderTeamId, {
     include: [
@@ -440,7 +435,7 @@ const getEmergenciesForResponderTeam = async (responderTeamId, lang = "en") => {
 
   const emergencies = await Emergency.findAll({
     where: {
-      status: { [Op.ne]: "resolved" },
+      // Modifying this line allows ALL statuses (pending, in-progress, resolved, completed) to load
       "$kebele.teams.id$": responderTeamId,
     },
     include: [
@@ -609,7 +604,7 @@ const getEmergencyById = async (id, lang = "en") => {
         },
         { model: Category, as: "category", attributes: ["id", "name"] },
         kebeleWithTeams,
-  getEmergenciesForResponderTeam,
+        getEmergenciesForResponderTeam,
         {
           model: User,
           as: "user",

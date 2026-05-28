@@ -21,13 +21,13 @@ const CaseReport = sequelize.define(
     phoneNumber: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: "phone_number", // maps JS camelCase → DB snake_case column
+      // 💡 Stripped snake_case tracking override map to capture "phoneNumber"
     },
 
     kebeleId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      field: "kebele_id",
+      // 💡 Fixed typo "kebele_d" and standardized layout to capture camelCase "kebeleId"
       references: { model: Kebele, key: "id" },
       onDelete: "CASCADE",
     },
@@ -35,13 +35,12 @@ const CaseReport = sequelize.define(
     spottedAt: {
       type: DataTypes.DATE,
       allowNull: false,
-      field: "spotted_at",
+      // 💡 Stripped mapping to correctly match "spottedAt" from database payload
     },
 
     caseId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      field: "caseId", // 💡 Change this to "caseId" (or delete the line entirely!)
       references: { model: Cases, key: "id" },
       onDelete: "CASCADE",
     },
@@ -49,7 +48,6 @@ const CaseReport = sequelize.define(
     caseTypeId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      field: "caseTypeId", // 💡 Change this to match your real database column name
       references: { model: CaseType, key: "id" },
       onDelete: "CASCADE",
     },
@@ -57,20 +55,18 @@ const CaseReport = sequelize.define(
     reporterId: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      field: "reporterId", // 💡 Matches your real database column name
       references: { model: "users", key: "id" },
       onDelete: "SET NULL",
     },
 
     status: {
-      type: DataTypes.ENUM("pending", "reviewed", "dismissed"),
+      type: DataTypes.ENUM("pending", "approved", "rejected", "resolved"),
       defaultValue: "pending",
     },
   },
   {
     tableName: "case_reports",
     timestamps: true,
-    underscored: true, // tells Sequelize to use snake_case for createdAt/updatedAt too
   },
 );
 

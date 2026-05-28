@@ -19,13 +19,14 @@ const getLang = (req) => {
 /** POST /api/case-reports */
 const createReport = async (req, res) => {
   try {
-    // Pass req.body and the language context to the service
     const report = await caseReportsService.createReport(
       req.body,
       getLang(req),
     );
     res.status(201).json({ success: true, data: report });
   } catch (err) {
+    // This will print the specific Sequelize validation error to your console
+    console.error("DEBUG - Report Creation Error:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };

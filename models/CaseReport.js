@@ -21,15 +21,13 @@ const CaseReport = sequelize.define(
     phoneNumber: {
       type: DataTypes.STRING,
       allowNull: true,
-      validate: {
-        isNumeric: true, // This ensures only numbers are allowed
-        len: [10, 15], // You can enforce a length constraint (e.g., 10 to 15 digits)
-      },
+      field: "phone_number", // maps JS camelCase → DB snake_case column
     },
 
     kebeleId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: "kebele_id",
       references: { model: Kebele, key: "id" },
       onDelete: "CASCADE",
     },
@@ -37,11 +35,13 @@ const CaseReport = sequelize.define(
     spottedAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: "spotted_at",
     },
 
     caseId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: "case_id",
       references: { model: Cases, key: "id" },
       onDelete: "CASCADE",
     },
@@ -49,6 +49,7 @@ const CaseReport = sequelize.define(
     caseTypeId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: "case_type_id",
       references: { model: CaseType, key: "id" },
       onDelete: "CASCADE",
     },
@@ -56,6 +57,7 @@ const CaseReport = sequelize.define(
     reporterId: {
       type: DataTypes.INTEGER,
       allowNull: true,
+      field: "reporter_id",
       references: { model: "users", key: "id" },
       onDelete: "SET NULL",
     },
@@ -68,6 +70,7 @@ const CaseReport = sequelize.define(
   {
     tableName: "case_reports",
     timestamps: true,
+    underscored: true, // tells Sequelize to use snake_case for createdAt/updatedAt too
   },
 );
 

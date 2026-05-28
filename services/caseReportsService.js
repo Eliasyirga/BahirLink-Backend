@@ -99,31 +99,47 @@ const INCLUDES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Create a new case report.
+ * Create a new case report with added debug logging.
  */
 const createReport = async (data, rawLang = "en") => {
+  // DEBUG: Check what the server is actually receiving
+  console.log(
+    "DEBUG [createReport] - Payload received:",
+    JSON.stringify(data, null, 2),
+  );
+
   const lang = normalizeLang(rawLang);
   const description = await autoTranslate(data.description);
 
-  const report = await CaseReport.create({
-    description,
-    caseId: data.caseId,
-    caseTypeId: data.caseTypeId,
-    kebeleId: data.kebeleId,
-    spottedAt: data.spottedAt,
-    reporterId: data.reporterId ?? null,
-    phoneNumber: data.phoneNumber ?? null, // Added: Saved as string to preserve leading zeros
-  });
+  try {
+    const report = await CaseReport.create({
+      description,
+      caseId: data.caseId,
+      caseTypeId: data.caseTypeId,
+      kebeleId: data.kebeleId,
+      spottedAt: data.spottedAt,
+      reporterId: data.reporterId ?? null,
+      // Ensure the key name here matches your Database Column name exactly
+      phoneNumber: data.phoneNumber ? String(data.phoneNumber) : null,
+    });
 
-  const freshRecord = await CaseReport.findByPk(report.id, {
-    include: INCLUDES,
-  });
+    console.log(
+      "DEBUG [createReport] - Database Insert Result (ID):",
+      report.id,
+    );
 
-  if (lang === "all")
-    return freshRecord ? freshRecord.get({ plain: true }) : null;
-  return localize(freshRecord, lang, ["description"]);
+    const freshRecord = await CaseReport.findByPk(report.id, {
+      include: INCLUDES,
+    });
+
+    return lang === "all"
+      ? freshRecord.get({ plain: true })
+      : localize(freshRecord, lang, ["description"]);
+  } catch (err) {
+    console.error("DEBUG [createReport] - Error during Database save:", err);
+    throw err; // Re-throw to be caught by the controller
+  }
 };
-
 /**
  * Return every report, newest first.
  */

@@ -155,9 +155,7 @@ const getAllReports = async (rawLang = "en") => {
   return reports.map((r) => localize(r, lang, ["description"]));
 };
 
-/**
- * Return all reports for a single case.
- */
+// Ensure this is how your service calls look:
 const getReportsByCase = async (caseId, rawLang = "en") => {
   const lang = normalizeLang(rawLang);
   const reports = await CaseReport.findAll({
@@ -166,8 +164,10 @@ const getReportsByCase = async (caseId, rawLang = "en") => {
     order: [["spottedAt", "DESC"]],
   });
 
-  if (lang === "all") return reports.map((r) => r.get({ plain: true }));
-  return reports.map((r) => localize(r, lang, ["description"]));
+  // Since phoneNumber is a top-level field, it is already present in 'plain'
+  return lang === "all"
+    ? reports.map((r) => r.get({ plain: true }))
+    : reports.map((r) => localize(r, lang, ["description"]));
 };
 
 /**

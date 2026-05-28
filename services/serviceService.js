@@ -448,13 +448,15 @@ const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
   });
   if (!team) throw new Error("Responder Team not found");
 
+  // Dynamically uses 'lang' (defaults to 'en') to pull the correct agency type string
   const agencyTypeName =
     typeof team.agency.agencyType?.name === "object"
-      ? team.agency.agencyType.name.en
+      ? team.agency.agencyType.name[lang]
       : team.agency.agencyType?.name;
 
+  // Dynamically queries the database path (e.g., name.en or name.am) based on 'lang'
   const serviceType = await ServiceType.findOne({
-    where: sequelize.where(sequelize.json("name.en"), agencyTypeName),
+    where: sequelize.where(sequelize.json(`name.${lang}`), agencyTypeName),
   });
   if (!serviceType) return [];
 

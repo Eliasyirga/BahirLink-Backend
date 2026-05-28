@@ -149,9 +149,6 @@ const updateServiceType = async (id, data) => {
   return serviceType;
 };
 
-/**
- * ✅ DELETE (Global)
- */
 const deleteServiceType = async (id) => {
   const serviceType = await ServiceType.findByPk(id);
 

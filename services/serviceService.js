@@ -436,6 +436,7 @@ const getServicesByAgency = async (agencyId, lang = "en") => {
 // =========================
 // GET SERVICES FOR RESPONDER TEAM
 // =========================
+
 const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
   const team = await ResponderTeam.findByPk(responderTeamId, {
     include: [
@@ -485,33 +486,58 @@ const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
     order: [["createdAt", "DESC"]],
   });
 
+  // Local helper function ensuring raw stringified JSON is forcefully broken down
+  const forceResolve = (value, targetLang) => {
+    if (value == null) return "";
+
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === "object") {
+          return (
+            parsed[targetLang] || parsed["en"] || Object.values(parsed)[0] || ""
+          );
+        }
+      } catch (e) {
+        // It's already a clean plain string (e.g., "Kebele 01" or "Municipal")
+        return value;
+      }
+    }
+
+    if (typeof value === "object") {
+      return value[targetLang] || value["en"] || Object.values(value)[0] || "";
+    }
+
+    return String(value);
+  };
+
   return services.map((s) => {
     const item = s.get({ plain: true });
     return {
       ...item,
-      name: resolveLocale(item.name, lang),
-      description: resolveLocale(item.description, lang),
-      subdivision: resolveLocale(item.subdivision, lang),
-      street: resolveLocale(item.street, lang),
+      name: forceResolve(item.name, lang),
+      description: forceResolve(item.description, lang),
+      subdivision: forceResolve(item.subdivision, lang),
+      street: forceResolve(item.street, lang),
       serviceType: item.serviceType
         ? {
             ...item.serviceType,
-            name: resolveLocale(item.serviceType.name, lang),
+            name: forceResolve(item.serviceType.name, lang),
           }
         : null,
       serviceCategory: item.serviceCategory
         ? {
             ...item.serviceCategory,
-            name: resolveLocale(item.serviceCategory.name, lang),
+            name: forceResolve(item.serviceCategory.name, lang),
           }
         : null,
       kebele: item.kebele
         ? {
             ...item.kebele,
-            name: resolveLocale(item.kebele.name, lang),
+            name: forceResolve(item.kebele.name, lang),
             teams: (item.kebele.teams || []).map((t) => ({
               ...t,
-              name: resolveLocale(t.name, lang),
+              name: forceResolve(t.name, lang),
             })),
           }
         : null,

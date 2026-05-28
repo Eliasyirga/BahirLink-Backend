@@ -28,13 +28,25 @@ const createGuestEmergencyHandler = async (req, res) => {
       data: emergency,
     });
   } catch (error) {
+    // ─── 🔍 CRITICAL DEBUG LOGS ───
+    console.log("=========================================");
+    console.error("❌ BACKEND CRASH DETECTED:");
+    console.error(error); // Logs the complete error payload object
+    if (error.stack) {
+      console.error("📋 STACK TRACE:\n", error.stack); // Pinpoints the exact file and line number
+    }
+    console.log("=========================================");
+
     const statusCode =
-      error.message.includes("required") || error.message.includes("Invalid")
+      error.message &&
+      (error.message.includes("required") || error.message.includes("Invalid"))
         ? 400
         : 500;
-    return res
-      .status(statusCode)
-      .json({ success: false, message: error.message });
+
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Internal Server Error",
+    });
   }
 };
 

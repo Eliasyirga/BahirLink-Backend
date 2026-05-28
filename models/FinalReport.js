@@ -50,15 +50,15 @@ const FinalReport = sequelize.define(
     },
 
     suspects: {
-      type: DataTypes.JSON, // Details of persons who performed the crime
+      type: DataTypes.JSON, 
       allowNull: true,
       defaultValue: [],
     },
 
     propertyDamage: {
-      type: DataTypes.TEXT, // Description of what was destroyed/damaged
+      type: DataTypes.TEXT, 
       allowNull: true,
-      field: "property_damage", // maps to DB column
+      field: "property_damage", 
     },
 
     propertyDamageValue: {
@@ -68,7 +68,6 @@ const FinalReport = sequelize.define(
       field: "property_damage_value",
     },
 
-    // 📸 Evidence & Location Snapshots
     media: {
       type: DataTypes.JSON,
       allowNull: true,
@@ -79,13 +78,11 @@ const FinalReport = sequelize.define(
       allowNull: true,
     },
 
-    // 📊 Status
     status: {
       type: DataTypes.ENUM("resolved", "verified", "archived"),
       defaultValue: "resolved",
     },
 
-    // 🛡️ Admin Verification (Matching your service logic)
     verifiedBy: {
       type: DataTypes.INTEGER,
       allowNull: true,

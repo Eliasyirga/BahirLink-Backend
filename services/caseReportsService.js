@@ -119,8 +119,8 @@ const createReport = async (data, rawLang = "en") => {
       kebeleId: data.kebeleId,
       spottedAt: data.spottedAt,
       reporterId: data.reporterId ?? null,
-      // Ensure the key name here matches your Database Column name exactly
-      phoneNumber: data.phoneNumber ? String(data.phoneNumber) : null,
+      // String() coercion preserves leading zeros (e.g. phone numbers starting with 0)
+      phoneNumber: data.phoneNumber != null ? String(data.phoneNumber) : null,
     });
 
     console.log(
@@ -140,6 +140,7 @@ const createReport = async (data, rawLang = "en") => {
     throw err; // Re-throw to be caught by the controller
   }
 };
+
 /**
  * Return every report, newest first.
  */

@@ -21,6 +21,7 @@ const createFinalReport = async (
   emergencyId,
   payload = {},
   responderId = null,
+  files = [], // Added files parameter here (passed from req.files in the handler)
 ) => {
   try {
     // 1. Check if a report already exists for this emergency
@@ -41,6 +42,16 @@ const createFinalReport = async (
       lng: emergency.longitude,
     };
 
+    // --- CLOUDINARY MULTI-FILE HANDLING ---
+    // Extract payload media if any exist from a text array fallback
+    let finalMediaArray = ensureArray(payload.media);
+
+    // If new files were uploaded via Multer, map their Cloudinary URLs and push them in
+    if (files && files.length > 0) {
+      const uploadedUrls = files.map((file) => file.path); // file.path holds the dynamic cloud HTTPS link
+      finalMediaArray = [...finalMediaArray, ...uploadedUrls];
+    }
+
     // 4. Construct the report data
     const reportData = {
       emergencyId: emergency.id,
@@ -52,7 +63,8 @@ const createFinalReport = async (
       incidentSummary: payload.incidentSummary || emergency.description || "",
       injuredCount: parseInt(payload.injuredCount) || 0,
       deceasedCount: parseInt(payload.deceasedCount) || 0,
-      media: payload.media || [],
+
+      media: finalMediaArray, // Stores the cloud asset URL array cleanly
 
       // ✅ FIX: Use ensureArray to parse stringified JSON from FormData
       witnesses: ensureArray(payload.witnesses),
@@ -84,7 +96,7 @@ const createFinalReport = async (
   }
 };
 
-const updateFinalReport = async (emergencyId, payload) => {
+const updateFinalReport = async (emergencyId, payload, files = []) => {
   try {
     const report = await FinalReport.findOne({ where: { emergencyId } });
     if (!report) throw new Error("Final report not found");
@@ -94,13 +106,22 @@ const updateFinalReport = async (emergencyId, payload) => {
       throw new Error("Cannot update a verified report");
     }
 
+    // --- CLOUDINARY UPDATE HANDLING ---
+    // Start with whatever media already exists on the report, or fallback to payload configuration
+    let currentMedia = ensureArray(payload.media ?? report.media);
+
+    // Append new images/videos if the responder uploads extra material during revision
+    if (files && files.length > 0) {
+      const newUrls = files.map((file) => file.path);
+      currentMedia = [...currentMedia, ...newUrls];
+    }
+
     await report.update({
       incidentSummary: payload.incidentSummary ?? report.incidentSummary,
       injuredCount: payload.injuredCount ?? report.injuredCount,
       deceasedCount: payload.deceasedCount ?? report.deceasedCount,
 
-      // Update media (merging or replacing based on your preference)
-      media: payload.media ?? report.media,
+      media: currentMedia, // Update with the newly calculated collection string/array
 
       witnesses: payload.witnesses ?? report.witnesses,
       suspects: payload.suspects ?? report.suspects,

@@ -13,9 +13,6 @@ const {
 const { sequelize } = require("../config/db");
 const translate = require("google-translate-api-x");
 
-// =========================
-// SHARED KEBELE INCLUDE
-// =========================
 const kebeleWithTeams = {
   model: Kebele,
   as: "kebele",
@@ -183,9 +180,13 @@ const localizeService = (
 // CREATE SERVICE
 // =========================
 const createService = async (data, userIdFromParams, file) => {
+  // UPDATED: Destructure cloud paths from Multer configuration streams
   let mediaUrl = null;
-  if (file && file.filename) {
-    mediaUrl = `/uploads/${file.filename}`;
+  let mediaPublicId = null;
+
+  if (file) {
+    mediaUrl = file.path;
+    mediaPublicId = file.filename;
   }
 
   const serviceTypeId = data.serviceTypeId
@@ -220,7 +221,10 @@ const createService = async (data, userIdFromParams, file) => {
     citizenId,
     location: finalLocation,
     mediaUrl,
-    mediaType: data.mediaType || (file ? "photo" : null),
+    mediaPublicId, // Tracking attribute safely injected
+    mediaType:
+      data.mediaType ||
+      (file ? (file.mimetype?.startsWith("video") ? "video" : "photo") : null),
     status: "pending",
     time: data.time || new Date().toLocaleTimeString("it-IT"),
   });
@@ -228,7 +232,7 @@ const createService = async (data, userIdFromParams, file) => {
   return await Service.findByPk(service.id, { include: serviceIncludes });
 };
 
-const updateService = async (serviceId, updates) => {
+const updateService = async (serviceId, updates, file) => {
   const service = await Service.findByPk(serviceId);
   if (!service) throw new Error("Service not found");
 
@@ -240,6 +244,15 @@ const updateService = async (serviceId, updates) => {
   if (updates.subdivision)
     finalUpdates.subdivision = await autoTranslate(updates.subdivision);
   if (updates.street) finalUpdates.street = await autoTranslate(updates.street);
+
+  // UPDATED: Clean local references inside dynamic asset updates
+  if (file) {
+    finalUpdates.mediaUrl = file.path;
+    finalUpdates.mediaPublicId = file.filename;
+    finalUpdates.mediaType = file.mimetype?.startsWith("video")
+      ? "video"
+      : "photo";
+  }
 
   await service.update(finalUpdates);
   return await Service.findByPk(serviceId, { include: serviceIncludes });
@@ -423,6 +436,7 @@ const getServicesByAgency = async (agencyId, lang = "en") => {
 // =========================
 // GET SERVICES FOR RESPONDER TEAM
 // =========================
+
 const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
   const team = await ResponderTeam.findByPk(responderTeamId, {
     include: [
@@ -435,13 +449,15 @@ const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
   });
   if (!team) throw new Error("Responder Team not found");
 
+  // Dynamically uses 'lang' (defaults to 'en') to pull the correct agency type string
   const agencyTypeName =
     typeof team.agency.agencyType?.name === "object"
-      ? team.agency.agencyType.name.en
+      ? team.agency.agencyType.name[lang]
       : team.agency.agencyType?.name;
 
+  // Dynamically queries the database path (e.g., name.en or name.am) based on 'lang'
   const serviceType = await ServiceType.findOne({
-    where: sequelize.where(sequelize.json("name.en"), agencyTypeName),
+    where: sequelize.where(sequelize.json(`name.${lang}`), agencyTypeName),
   });
   if (!serviceType) return [];
 
@@ -470,33 +486,58 @@ const getServicesForResponderTeam = async (responderTeamId, lang = "en") => {
     order: [["createdAt", "DESC"]],
   });
 
+  // Local helper function ensuring raw stringified JSON is forcefully broken down
+  const forceResolve = (value, targetLang) => {
+    if (value == null) return "";
+
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === "object") {
+          return (
+            parsed[targetLang] || parsed["en"] || Object.values(parsed)[0] || ""
+          );
+        }
+      } catch (e) {
+        // It's already a clean plain string (e.g., "Kebele 01" or "Municipal")
+        return value;
+      }
+    }
+
+    if (typeof value === "object") {
+      return value[targetLang] || value["en"] || Object.values(value)[0] || "";
+    }
+
+    return String(value);
+  };
+
   return services.map((s) => {
     const item = s.get({ plain: true });
     return {
       ...item,
-      name: resolveLocale(item.name, lang),
-      description: resolveLocale(item.description, lang),
-      subdivision: resolveLocale(item.subdivision, lang),
-      street: resolveLocale(item.street, lang),
+      name: forceResolve(item.name, lang),
+      description: forceResolve(item.description, lang),
+      subdivision: forceResolve(item.subdivision, lang),
+      street: forceResolve(item.street, lang),
       serviceType: item.serviceType
         ? {
             ...item.serviceType,
-            name: resolveLocale(item.serviceType.name, lang),
+            name: forceResolve(item.serviceType.name, lang),
           }
         : null,
       serviceCategory: item.serviceCategory
         ? {
             ...item.serviceCategory,
-            name: resolveLocale(item.serviceCategory.name, lang),
+            name: forceResolve(item.serviceCategory.name, lang),
           }
         : null,
       kebele: item.kebele
         ? {
             ...item.kebele,
-            name: resolveLocale(item.kebele.name, lang),
+            name: forceResolve(item.kebele.name, lang),
             teams: (item.kebele.teams || []).map((t) => ({
               ...t,
-              name: resolveLocale(t.name, lang),
+              name: forceResolve(t.name, lang),
             })),
           }
         : null,

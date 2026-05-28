@@ -51,14 +51,12 @@ router.post(
   "/users/:userId",
   verifyToken,
   safeUploadWrapper, // FIXED: Wrapped to prevent unhandled rejections on missing assets
-  validator(registerSchema),
   emergencyController.createUserEmergencyHandler,
 );
 
 router.post(
   "/guests",
   safeUploadWrapper, // FIXED: Wrapped to process text-only guest submissions flawlessly
-  validator(registerSchema),
   emergencyController.createGuestEmergencyHandler,
 );
 
@@ -104,7 +102,6 @@ router.put(
   "/:userOrGuestId/:id",
   verifyToken,
   safeUploadWrapper, // FIXED: Wrapped to securely handle updates with or without media changes
-  validator(registerSchema),
   emergencyController.updateEmergencyHandler,
 );
 

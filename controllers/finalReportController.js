@@ -6,16 +6,39 @@ const extractArray = (body, key) => {
 
   if (!value) return [];
 
+  let result = [];
+
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [value];
+      result = Array.isArray(parsed) ? parsed : [value];
     } catch (e) {
-      return [value];
+      if (value.includes(",")) {
+        result = value.split(",").map((s) => s.trim());
+      } else {
+        result = [value.trim()];
+      }
     }
+  } else {
+    result = [].concat(value);
   }
 
-  return [].concat(value);
+  return result
+    .map((item) => String(item).trim())
+    .filter((item) => {
+      if (!item || item === "null" || item === "undefined") return false;
+
+      const lowerItem = item.toLowerCase();
+      if (
+        /qwerty/i.test(lowerItem) ||
+        /asdf/i.test(lowerItem) ||
+        /^[a-z]{7,}$/i.test(lowerItem) ||
+        lowerItem === "v"
+      ) {
+        return false;
+      }
+      return true;
+    });
 };
 
 const createFinalReport = async (req, res) => {
@@ -120,16 +143,13 @@ const downloadPDFReport = async (req, res) => {
     );
     doc.pipe(res);
 
-    // --- EN-ONLY SANITIZER FUNCTION ---
     const getEnglishLang = (val) => {
       if (!val) return "—";
 
-      // Handle standard objects
       if (typeof val === "object") {
         return val.en || val.name?.en || val.label?.en || val.name || "—";
       }
 
-      // Handle unparsed database JSON strings
       if (
         typeof val === "string" &&
         (val.includes('{"en":') || val.includes('{"am":'))

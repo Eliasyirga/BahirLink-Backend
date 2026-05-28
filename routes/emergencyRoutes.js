@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const emergencyController = require("../controllers/emergencyController");
 const upload = require("../middleware/upload");
 const { validate } = require("uuid");
-const validate = require("../utils/validate");
+const validator = require("../utils/validator");
 const { registerSchema } = require("../utils/schema");
 
 const verifyToken = (req, res, next) => {
@@ -51,14 +51,14 @@ router.post(
   "/users/:userId",
   verifyToken,
   safeUploadWrapper, // FIXED: Wrapped to prevent unhandled rejections on missing assets
-  validate(registerSchema),
+  validator(registerSchema),
   emergencyController.createUserEmergencyHandler,
 );
 
 router.post(
   "/guests",
   safeUploadWrapper, // FIXED: Wrapped to process text-only guest submissions flawlessly
-  validate(registerSchema),
+  validator(registerSchema),
   emergencyController.createGuestEmergencyHandler,
 );
 
@@ -104,7 +104,7 @@ router.put(
   "/:userOrGuestId/:id",
   verifyToken,
   safeUploadWrapper, // FIXED: Wrapped to securely handle updates with or without media changes
-  validate(registerSchema),
+  validator(registerSchema),
   emergencyController.updateEmergencyHandler,
 );
 

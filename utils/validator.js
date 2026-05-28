@@ -1,4 +1,4 @@
-const validate = (schema) => (req, res, next) => {
+const validator = (schema) => (req, res, next) => {
   const result = schema.safeParse({
     body: req.body,
     query: req.query,
@@ -19,4 +19,4 @@ const validate = (schema) => (req, res, next) => {
   next();
 };
 
-module.exports = validate;
+module.exports = validator;

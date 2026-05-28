@@ -2,9 +2,13 @@ const express = require("express");
 const router = express.Router();
 const caseReportsController = require("../controllers/caseReportsController");
 const validator = require("../utils/validator");
-const { registerSchema } = require("../utils/schema");
+const { phoneValidationSchema } = require("../utils/schema");
 
-router.post("/", validator(registerSchema), caseReportsController.createReport);
+router.post(
+  "/",
+  validator(phoneValidationSchema),
+  caseReportsController.createReport,
+);
 
 router.get("/", caseReportsController.getAllReports);
 router.get("/case/:caseId", caseReportsController.getReportsByCase);

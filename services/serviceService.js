@@ -565,12 +565,11 @@ const getAllServicesForAdmin = async (lang = "en") => {
         if (!field) return "";
         let current = field;
 
-        // If it arrives as an escaped text string, parse it to a true object
         if (typeof current === "string") {
           try {
             current = JSON.parse(current);
           } catch (e) {
-            return current; // Not JSON, return plain string fallback
+            return current; 
           }
         }
 

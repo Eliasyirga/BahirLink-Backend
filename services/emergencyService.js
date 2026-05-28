@@ -609,6 +609,7 @@ const getEmergencyById = async (id, lang = "en") => {
         },
         { model: Category, as: "category", attributes: ["id", "name"] },
         kebeleWithTeams,
+  getEmergenciesForResponderTeam,
         {
           model: User,
           as: "user",

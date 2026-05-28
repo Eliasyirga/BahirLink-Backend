@@ -1,10 +1,6 @@
 const finalReportService = require("../services/finalReportService");
 const PDFDocument = require("pdfkit");
 
-/**
- * Helper to extract arrays from req.body regardless of format.
- * Handles: JSON strings, "field[]" notation, and standard arrays.
- */
 const extractArray = (body, key) => {
   const value = body[key] || body[`${key}[]`];
 
@@ -22,9 +18,6 @@ const extractArray = (body, key) => {
   return [].concat(value);
 };
 
-/**
- * CREATE FINAL REPORT
- */
 const createFinalReport = async (req, res) => {
   try {
     const { emergencyId } = req.params;
@@ -64,9 +57,6 @@ const createFinalReport = async (req, res) => {
   }
 };
 
-/**
- * UPDATE FINAL REPORT
- */
 const updateFinalReport = async (req, res) => {
   try {
     const { emergencyId } = req.params;
@@ -110,128 +100,271 @@ const updateFinalReport = async (req, res) => {
   }
 };
 
-/**
- * GENERATE PDF REPORT
- */
-/**
- * GENERATE FULL PDF DOSSIER
- */
 const downloadPDFReport = async (req, res) => {
   try {
     const { emergencyId } = req.params;
-
-    // This call now includes the 'emergency' and 'responder' associations
-    // because we updated the Service/Model logic earlier.
     const report =
       await finalReportService.getFinalReportByEmergency(emergencyId);
 
     if (!report) {
       return res
         .status(404)
-        .json({ success: false, message: "Report data not found" });
+        .json({ success: false, message: "Report not found" });
     }
 
     const doc = new PDFDocument({ margin: 50, size: "A4" });
-
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=Official_Report_${emergencyId}.pdf`,
+      `attachment; filename=Report_${emergencyId}.pdf`,
     );
-
     doc.pipe(res);
 
-    // --- 1. HEADER SECTION ---
-    doc.rect(0, 0, 612, 80).fill("#1e293b"); // Dark slate header background
+    const getLang = (val) => {
+      if (!val) return "N/A";
+      if (typeof val === "string") return val;
+      if (typeof val === "object")
+        return val.en || val.am || Object.values(val)[0] || "N/A";
+      return String(val);
+    };
+
+    const W = 512; // usable width
+    const blue = "#1D4ED8";
+    const dark = "#0F172A";
+    const gray = "#64748B";
+    const light = "#F1F5F9";
+
+    // ── HEADER ──────────────────────────────────────────────
+    doc.rect(0, 0, 612, 90).fill("#0F172A");
     doc
       .fillColor("#ffffff")
-      .fontSize(22)
-      .text("BAHIRLINK INCIDENT REPORT", 50, 30, { characterSpacing: 1 });
+      .fontSize(20)
+      .font("Helvetica-Bold")
+      .text("BAHIRLINK", 50, 22, { characterSpacing: 2 });
     doc
       .fontSize(10)
-      .text("OFFICIAL GOVERNMENT RECORD", 50, 55, { characterSpacing: 2 });
-    doc.moveDown(4);
-
-    // --- 2. EMERGENCY CONTEXT (Original Data) ---
+      .font("Helvetica")
+      .text("OFFICIAL INCIDENT REPORT", 50, 46, { characterSpacing: 1.5 });
     doc
-      .fillColor("#2563eb")
-      .fontSize(14)
-      .text("I. INITIAL INCIDENT DATA", { underline: true });
-    doc.fillColor("#000000").fontSize(11).moveDown(0.5);
+      .fontSize(9)
+      .fillColor("#94A3B8")
+      .text(
+        `Report ID: ${String(emergencyId).slice(-10).toUpperCase()}   |   Generated: ${new Date().toLocaleString()}`,
+        50,
+        64,
+      );
 
-    // Pulling from the associated Emergency model
-    doc.text(
-      `Incident Type: ${report.emergency?.emergencyType?.name || "Standard Emergency"}`,
-    );
-    doc.text(`Kebele: ${report.emergency?.kebele?.name || "N/A"}`);
-    doc.text(`Subdivision: ${report.emergency?.subdivision || "N/A"}`);
-    doc.text(
-      `Reported At: ${new Date(report.emergency?.createdAt).toLocaleString()}`,
-    );
-    doc.moveDown(0.5);
-    doc.text("Original Caller Narrative:", { oblique: true });
-    doc.text(`"${report.emergency?.description || "No narrative provided"}"`, {
-      indent: 20,
-      align: "justify",
-    });
-    doc.moveDown();
+    doc.moveDown(3);
 
-    // --- 3. RESOLUTION DATA (Manual Attributes) ---
+    // ── STATUS BADGE ─────────────────────────────────────────
+    doc.roundedRect(50, doc.y, 100, 22, 4).fill("#DCFCE7");
     doc
-      .fillColor("#2563eb")
-      .fontSize(14)
-      .text("II. RESOLUTION SUMMARY", { underline: true });
-    doc.fillColor("#000000").fontSize(11).moveDown(0.5);
-    doc.text(report.incidentSummary || "No summary provided.", {
-      align: "justify",
-    });
-    doc.moveDown();
+      .fillColor("#16A34A")
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text("● RESOLVED", 56, doc.y - 18);
+    doc.moveDown(1.5);
 
-    // Stats Table-like layout
-    doc.text(`Injured Count: ${report.injuredCount}`, { bulletRadius: 2 });
-    doc.text(`Deceased Count: ${report.deceasedCount}`);
-    doc.text(`Property Damage: ${report.propertyDamage || "None"}`);
-    doc.text(
-      `Estimated Value: ${report.propertyDamageValue.toLocaleString()} ETB`,
+    // ── SECTION HELPER ───────────────────────────────────────
+    const section = (title) => {
+      doc.moveDown(0.8);
+      doc.rect(50, doc.y, W, 24).fill(blue);
+      doc
+        .fillColor("#ffffff")
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text(title.toUpperCase(), 58, doc.y - 18);
+      doc.moveDown(1.2);
+      doc.fillColor(dark).font("Helvetica").fontSize(11);
+    };
+
+    const row = (label, value) => {
+      if (!value || value === "N/A") return;
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(10)
+        .fillColor(gray)
+        .text(label.toUpperCase(), { continued: false });
+      doc
+        .font("Helvetica")
+        .fontSize(11)
+        .fillColor(dark)
+        .text(String(value), { indent: 10 })
+        .moveDown(0.3);
+    };
+
+    const divider = () => {
+      doc.moveDown(0.3);
+      doc.rect(50, doc.y, W, 0.5).fill("#E2E8F0");
+      doc.moveDown(0.6);
+    };
+
+    // ── I. INCIDENT DETAILS ──────────────────────────────────
+    section("I. Incident Details");
+    row("Incident Type", getLang(report.emergency?.emergencyType?.name));
+    divider();
+    row("Kebele", getLang(report.emergency?.kebele?.name));
+    divider();
+    row("Subdivision", report.emergency?.subdivision);
+    divider();
+    row(
+      "Specific Location",
+      report.emergency?.specificLocation || report.emergency?.address,
     );
-    doc.moveDown();
+    divider();
+    row("Reported At", new Date(report.emergency?.createdAt).toLocaleString());
+    divider();
+    row(
+      "Resolved At",
+      report.emergency?.resolvedAt
+        ? new Date(report.emergency.resolvedAt).toLocaleString()
+        : null,
+    );
 
-    // --- 4. PERSONNEL & INVESTIGATION ---
-    doc
-      .fillColor("#2563eb")
-      .fontSize(14)
-      .text("III. INVESTIGATION DETAILS", { underline: true });
-    doc.fillColor("#000000").fontSize(11).moveDown(0.5);
-
-    doc.text("Witnesses:", { bold: true });
-    if (report.witnesses?.length) {
-      report.witnesses.forEach((w, i) => doc.text(`  - ${w}`));
-    } else {
-      doc.text("  - None recorded", { color: "#666666" });
+    // ── II. CALLER NARRATIVE ─────────────────────────────────
+    if (report.emergency?.description) {
+      section("II. Original Caller Narrative");
+      doc.rect(50, doc.y, W, 0.5).fill(blue); // left accent
+      doc.rect(50, doc.y, 3, 60).fill(blue);
+      doc
+        .fillColor(gray)
+        .fontSize(11)
+        .font("Helvetica-Oblique")
+        .text(`"${getLang(report.emergency.description)}"`, 62, doc.y - 2, {
+          width: W - 14,
+          align: "justify",
+          lineGap: 4,
+        });
+      doc.moveDown(1);
     }
 
-    doc.moveDown(0.5);
-    doc.text("Suspects:", { bold: true });
-    if (report.suspects?.length) {
-      report.suspects.forEach((s, i) => doc.text(`  - ${s}`));
-    } else {
-      doc.text("  - None recorded", { color: "#666666" });
-    }
-    doc.moveDown();
-
-    // --- 5. AUTHORIZATION ---
-    doc.moveDown(2);
-    doc.rect(50, doc.y, 500, 1).stroke(); // Line
+    // ── III. RESOLUTION SUMMARY ──────────────────────────────
+    section("III. Resolution Summary");
+    doc
+      .font("Helvetica")
+      .fontSize(11)
+      .fillColor(dark)
+      .text(report.incidentSummary || "No summary provided.", {
+        width: W,
+        align: "justify",
+        lineGap: 4,
+      });
     doc.moveDown(1);
-    doc.fontSize(12).text("AUTHORIZATION SIGN-OFF", { bold: true });
-    doc.fontSize(10);
-    doc.text(`Responding Team: ${report.responder?.name || "System Assigned"}`);
-    doc.text(`Team Contact: ${report.responder?.phone || "N/A"}`);
-    doc.text(`Finalized Date: ${new Date(report.createdAt).toLocaleString()}`);
+
+    // Stats grid
+    const stats = [
+      { label: "Injured", value: report.injuredCount ?? 0, color: "#F59E0B" },
+      { label: "Deceased", value: report.deceasedCount ?? 0, color: "#EF4444" },
+      {
+        label: "Property Damage",
+        value: report.propertyDamage || "None",
+        color: blue,
+      },
+      {
+        label: "Estimated Value",
+        value: `${(report.propertyDamageValue || 0).toLocaleString()} ETB`,
+        color: "#10B981",
+      },
+    ];
+
+    const colW = W / 2 - 6;
+    let sx = 50,
+      sy = doc.y;
+    stats.forEach((s, i) => {
+      doc.rect(sx, sy, colW, 50).fill(light);
+      doc
+        .fillColor(s.color)
+        .fontSize(9)
+        .font("Helvetica-Bold")
+        .text(s.label.toUpperCase(), sx + 10, sy + 8, { width: colW - 20 });
+      doc
+        .fillColor(dark)
+        .fontSize(16)
+        .font("Helvetica-Bold")
+        .text(String(s.value), sx + 10, sy + 22, { width: colW - 20 });
+      sx += colW + 12;
+      if (i % 2 === 1) {
+        sx = 50;
+        sy += 60;
+      }
+    });
+    doc.y = sy + 10;
+    doc.moveDown(1);
+
+    // ── IV. INVESTIGATION ────────────────────────────────────
+    section("IV. Investigation Details");
+
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(gray).text("WITNESSES");
+    doc.moveDown(0.3);
+    const witnesses = Array.isArray(report.witnesses)
+      ? report.witnesses.filter(Boolean)
+      : [];
+    if (witnesses.length) {
+      witnesses.forEach((w) => {
+        doc
+          .font("Helvetica")
+          .fontSize(11)
+          .fillColor(dark)
+          .text(`• ${w}`, { indent: 10 });
+      });
+    } else {
+      doc
+        .font("Helvetica")
+        .fontSize(11)
+        .fillColor("#94A3B8")
+        .text("None recorded", { indent: 10 });
+    }
+    doc.moveDown(0.6);
+
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(gray).text("SUSPECTS");
+    doc.moveDown(0.3);
+    const suspects = Array.isArray(report.suspects)
+      ? report.suspects.filter(Boolean)
+      : [];
+    if (suspects.length) {
+      suspects.forEach((s) => {
+        doc
+          .font("Helvetica")
+          .fontSize(11)
+          .fillColor(dark)
+          .text(`• ${s}`, { indent: 10 });
+      });
+    } else {
+      doc
+        .font("Helvetica")
+        .fontSize(11)
+        .fillColor("#94A3B8")
+        .text("None recorded", { indent: 10 });
+    }
+
+    // ── V. AUTHORIZATION ─────────────────────────────────────
+    section("V. Authorization");
+    row("Responding Team", getLang(report.responder?.name));
+    divider();
+    row("Team Contact", report.responder?.phone);
+    divider();
+    row("Team Email", report.responder?.email);
+    divider();
+    row("Report Finalized", new Date(report.createdAt).toLocaleString());
+
+    // ── FOOTER ───────────────────────────────────────────────
+    doc.moveDown(2);
+    doc.rect(50, doc.y, W, 0.5).fill("#E2E8F0");
+    doc.moveDown(0.5);
+    doc
+      .fontSize(8)
+      .fillColor("#94A3B8")
+      .font("Helvetica")
+      .text(
+        "This is an official document generated by BahirLink Emergency Management System. Unauthorized reproduction is prohibited.",
+        50,
+        doc.y,
+        { width: W, align: "center" },
+      );
 
     doc.end();
   } catch (err) {
-    console.error("❌ PDF Controller Error:", err.message);
+    console.error("❌ PDF Error:", err.message);
     if (!res.headersSent) {
       res.status(500).json({ success: false, message: "Error generating PDF" });
     }

@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const serviceController = require("../controllers/serviceController");
-const upload = require("../middleware/upload"); // ✅ Import your existing file
-const { verifyToken } = require("../middleware/auth"); // Your auth middleware
+const upload = require("../middleware/upload"); 
+const { verifyToken } = require("../middleware/auth"); 
 
-// ✅ Use your specific middleware with the "media" key
+
 router.post(
   "/create/:userId",
   upload.single("media"),

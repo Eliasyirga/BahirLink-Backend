@@ -1,15 +1,5 @@
 const { Emergency } = require("../models");
 
-// FIX ④: relay() previously called ensureCallRoom() on every signalling
-// message (offer, answer, ice, hangup). ensureCallRoom() calls socket.join()
-// each time, which re-emits call:peer-joined to the other party — causing
-// React to attempt a second createOffer and ICE to go haywire.
-//
-// The fix splits the logic:
-//   • ensureCallRoom()  — used only for call:initiate and call:join (first join)
-//   • roomOnly()        — used inside relay() — resolves the room name from
-//                         socket.data.callEmergencyId without any join side-effect
-
 const videoCallSocket = (io, socket) => {
   const identityRoom = socket?.identity
     ? `identity_${socket.identity.senderType}_${socket.identity.id}`
@@ -124,9 +114,6 @@ const videoCallSocket = (io, socket) => {
     }
   });
 
-  // FIX ④: relay() no longer calls ensureCallRoom(). It resolves the room
-  // name from socket.data.callEmergencyId (set during call:join) without
-  // joining again, so call:peer-joined is never re-emitted as a side-effect.
   const relay = (eventName, payload) => {
     const emergencyId =
       payload?.emergencyId ?? socket.data.callEmergencyId ?? null;

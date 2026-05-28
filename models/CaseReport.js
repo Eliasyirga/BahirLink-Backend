@@ -41,7 +41,7 @@ const CaseReport = sequelize.define(
     caseId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      field: "case_id",
+      field: "caseId", // 💡 Change this to "caseId" (or delete the line entirely!)
       references: { model: Cases, key: "id" },
       onDelete: "CASCADE",
     },
@@ -49,7 +49,7 @@ const CaseReport = sequelize.define(
     caseTypeId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      field: "case_type_id",
+      field: "caseTypeId", // 💡 Change this to match your real database column name
       references: { model: CaseType, key: "id" },
       onDelete: "CASCADE",
     },
@@ -57,7 +57,7 @@ const CaseReport = sequelize.define(
     reporterId: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      field: "reporter_id",
+      field: "reporterId", // 💡 Matches your real database column name
       references: { model: "users", key: "id" },
       onDelete: "SET NULL",
     },

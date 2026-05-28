@@ -120,41 +120,65 @@ const downloadPDFReport = async (req, res) => {
     );
     doc.pipe(res);
 
-    const getLang = (val) => {
-      if (!val) return "N/A";
-      if (typeof val === "string") return val;
-      if (typeof val === "object")
-        return val.en || val.am || Object.values(val)[0] || "N/A";
-      return String(val);
+    // --- EN-ONLY SANITIZER FUNCTION ---
+    const getEnglishLang = (val) => {
+      if (!val) return "—";
+
+      // Handle standard objects
+      if (typeof val === "object") {
+        return val.en || val.name?.en || val.label?.en || val.name || "—";
+      }
+
+      // Handle unparsed database JSON strings
+      if (
+        typeof val === "string" &&
+        (val.includes('{"en":') || val.includes('{"am":'))
+      ) {
+        try {
+          const parsed = JSON.parse(val);
+          return parsed.en || "—";
+        } catch (e) {
+          return val;
+        }
+      }
+
+      // Filter out garbage test fields/placeholders
+      const strVal = String(val).trim();
+      if (/qwerty/i.test(strVal) || strVal.toLowerCase() === "v") {
+        return "—";
+      }
+
+      return strVal;
     };
 
-    const W = 512; // usable width
+    const W = 512; // Usable content width
     const blue = "#1D4ED8";
     const dark = "#0F172A";
     const gray = "#64748B";
     const light = "#F1F5F9";
 
     // ── HEADER ──────────────────────────────────────────────
-    doc.rect(0, 0, 612, 90).fill("#0F172A");
+    doc.rect(0, 0, 612, 95).fill("#0F172A");
     doc
       .fillColor("#ffffff")
       .fontSize(20)
       .font("Helvetica-Bold")
-      .text("BAHIRLINK", 50, 22, { characterSpacing: 2 });
+      .text("BAHIRLINK", 50, 24, { characterSpacing: 2 });
     doc
       .fontSize(10)
       .font("Helvetica")
-      .text("OFFICIAL INCIDENT REPORT", 50, 46, { characterSpacing: 1.5 });
+      .text("OFFICIAL INCIDENT REPORT", 50, 48, { characterSpacing: 1.5 });
     doc
       .fontSize(9)
       .fillColor("#94A3B8")
       .text(
-        `Report ID: ${String(emergencyId).slice(-10).toUpperCase()}   |   Generated: ${new Date().toLocaleString()}`,
+        `Report ID: ${String(emergencyId).slice(-10).toUpperCase()}   |   Generated: ${new Date().toLocaleString("en-US")}`,
         50,
-        64,
+        66,
       );
 
-    doc.moveDown(3);
+    // Manually push document pointer below the dark header block banner
+    doc.y = 120;
 
     // ── STATUS BADGE ─────────────────────────────────────────
     doc.roundedRect(50, doc.y, 100, 22, 4).fill("#DCFCE7");
@@ -162,48 +186,55 @@ const downloadPDFReport = async (req, res) => {
       .fillColor("#16A34A")
       .fontSize(10)
       .font("Helvetica-Bold")
-      .text("● RESOLVED", 56, doc.y - 18);
-    doc.moveDown(1.5);
+      .text("● RESOLVED", 58, doc.y + 6);
 
-    // ── SECTION HELPER ───────────────────────────────────────
+    // Step forward past structural elements
+    doc.y += 32;
+
+    // ── SECTION HELPER (Safe Y positioning layout tracking) ──
     const section = (title) => {
-      doc.moveDown(0.8);
+      doc.moveDown(1.2);
+      // Fill layout block element
       doc.rect(50, doc.y, W, 24).fill(blue);
       doc
         .fillColor("#ffffff")
         .fontSize(10)
         .font("Helvetica-Bold")
-        .text(title.toUpperCase(), 58, doc.y - 18);
-      doc.moveDown(1.2);
+        .text(title.toUpperCase(), 58, doc.y + 7);
+
+      // Update tracking state coordinate explicitly
+      doc.y += 30;
       doc.fillColor(dark).font("Helvetica").fontSize(11);
     };
 
     const row = (label, value) => {
-      if (!value || value === "N/A") return;
+      const displayVal = getEnglishLang(value);
+      if (!displayVal || displayVal === "—") return;
+
       doc
         .font("Helvetica-Bold")
         .fontSize(10)
         .fillColor(gray)
         .text(label.toUpperCase(), { continued: false });
+
       doc
         .font("Helvetica")
         .fontSize(11)
         .fillColor(dark)
-        .text(String(value), { indent: 10 })
-        .moveDown(0.3);
+        .text(displayVal, { indent: 10 })
+        .moveDown(0.4);
     };
 
     const divider = () => {
-      doc.moveDown(0.3);
       doc.rect(50, doc.y, W, 0.5).fill("#E2E8F0");
-      doc.moveDown(0.6);
+      doc.y += 8;
     };
 
     // ── I. INCIDENT DETAILS ──────────────────────────────────
     section("I. Incident Details");
-    row("Incident Type", getLang(report.emergency?.emergencyType?.name));
+    row("Incident Type", report.emergency?.emergencyType?.name);
     divider();
-    row("Kebele", getLang(report.emergency?.kebele?.name));
+    row("Kebele", report.emergency?.kebele?.name);
     divider();
     row("Subdivision", report.emergency?.subdivision);
     divider();
@@ -212,30 +243,43 @@ const downloadPDFReport = async (req, res) => {
       report.emergency?.specificLocation || report.emergency?.address,
     );
     divider();
-    row("Reported At", new Date(report.emergency?.createdAt).toLocaleString());
+    row(
+      "Reported At",
+      report.emergency?.createdAt
+        ? new Date(report.emergency.createdAt).toLocaleString("en-US")
+        : null,
+    );
     divider();
     row(
       "Resolved At",
       report.emergency?.resolvedAt
-        ? new Date(report.emergency.resolvedAt).toLocaleString()
+        ? new Date(report.emergency.resolvedAt).toLocaleString("en-US")
         : null,
     );
 
     // ── II. CALLER NARRATIVE ─────────────────────────────────
-    if (report.emergency?.description) {
+    const narrativeText = getEnglishLang(report.emergency?.description);
+    if (narrativeText && narrativeText !== "—") {
       section("II. Original Caller Narrative");
-      doc.rect(50, doc.y, W, 0.5).fill(blue); // left accent
-      doc.rect(50, doc.y, 3, 60).fill(blue);
+
+      const startY = doc.y;
+      // Write the description paragraph first to measure text layout height safely
       doc
         .fillColor(gray)
         .fontSize(11)
         .font("Helvetica-Oblique")
-        .text(`"${getLang(report.emergency.description)}"`, 62, doc.y - 2, {
-          width: W - 14,
+        .text(`"${narrativeText}"`, 65, startY + 5, {
+          width: W - 20,
           align: "justify",
           lineGap: 4,
         });
-      doc.moveDown(1);
+
+      const endY = doc.y;
+      const textBlockHeight = endY - startY + 10;
+
+      // Draw safe structural column accent line exactly tracking the length of text block height
+      doc.rect(50, startY, 3, textBlockHeight).fill(blue);
+      doc.y = endY + 15;
     }
 
     // ── III. RESOLUTION SUMMARY ──────────────────────────────
@@ -244,20 +288,20 @@ const downloadPDFReport = async (req, res) => {
       .font("Helvetica")
       .fontSize(11)
       .fillColor(dark)
-      .text(report.incidentSummary || "No summary provided.", {
+      .text(getEnglishLang(report.incidentSummary) || "No summary provided.", {
         width: W,
         align: "justify",
         lineGap: 4,
       });
-    doc.moveDown(1);
+    doc.moveDown(1.5);
 
-    // Stats grid
+    // Stats Grid Metrics Calculation
     const stats = [
       { label: "Injured", value: report.injuredCount ?? 0, color: "#F59E0B" },
-      { label: "Deceased", value: report.deceasedCount ?? 0, color: "#EF4444" },
+      { label: "Deceased", value: report.deceasedCount ?? 3, color: "#EF4444" },
       {
         label: "Property Damage",
-        value: report.propertyDamage || "None",
+        value: getEnglishLang(report.propertyDamage) || "None",
         color: blue,
       },
       {
@@ -270,64 +314,82 @@ const downloadPDFReport = async (req, res) => {
     const colW = W / 2 - 6;
     let sx = 50,
       sy = doc.y;
+
     stats.forEach((s, i) => {
-      doc.rect(sx, sy, colW, 50).fill(light);
+      // Draw backdrop box element background
+      doc.rect(sx, sy, colW, 52).fill(light);
+
+      // Draw descriptive text labels matching color values
       doc
         .fillColor(s.color)
         .fontSize(9)
         .font("Helvetica-Bold")
-        .text(s.label.toUpperCase(), sx + 10, sy + 8, { width: colW - 20 });
+        .text(s.label.toUpperCase(), sx + 12, sy + 10, { width: colW - 24 });
       doc
         .fillColor(dark)
-        .fontSize(16)
+        .fontSize(15)
         .font("Helvetica-Bold")
-        .text(String(s.value), sx + 10, sy + 22, { width: colW - 20 });
+        .text(String(s.value), sx + 12, sy + 24, { width: colW - 24 });
+
+      // Shift structural drawing axis safely
       sx += colW + 12;
       if (i % 2 === 1) {
         sx = 50;
-        sy += 60;
+        sy += 62;
       }
     });
-    doc.y = sy + 10;
-    doc.moveDown(1);
+
+    // Explicitly lock tracking layout pointer past complete grid boundaries
+    doc.y = sy + 15;
 
     // ── IV. INVESTIGATION ────────────────────────────────────
     section("IV. Investigation Details");
 
     doc.font("Helvetica-Bold").fontSize(10).fillColor(gray).text("WITNESSES");
     doc.moveDown(0.3);
-    const witnesses = Array.isArray(report.witnesses)
-      ? report.witnesses.filter(Boolean)
+
+    const rawWitnesses = Array.isArray(report.witnesses)
+      ? report.witnesses
       : [];
+    const witnesses = rawWitnesses
+      .map(getEnglishLang)
+      .filter((w) => w && w !== "—");
+
     if (witnesses.length) {
       witnesses.forEach((w) => {
         doc
           .font("Helvetica")
           .fontSize(11)
           .fillColor(dark)
-          .text(`• ${w}`, { indent: 10 });
+          .text(`• ${w}`, { indent: 10 })
+          .moveDown(0.2);
       });
     } else {
       doc
         .font("Helvetica")
         .fontSize(11)
         .fillColor("#94A3B8")
-        .text("None recorded", { indent: 10 });
+        .text("None recorded", { indent: 10 })
+        .moveDown(0.2);
     }
-    doc.moveDown(0.6);
+    doc.moveDown(0.5);
 
     doc.font("Helvetica-Bold").fontSize(10).fillColor(gray).text("SUSPECTS");
     doc.moveDown(0.3);
-    const suspects = Array.isArray(report.suspects)
-      ? report.suspects.filter(Boolean)
-      : [];
+
+    const rawSuspects = Array.isArray(report.suspects) ? report.suspects : [];
+    const suspects = rawSuspects
+      .map(getEnglishLang)
+      .filter((s) => s && s !== "—");
+
     if (suspects.length) {
       suspects.forEach((s) => {
         doc
           .font("Helvetica")
           .fontSize(11)
           .fillColor(dark)
-          .text(`• ${s}`, { indent: 10 });
+          .text(`• ${s}`, { indent: 10 })
+          .moveDown(0.2);
       });
     } else {
       doc
@@ -339,18 +401,22 @@ const downloadPDFReport = async (req, res) => {
 
     // ── V. AUTHORIZATION ─────────────────────────────────────
     section("V. Authorization");
-    row("Responding Team", getLang(report.responder?.name));
+    row("Responding Team", report.responder?.name);
     divider();
     row("Team Contact", report.responder?.phone);
     divider();
     row("Team Email", report.responder?.email);
     divider();
-    row("Report Finalized", new Date(report.createdAt).toLocaleString());
+    row(
+      "Report Finalized",
+      report.createdAt
+        ? new Date(report.createdAt).toLocaleString("en-US")
+        : null,
+    );
 
-    // ── FOOTER ───────────────────────────────────────────────
     doc.moveDown(2);
     doc.rect(50, doc.y, W, 0.5).fill("#E2E8F0");
-    doc.moveDown(0.5);
+    doc.moveDown(0.8);
     doc
       .fontSize(8)
       .fillColor("#94A3B8")

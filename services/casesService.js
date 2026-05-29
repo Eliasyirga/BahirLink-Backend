@@ -132,15 +132,71 @@ const getCaseById = async (id, lang = "en") => {
   return localize(singleCase, lang, multiLangFields);
 };
 
+// const createCase = async (data, file) => {
+//   // Added file parameter
+//   const rTeamId = data.responderTeamId ? Number(data.responderTeamId) : null;
+//   if (!rTeamId) throw new Error("Responder Team ID is required.");
+
+//   const team = await ResponderTeam.findByPk(rTeamId);
+//   if (!team) throw new Error(`Responder Team ID ${rTeamId} not found.`);
+
+//   const {
+//     caseTypeId,
+//     lastSeenLocationId,
+//     age,
+//     reward,
+//     height,
+//     weight,
+//     isDangerous,
+//     fullName,
+//     description,
+//     distinctiveFeatures,
+//     ...rest
+//   } = data;
+
+//   const [translatedName, translatedDesc, translatedFeatures] =
+//     await Promise.all([
+//       autoTranslate(fullName || "Unknown Case"),
+//       autoTranslate(description || ""),
+//       autoTranslate(distinctiveFeatures || ""),
+//     ]);
+
+//   // Extract Cloudinary dynamic links safely if a file is present
+//   let mediaUrl = null;
+//   let mediaPublicId = null;
+//   if (file) {
+//     mediaUrl = file.path;
+//     mediaPublicId = file.filename;
+//   }
+
+//   const newCase = await Cases.create({
+//     ...rest,
+//     fullName: translatedName,
+//     description: translatedDesc,
+//     distinctiveFeatures: translatedFeatures,
+//     mediaUrl, // Saved as clean cloud link string
+//     mediaPublicId, // Saved for asset mutations/deletion tracking
+
+//     responderTeamId: rTeamId,
+//     agencyId: team.agencyId,
+//     caseTypeId: caseTypeId ? parseInt(caseTypeId, 10) : null,
+//     lastSeenLocationId: lastSeenLocationId
+//       ? parseInt(lastSeenLocationId, 10)
+//       : null,
+//     age: age ? parseInt(age, 10) : null,
+//     height: height ? parseInt(height, 10) : null,
+//     weight: weight ? parseInt(weight, 10) : null,
+//     reward: reward ? parseFloat(reward) : 0.0,
+//     isDangerous: isDangerous === "true" || isDangerous === true,
+//     status: "pending",
+//   });
+
+//   return await getCaseById(newCase.id, "all");
+// };
+
 const createCase = async (data, file) => {
-  // Added file parameter
-  const rTeamId = data.responderTeamId ? Number(data.responderTeamId) : null;
-  if (!rTeamId) throw new Error("Responder Team ID is required.");
-
-  const team = await ResponderTeam.findByPk(rTeamId);
-  if (!team) throw new Error(`Responder Team ID ${rTeamId} not found.`);
-
   const {
+    responderTeamId,
     caseTypeId,
     lastSeenLocationId,
     age,
@@ -154,6 +210,14 @@ const createCase = async (data, file) => {
     ...rest
   } = data;
 
+  // 1. Validate relational dependency constraints
+  const rTeamId = responderTeamId ? Number(responderTeamId) : null;
+  if (!rTeamId) throw new Error("Responder Team ID is required.");
+
+  const team = await ResponderTeam.findByPk(rTeamId);
+  if (!team) throw new Error(`Responder Team ID ${rTeamId} not found.`);
+
+  // 2. Parallel multi-language translations
   const [translatedName, translatedDesc, translatedFeatures] =
     await Promise.all([
       autoTranslate(fullName || "Unknown Case"),
@@ -161,22 +225,18 @@ const createCase = async (data, file) => {
       autoTranslate(distinctiveFeatures || ""),
     ]);
 
-  // Extract Cloudinary dynamic links safely if a file is present
-  let mediaUrl = null;
-  let mediaPublicId = null;
-  if (file) {
-    mediaUrl = file.path;
-    mediaPublicId = file.filename;
-  }
-
+  // 3. Database document insertion
   const newCase = await Cases.create({
     ...rest,
     fullName: translatedName,
     description: translatedDesc,
     distinctiveFeatures: translatedFeatures,
-    mediaUrl, // Saved as clean cloud link string
-    mediaPublicId, // Saved for asset mutations/deletion tracking
 
+    // Inline asset parsing mapping directly to your Cloudinary storage schema
+    mediaUrl: file ? file.path : null,
+    mediaPublicId: file ? file.filename : null,
+
+    // Structural keys and data transformations
     responderTeamId: rTeamId,
     agencyId: team.agencyId,
     caseTypeId: caseTypeId ? parseInt(caseTypeId, 10) : null,

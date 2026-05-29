@@ -1,20 +1,11 @@
 const caseReportsService = require("../services/caseReportsService");
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Extract and normalize lang from ?lang= query param or Accept-Language header.
- */
 const getLang = (req) => {
   const raw = req.query.lang || req.headers["accept-language"] || "en";
   return raw.split(/[,;-]/)[0].trim().toLowerCase() || "en";
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CONTROLLERS
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** POST /api/case-reports */
 const createReport = async (req, res) => {
@@ -25,13 +16,11 @@ const createReport = async (req, res) => {
     );
     res.status(201).json({ success: true, data: report });
   } catch (err) {
-    // This will print the specific Sequelize validation error to your console
     console.error("DEBUG - Report Creation Error:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
 
-/** GET /api/case-reports */
 const getAllReports = async (req, res) => {
   try {
     const reports = await caseReportsService.getAllReports(getLang(req));

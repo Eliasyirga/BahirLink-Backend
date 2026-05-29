@@ -30,8 +30,6 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// --- SAFE MULTER WRAPPER HELPER ---
-// This handles requests smoothly whether a file is attached or not.
 const safeUploadWrapper = (req, res, next) => {
   upload.single("media")(req, res, function (err) {
     if (err) {

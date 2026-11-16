@@ -1,6 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const { verifyToken } = require("../middleware/auth");
+const {
+  verifyToken,
+  adminOnly,
+  staffOnly,
+  requireAccess,
+  ADMIN_ROLES,
+} = require("../middleware/auth");
+const { loginLimiter } = require("../middleware/rateLimit");
 
 const {
   createAgencyHandler,
@@ -12,22 +19,25 @@ const {
   getAgencyByIdHandler,
 } = require("../controllers/agencyController");
 
-// Get all agencies
-router.get("/", verifyToken, getAllAgenciesHandler);
+// ── Public ────────────────────────────────────────────────
+router.post("/agent-login", loginLimiter(), loginAgencyHandler);
 
-// Create a new agency
-router.post("/", verifyToken, createAgencyHandler);
+// ── System admin (admin / serviceadmin users) ─────────────
+router.get("/", verifyToken, adminOnly, getAllAgenciesHandler);
+router.post("/", verifyToken, adminOnly, createAgencyHandler);
+router.delete("/:id", verifyToken, adminOnly, deleteAgencyHandler);
+router.get("/my-agents", verifyToken, adminOnly, getAgentsByCreatorIdHandler);
 
-// Update an existing agency
-router.put("/:id", verifyToken, updateAgencyHandler);
+// Update: system admin, or an agency editing ITS OWN record (self-service
+// email/phone/location/password-with-oldPassword; enforced in the controller).
+router.put(
+  "/:id",
+  verifyToken,
+  requireAccess({ userRoles: ADMIN_ROLES, types: ["agency"] }),
+  updateAgencyHandler,
+);
 
-// Delete an agency
-router.delete("/:id", verifyToken, deleteAgencyHandler);
-
-router.post("/agent-login", loginAgencyHandler);
-
-router.get("/my-agents", verifyToken, getAgentsByCreatorIdHandler);
-
-router.get("/:id", verifyToken, getAgencyByIdHandler);
+// Read one agency: any staff account (responder dashboards read their agency).
+router.get("/:id", verifyToken, staffOnly, getAgencyByIdHandler);
 
 module.exports = router;

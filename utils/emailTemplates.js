@@ -32,7 +32,7 @@ const temporaryPasswordEmail = (tempPassword) => `
   <div style="max-width:600px; margin:auto; background:#ffffff; border-radius:16px; padding:40px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,0.15);">
     <img src="${logoDataUri}" alt="BahirLink Logo" style="width:120px; margin-bottom:20px;" />
     <h2 style="color:#0F52BA; margin-bottom:15px;">Your Temporary Password</h2>
-    <p style="font-size:16px; color:#555; margin-bottom:30px;">Use the password below to log in. You must change it after logging in.</p>
+    <p style="font-size:16px; color:#555; margin-bottom:30px;">Use the password below to log in within 30 minutes. You must change it after logging in. Your current password keeps working until you change it.</p>
     <div style="display:inline-block; background:#0F52BA; color:#fff; font-size:24px; font-weight:bold; padding:15px 25px; border-radius:8px; letter-spacing:2px;">
       ${tempPassword}
     </div>

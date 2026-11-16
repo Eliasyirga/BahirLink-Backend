@@ -18,14 +18,19 @@
  */
 
 const messageService = require("../services/messageService");
+const { discardUploadedFile } = require("../utils/cloudinaryMedia");
 
+// Chat participants are citizens ("user" accounts) and responder teams.
+// Routes only admit those two token types (see messageRoutes.js).
 const resolveSenderFromToken = (req) => {
-  const role = req.user?.role;
   if (!req.user?.id) return null;
-  if (role === "responder") {
+  if (req.user.type === "responder") {
     return { senderId: req.user.id, senderType: "responderTeam" };
   }
-  return { senderId: req.user.id, senderType: "user" };
+  if (req.user.type === "user") {
+    return { senderId: req.user.id, senderType: "user" };
+  }
+  return null;
 };
 
 /**
@@ -151,6 +156,7 @@ const makePostAudioMessage = (io) => async (req, res) => {
 
     const { emergencyId } = req.body;
     if (!emergencyId) {
+      discardUploadedFile(req.file, "audio");
       return res.status(400).json({ success: false, message: "emergencyId is required" });
     }
 
@@ -158,8 +164,11 @@ const makePostAudioMessage = (io) => async (req, res) => {
       return res.status(400).json({ success: false, message: "audio file is required" });
     }
 
-    // URL served by: app.use("/uploads", express.static("public/uploads"))
-    const audioUrl = `/uploads/${req.file.filename}`;
+    // Cloudinary secure URL (multer-storage-cloudinary sets file.path to it).
+    const audioUrl = req.file.path || req.file.secure_url;
+    if (!audioUrl) {
+      return res.status(400).json({ success: false, message: "audio upload failed" });
+    }
 
     const result = await messageService.saveMessage({
       emergencyId,
@@ -187,6 +196,8 @@ const makePostAudioMessage = (io) => async (req, res) => {
       statusChanged: result.statusChanged,
     });
   } catch (error) {
+    // Message wasn't saved — don't leave an orphaned asset on Cloudinary.
+    discardUploadedFile(req.file, "audio");
     return res.status(400).json({
       success: false,
       message: error.message || "Something went wrong",
@@ -199,7 +210,7 @@ const makePostAudioMessage = (io) => async (req, res) => {
  *
  *   const { makeController } = require("../controllers/messageController");
  *   const ctrl = makeController(io);
- *   router.post("/audio", verifyToken, upload.single("audio"), ctrl.postAudioMessage);
+ *   router.post("/audio", verifyToken, audioUploadSafe, ctrl.postAudioMessage);
  */
 const makeController = (io) => ({
   postMessage,

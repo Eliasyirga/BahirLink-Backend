@@ -47,6 +47,13 @@ const Emergency = sequelize.define(
       type: DataTypes.ENUM("photo", "video", "audio"),
       allowNull: true,
     },
+    // Cloudinary public_id of mediaUrl, used to delete the asset when the
+    // media is replaced or the emergency deleted. Column is added by
+    // migrations/ensureColumns.js (sync() runs without alter).
+    mediaPublicId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     status: {
       type: DataTypes.ENUM("reported", "assigned", "in_progress", "resolved"),
       defaultValue: "reported",

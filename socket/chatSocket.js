@@ -51,6 +51,14 @@ const chatSocket = (io, socket) => {
 
   const sendMessage = async ({ emergencyId, text, audioUrl }) => {
     try {
+      // Message.senderType only supports citizens and responder teams;
+      // agency/crew sockets may join rooms and listen but not post.
+      if (!["user", "responderTeam"].includes(socket.identity.senderType)) {
+        return socket.emit("error_alert", {
+          message: "Only citizens and responder teams can send chat messages.",
+        });
+      }
+
       if (!emergencyId || (!text && !audioUrl)) {
         return socket.emit("error_alert", {
           message: "emergencyId and (text or audioUrl) are required.",

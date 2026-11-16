@@ -1,4 +1,5 @@
 const casesService = require("../services/casesService");
+const { discardUploadedFile } = require("../utils/cloudinaryMedia");
 
 const parseLang = (req, defaultLang = "en") => {
   if (req.query.lang) return req.query.lang;
@@ -83,7 +84,10 @@ const parseLocalized = (field) => {
 
 const createCase = async (req, res) => {
   try {
-    const { fullName, caseTypeId, responderTeamId } = req.body;
+    const { fullName, caseTypeId } = req.body;
+    // Responder teams can only file cases for themselves.
+    const responderTeamId =
+      req.user?.type === "responder" ? req.user.id : req.body.responderTeamId;
 
     // 1. Initial structural payload validation guard
     if (!fullName || !caseTypeId || !responderTeamId) {
@@ -95,8 +99,28 @@ const createCase = async (req, res) => {
 
     // 2. Normalize raw body strings before handing off to service translation engine
     // (This guarantees autoTranslate handles a plain string, not an object)
+    // Explicit allow-list — no pass-through of arbitrary body keys.
+    const CASE_FIELDS = [
+      "gender",
+      "priority",
+      "lastSeenDate",
+      "contactInfo",
+      "isDangerous",
+      "age",
+      "height",
+      "weight",
+      "reward",
+      "caseTypeId",
+      "lastSeenLocationId",
+    ];
+    const allowed = {};
+    CASE_FIELDS.forEach((f) => {
+      if (req.body[f] !== undefined && req.body[f] !== "") allowed[f] = req.body[f];
+    });
+
     const formattedData = {
-      ...req.body,
+      ...allowed,
+      responderTeamId,
       fullName: parseLocalized(req.body.fullName),
       description: parseLocalized(req.body.description),
       distinctiveFeatures: parseLocalized(req.body.distinctiveFeatures),
@@ -111,6 +135,7 @@ const createCase = async (req, res) => {
       data: newCase,
     });
   } catch (error) {
+    discardUploadedFile(req.file); // case not saved — don't orphan the upload
     console.error("❌ Controller Error [createCase]:", error);
     return res.status(400).json({
       success: false,
@@ -149,10 +174,12 @@ const getCaseById = async (req, res) => {
 const updateCaseStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    if (!status) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Status is required." });
+    const CASE_STATUSES = ["pending", "approved", "rejected", "resolved"];
+    if (!status || !CASE_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status is required (${CASE_STATUSES.join(", ")}).`,
+      });
     }
     const result = await casesService.updateCaseStatus(req.params.id, status);
     return res

@@ -13,14 +13,17 @@ const {
   ResponderTeamKebele,
 } = require("../models");
 const translate = require("google-translate-api-x");
+const {
+  mediaTypeFromMime,
+  destroyMedia,
+  discardUploadedFile,
+} = require("../utils/cloudinaryMedia");
 
 const emergencyTypeToAgencyType = {
   Crime: "Police",
   Medical: "Health",
   Fire: "Fire",
 };
-
-const DEFAULT_EMERGENCY_TYPE_ID = "00000000-0000-0000-0000-000000000001";
 
 // =========================
 // SHARED KEBELE INCLUDE
@@ -156,14 +159,78 @@ const localizeEmergency = (
 };
 
 // =========================
+// INPUT ALLOW-LIST HELPERS
+// =========================
+
+const badRequest = (message) => {
+  const err = new Error(message);
+  err.statusCode = 400;
+  return err;
+};
+
+const toIntOrNull = (value, field) => {
+  if (value === undefined || value === null || value === "") return null;
+  const n = parseInt(value, 10);
+  if (isNaN(n)) throw badRequest(`Invalid ${field}`);
+  return n;
+};
+
+// Multipart clients sometimes send JSON-encoded objects as strings.
+const maybeJson = (value) => {
+  if (typeof value !== "string") return value;
+  const t = value.trim();
+  if (!t.startsWith("{")) return value;
+  try {
+    return JSON.parse(t);
+  } catch (e) {
+    return value;
+  }
+};
+
+/** Accepts latitude/longitude fields, a {latitude,longitude} object, or "lat,lng". */
+const parseLatLng = (src) => {
+  let lat = src.latitude;
+  let lng = src.longitude;
+  if ((lat === undefined || lng === undefined) && src.location !== undefined) {
+    const loc = maybeJson(src.location);
+    if (loc && typeof loc === "object") {
+      lat = loc.latitude ?? loc.lat;
+      lng = loc.longitude ?? loc.lng;
+    } else if (typeof loc === "string" && loc.includes(",")) {
+      [lat, lng] = loc.split(",");
+    }
+  }
+  const latF = parseFloat(lat);
+  const lngF = parseFloat(lng);
+  if (isNaN(latF) || isNaN(lngF)) return null;
+  return { latitude: latF, longitude: lngF };
+};
+
+const MEDIA_TYPES = ["photo", "video", "audio"];
+// The uploaded file's mimetype wins; the client-sent mediaType is only a
+// fallback for generic types (e.g. application/octet-stream).
+const mediaTypeFromFile = (file, requested) => {
+  if (!file) return null;
+  const fromMime = mediaTypeFromMime(file.mimetype);
+  if (fromMime) return fromMime;
+  if (MEDIA_TYPES.includes(requested)) return requested;
+  return "photo";
+};
+
+const EMERGENCY_STATUSES = ["reported", "assigned", "in_progress", "resolved"];
+
+// =========================
 // CREATE / UPDATE / DELETE
 // =========================
 
-const createGuestEmergency = async (data, file, transaction) => {
+// Guest-submittable fields (everything else in the body is ignored):
+// kebeleId|kebele, subdivision, description, street, latitude, longitude,
+// time, emergencyTypeId, categoryId, deviceId (+ optional media file)
+const createGuestEmergency = async (data = {}, file, transaction) => {
   try {
-    const emergencyData = { ...data };
+    const emergencyData = {};
 
-    let rawKebele = emergencyData.kebeleId || emergencyData.kebele;
+    let rawKebele = data.kebeleId || data.kebele;
     let validKebeleId = null;
 
     if (rawKebele) {
@@ -176,7 +243,7 @@ const createGuestEmergency = async (data, file, transaction) => {
         const foundKebele = await Kebele.findOne({
           where: {
             name: {
-              [Op.iLike]: `%${rawKebele.trim()}%`, // Case-insensitive partial match
+              [Op.iLike]: `%${String(rawKebele).trim()}%`, // Case-insensitive partial match
             },
           },
           transaction,
@@ -188,20 +255,16 @@ const createGuestEmergency = async (data, file, transaction) => {
       }
     }
 
-    delete emergencyData.kebele;
-
     if (!validKebeleId) {
-      const error = new Error(
+      throw badRequest(
         `Could not resolve location reference '${rawKebele}' to a valid Kebele ID.`,
       );
-      error.statusCode = 400;
-      throw error;
     }
     emergencyData.kebeleId = validKebeleId;
 
-    if (emergencyData.latitude && emergencyData.longitude) {
-      const lat = parseFloat(emergencyData.latitude);
-      const lng = parseFloat(emergencyData.longitude);
+    if (data.latitude && data.longitude) {
+      const lat = parseFloat(data.latitude);
+      const lng = parseFloat(data.longitude);
 
       if (!isNaN(lat) && !isNaN(lng)) {
         emergencyData.location = {
@@ -209,40 +272,46 @@ const createGuestEmergency = async (data, file, transaction) => {
           coordinates: [lng, lat],
         };
       }
-      delete emergencyData.latitude;
-      delete emergencyData.longitude;
     }
 
     // 3. Safe Time Formatting
-    if (emergencyData.time) {
-      const d = new Date(emergencyData.time);
+    if (data.time) {
+      const d = new Date(data.time);
       if (!isNaN(d.getTime())) {
         emergencyData.time = [
           String(d.getHours()).padStart(2, "0"),
           String(d.getMinutes()).padStart(2, "0"),
           String(d.getSeconds()).padStart(2, "0"),
         ].join(":");
-      } else {
-        delete emergencyData.time;
       }
     }
 
+    if (data.street !== undefined) emergencyData.street = data.street;
+    if (data.deviceId !== undefined && data.deviceId !== null)
+      emergencyData.deviceId = String(data.deviceId);
+    emergencyData.emergencyTypeId = toIntOrNull(
+      data.emergencyTypeId,
+      "emergencyTypeId",
+    );
+    emergencyData.categoryId = toIntOrNull(data.categoryId, "categoryId");
+
     // 4. Handle Translations
-    if (emergencyData.description) {
+    if (data.description) {
       emergencyData.description = await autoTranslate(
-        emergencyData.description,
+        maybeJson(data.description),
       );
     }
-    if (emergencyData.subdivision) {
+    if (data.subdivision) {
       emergencyData.subdivision = await autoTranslate(
-        emergencyData.subdivision,
+        maybeJson(data.subdivision),
       );
     }
 
     // 5. Cloudinary Media Assets
     if (file) {
       emergencyData.mediaUrl = file.path;
-      emergencyData.mediaPublicId = file.filename;
+      emergencyData.mediaPublicId = file.filename || null;
+      emergencyData.mediaType = mediaTypeFromFile(file, data.mediaType);
     }
 
     emergencyData.reporterType = "guest";
@@ -254,6 +323,7 @@ const createGuestEmergency = async (data, file, transaction) => {
       transaction ? { transaction } : {},
     );
   } catch (error) {
+    discardUploadedFile(file); // don't orphan the Cloudinary asset
     console.error("❌ Error inside createGuestEmergency:", error.message);
     if (error.parent) {
       console.error("SQL Detail:", error.parent.detail || error.parent.message);
@@ -262,91 +332,149 @@ const createGuestEmergency = async (data, file, transaction) => {
   }
 };
 
-const createUserEmergency = async (userId, emergencyData, file) => {
-  let {
-    emergencyTypeId = DEFAULT_EMERGENCY_TYPE_ID,
+// Citizen-submittable fields (everything else in the body is ignored):
+// emergencyTypeId, categoryId, kebeleId, subdivision, description, street,
+// latitude + longitude (or location "lat,lng"), time, mediaType (+ media file)
+const createUserEmergency = async (userId, emergencyData = {}, file) => {
+  const {
+    emergencyTypeId,
     categoryId,
     kebeleId,
     subdivision,
     description,
-    latitude,
-    longitude,
     street,
-    ...rest
+    time,
   } = emergencyData;
 
-  let location =
-    latitude && longitude
-      ? { latitude: parseFloat(latitude), longitude: parseFloat(longitude) }
-      : null;
+  const location = parseLatLng(emergencyData);
 
   if (!kebeleId || !subdivision)
-    throw new Error("Kebele ID and Subdivision are required");
+    throw badRequest("Kebele ID and Subdivision are required");
 
-  const kebeleRecord = await Kebele.findByPk(kebeleId);
-  if (!kebeleRecord) throw new Error("Invalid kebele ID");
+  const kebeleRecord = await Kebele.findByPk(toIntOrNull(kebeleId, "kebeleId"));
+  if (!kebeleRecord) throw badRequest("Invalid kebele ID");
 
-  const translatedSubdivision = await autoTranslate(subdivision);
-  const translatedDescription = await autoTranslate(description);
+  const translatedSubdivision = await autoTranslate(maybeJson(subdivision));
+  const translatedDescription = await autoTranslate(maybeJson(description));
 
   return await Emergency.create({
-    ...rest,
-    kebeleId,
+    kebeleId: kebeleRecord.id,
     subdivision: translatedSubdivision,
     street,
     description: translatedDescription,
     location,
-    // FIXED: Maps to Cloudinary secure URL string and records public ID
+    time: typeof time === "string" && time ? time : null,
     mediaUrl: file ? file.path : null,
-    mediaPublicId: file ? file.filename : null,
-    emergencyTypeId,
-    categoryId,
+    mediaPublicId: file ? file.filename || null : null,
+    mediaType: file ? mediaTypeFromFile(file, emergencyData.mediaType) : null,
+    emergencyTypeId: toIntOrNull(emergencyTypeId, "emergencyTypeId"),
+    categoryId: toIntOrNull(categoryId, "categoryId"),
     citizenId: userId,
     status: "reported",
     reporterType: "user",
   });
 };
 
-const updateEmergency = async (
-  userOrGuestId,
-  emergencyId,
-  updatedData,
-  file,
-  isGuest = false,
-) => {
-  const whereClause = isGuest
-    ? { id: emergencyId, guestId: userOrGuestId }
-    : { id: emergencyId, citizenId: userOrGuestId };
+/**
+ * Citizen-editable Emergency columns (real model attribute names):
+ *   description, subdivision, street, kebeleId, emergencyTypeId, categoryId,
+ *   location  (send latitude + longitude, or location as {latitude,longitude}
+ *              or "lat,lng"), time
+ *   + optional `media` file → mediaUrl / mediaType
+ * Never: status, citizenId, guestId, reporterType, deviceId, report,
+ *        isChatEnabled, chatInitiated*, or mediaUrl from the body.
+ */
+const USER_EDITABLE_EMERGENCY_FIELDS = [
+  "description",
+  "subdivision",
+  "street",
+  "kebeleId",
+  "emergencyTypeId",
+  "categoryId",
+  "location",
+  "time",
+];
 
-  const emergency = await Emergency.findOne({ where: whereClause });
-  if (!emergency) throw new Error("Emergency not found");
-
-  if (updatedData.description) {
-    updatedData.description = await autoTranslate(updatedData.description);
+/**
+ * opts.citizenId: the emergency must belong to that citizen.
+ * Pass null only for system admins (may act on any emergency).
+ */
+const findOwnedEmergency = async (emergencyId, citizenId) => {
+  const id = toIntOrNull(emergencyId, "emergency id");
+  const where = citizenId == null ? { id } : { id, citizenId };
+  const emergency = await Emergency.findOne({ where });
+  if (!emergency) {
+    const err = new Error("Emergency not found");
+    err.statusCode = 404;
+    throw err;
   }
-  if (updatedData.subdivision) {
-    updatedData.subdivision = await autoTranslate(updatedData.subdivision);
-  }
-
-  // FIXED: Captures Cloudinary secure paths and stores the public ID for tracking
-  if (file) {
-    updatedData.mediaUrl = file.path;
-    updatedData.mediaPublicId = file.filename;
-    updatedData.mediaType = file.mimetype.startsWith("video")
-      ? "video"
-      : "photo";
-  }
-  return await emergency.update(updatedData);
+  return emergency;
 };
 
-const deleteEmergency = async (userOrGuestId, emergencyId, isGuest = false) => {
-  const whereClause = isGuest
-    ? { id: emergencyId, guestId: userOrGuestId }
-    : { id: emergencyId, citizenId: userOrGuestId };
+const updateEmergency = async (emergencyId, body = {}, file, opts = {}) => {
+  const emergency = await findOwnedEmergency(emergencyId, opts.citizenId);
 
-  const emergency = await Emergency.findOne({ where: whereClause });
-  if (!emergency) throw new Error("Emergency not found");
+  const updates = {};
+
+  if (body.description !== undefined && body.description !== "") {
+    updates.description = await autoTranslate(maybeJson(body.description));
+  }
+  if (body.subdivision !== undefined && body.subdivision !== "") {
+    updates.subdivision = await autoTranslate(maybeJson(body.subdivision));
+  }
+  if (body.street !== undefined) updates.street = body.street;
+  if (typeof body.time === "string" && body.time) updates.time = body.time;
+
+  if (body.kebeleId !== undefined && body.kebeleId !== "") {
+    const kebele = await Kebele.findByPk(toIntOrNull(body.kebeleId, "kebeleId"));
+    if (!kebele) throw badRequest("Invalid kebele ID");
+    updates.kebeleId = kebele.id;
+  }
+  if (body.emergencyTypeId !== undefined && body.emergencyTypeId !== "")
+    updates.emergencyTypeId = toIntOrNull(body.emergencyTypeId, "emergencyTypeId");
+  if (body.categoryId !== undefined && body.categoryId !== "")
+    updates.categoryId = toIntOrNull(body.categoryId, "categoryId");
+
+  if (
+    body.latitude !== undefined ||
+    body.longitude !== undefined ||
+    body.location !== undefined
+  ) {
+    const loc = parseLatLng(body);
+    if (loc) updates.location = loc;
+  }
+
+  const previousMedia = {
+    publicId: emergency.mediaPublicId,
+    mediaType: emergency.mediaType,
+  };
+  if (file) {
+    updates.mediaUrl = file.path;
+    updates.mediaPublicId = file.filename || null;
+    updates.mediaType = mediaTypeFromFile(file, body.mediaType);
+  }
+
+  const updated = await emergency.update(updates, {
+    fields: [
+      ...USER_EDITABLE_EMERGENCY_FIELDS,
+      "mediaUrl",
+      "mediaPublicId",
+      "mediaType",
+    ],
+  });
+
+  // Media replaced → remove the old Cloudinary asset (best-effort, logged).
+  if (file && previousMedia.publicId && previousMedia.publicId !== file.filename) {
+    destroyMedia(previousMedia.publicId, previousMedia.mediaType);
+  }
+  return updated;
+};
+
+const deleteEmergency = async (emergencyId, opts = {}) => {
+  const emergency = await findOwnedEmergency(emergencyId, opts.citizenId);
+  const { mediaPublicId, mediaType } = emergency;
   await emergency.destroy();
+  if (mediaPublicId) destroyMedia(mediaPublicId, mediaType);
   return { message: "Emergency deleted successfully" };
 };
 
@@ -604,7 +732,6 @@ const getEmergencyById = async (id, lang = "en") => {
         },
         { model: Category, as: "category", attributes: ["id", "name"] },
         kebeleWithTeams,
-        getEmergenciesForResponderTeam,
         {
           model: User,
           as: "user",
@@ -636,6 +763,9 @@ const getEmergencyById = async (id, lang = "en") => {
 };
 
 const updateEmergencyStatus = async (emergencyId, status, report = null) => {
+  if (!EMERGENCY_STATUSES.includes(status)) {
+    throw badRequest(`Invalid status. Allowed: ${EMERGENCY_STATUSES.join(", ")}`);
+  }
   const emergency = await Emergency.findByPk(emergencyId);
   if (!emergency) throw new Error("Emergency record not found in database");
 
@@ -682,6 +812,7 @@ const getEmergenciesByDeviceId = async (deviceId, lang = "en") => {
 };
 
 module.exports = {
+  USER_EDITABLE_EMERGENCY_FIELDS,
   createGuestEmergency,
   createUserEmergency,
   updateEmergency,

@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { verifyToken, adminOnly } = require("../middleware/auth");
 
 const {
   createCategoryHandler,
@@ -10,17 +11,15 @@ const {
   updateCategoryHandler,
 } = require("../controllers/categoryController");
 
-router.post("/", createCategoryHandler);
-
-router.delete("/:id", deleteCategoryHandler);
-
+// ── Public reads (citizen app) ────────────────────────────
 router.get("/", getAllCategoriesHandler);
-
 router.get("/type/:emergencyTypeId", getCategoriesByTypeHandler);
-
-// 👇 NEW — must be before "/:id" to avoid route conflict
+// must be before "/:id" to avoid route conflict
 router.get("/by-agency/:agencyId", getCategoriesByAgencyHandler);
 
-router.put("/:id", updateCategoryHandler);
+// ── System admin ──────────────────────────────────────────
+router.post("/", verifyToken, adminOnly, createCategoryHandler);
+router.put("/:id", verifyToken, adminOnly, updateCategoryHandler);
+router.delete("/:id", verifyToken, adminOnly, deleteCategoryHandler);
 
 module.exports = router;

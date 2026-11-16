@@ -1,9 +1,39 @@
+const { Op } = require("sequelize");
 const Agency = require("../models/Agency");
 const AgencyType = require("../models/AgencyType");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const { generateAccessToken } = require("../utils/token");
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
+if (!process.env.JWT_SECRET) {
+  // Fail loudly: never sign agency tokens with a guessable fallback secret.
+  throw new Error("JWT_SECRET environment variable is required");
+}
+
+// Fields a system admin may change on an agency.
+const ADMIN_EDITABLE_FIELDS = [
+  "name",
+  "username",
+  "email",
+  "phone",
+  "location",
+  "status",
+  "agencyTypeId",
+];
+// Fields an agency may change on its own account.
+const SELF_EDITABLE_FIELDS = ["email", "phone", "location"];
+
+const pick = (src = {}, fields) =>
+  fields.reduce((acc, f) => {
+    if (src[f] !== undefined) acc[f] = src[f];
+    return acc;
+  }, {});
+
+const stripPassword = (agency) => {
+  if (!agency) return agency;
+  const plain = typeof agency.toJSON === "function" ? agency.toJSON() : { ...agency };
+  delete plain.password;
+  return plain;
+};
 
 /**
  * Create a new Agency
@@ -40,25 +70,40 @@ const createAgency = async (data, adminId) => {
     status: status || "active",
   });
 
-  agency.password = undefined;
-  return agency;
+  return stripPassword(agency);
 };
 
 /**
- * Update an existing Agency
+ * Update an existing Agency.
+ * opts.self === true → the agency is editing its own account: only
+ * SELF_EDITABLE_FIELDS, and a password change requires oldPassword.
  */
-const updateAgency = async (id, data) => {
-  const agency = await Agency.findByPk(id);
+const updateAgency = async (id, data = {}, opts = {}) => {
+  const agency = await Agency.unscoped().findByPk(id);
   if (!agency) throw new Error("Agency not found");
 
+  const updates = pick(
+    data,
+    opts.self ? SELF_EDITABLE_FIELDS : ADMIN_EDITABLE_FIELDS,
+  );
+
   if (data.password) {
-    data.password = await bcrypt.hash(data.password, 10);
+    if (opts.self) {
+      const ok =
+        data.oldPassword &&
+        (await bcrypt.compare(String(data.oldPassword), agency.password));
+      if (!ok) {
+        const err = new Error("Current password incorrect");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+    updates.password = await bcrypt.hash(String(data.password), 10);
   }
 
-  await agency.update(data);
+  await agency.update(updates);
 
-  agency.password = undefined;
-  return agency;
+  return stripPassword(agency);
 };
 
 /**
@@ -87,10 +132,13 @@ const getAllAgencies = async () => {
   });
 };
 
-const loginAgency = async (email, password) => {
-  // 1️⃣ Find agency by email AND include the associated AgencyType
-  const agency = await Agency.findOne({
-    where: { email },
+const loginAgency = async (identifier, password) => {
+  const generic = new Error("Invalid email or password");
+  if (!identifier || !password) throw generic;
+
+  // The web login form sends the same value as both email and username.
+  const agency = await Agency.unscoped().findOne({
+    where: { [Op.or]: [{ email: identifier }, { username: identifier }] },
     include: [
       {
         model: AgencyType,
@@ -99,36 +147,27 @@ const loginAgency = async (email, password) => {
     ],
   });
 
-  if (!agency) {
-    throw new Error("Invalid email or password");
-  }
+  if (!agency) throw generic;
 
-  // 2️⃣ Compare passwords
-  const isMatch = await bcrypt.compare(password, agency.password);
-  if (!isMatch) {
-    throw new Error("Invalid email or password");
-  }
+  const isMatch = await bcrypt.compare(String(password), agency.password);
+  if (!isMatch) throw generic;
 
-  // 3️⃣ Generate JWT token
-  // Added agencyTypeName to the payload so the frontend can check it easily from the token
-  const token = jwt.sign(
+  // Core claims { id, role: "agency", type: "agency" } plus the convenience
+  // claims the web dashboard already reads from the token.
+  const token = generateAccessToken(
+    agency.id,
+    "agency",
+    "agency",
     {
-      id: agency.id,
       name: agency.name,
       email: agency.email,
       agencyTypeId: agency.agencyTypeId,
-      agencyTypeName: agency.agencyType?.name, // Extracting the name from the joined model
+      agencyTypeName: agency.agencyType?.name,
     },
-    JWT_SECRET,
-    { expiresIn: "1d" },
+    "1d",
   );
 
-  // 4️⃣ Hide password before sending
-  agency.password = undefined;
-
-  // The 'agency' object now contains:
-  // { id: ..., name: ..., agencyType: { id: ..., name: "Municipal" } }
-  return { agency, token };
+  return { agency: stripPassword(agency), token };
 };
 
 /**

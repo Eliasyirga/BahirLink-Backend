@@ -1,13 +1,26 @@
 const {
   createEmergedFromEmergencies,
   getAllEmerged,
+  getEmergedById,
   getUnassignedEmergencies,
   updateEmerged,
   deleteEmerged,
 } = require("../services/emergedService");
 
-// 🔥 ADD THIS (YOU WERE MISSING IT)
-const { Emergency } = require("../models");
+const { Emergency, ResponderTeamKebele } = require("../models");
+
+/**
+ * Kebele scope of the caller: responder teams are limited to the kebeles they
+ * cover; admins/agencies are unrestricted (null).
+ */
+const callerKebeleIds = async (user) => {
+  if (user?.type !== "responder") return null;
+  const rows = await ResponderTeamKebele.findAll({
+    where: { responderTeamId: user.id },
+    attributes: ["kebeleId"],
+  });
+  return rows.map((r) => Number(r.kebeleId));
+};
 
 // ===============================
 // 🔗 MERGE EMERGENCIES
@@ -37,6 +50,14 @@ const mergeEmergencies = async (req, res) => {
 
     // 🔥 USE KEBELE FROM EMERGENCY (CORRECT DESIGN)
     const kebeleId = mainEmergency.kebeleId;
+
+    const scope = await callerKebeleIds(req.user);
+    if (scope && !scope.includes(Number(kebeleId))) {
+      return res.status(403).json({
+        success: false,
+        message: "Not allowed outside assigned kebele",
+      });
+    }
 
     const result = await createEmergedFromEmergencies(
       mainId,
@@ -81,17 +102,43 @@ const getEmergedHandler = async (req, res) => {
   }
 };
 // ===============================
-// 🟡 GET UNASSIGNED
+// 🔎 GET ONE GROUP (same shape as list items)
+// ===============================
+const getEmergedByIdHandler = async (req, res) => {
+  try {
+    const data = await getEmergedById(req.params.id);
+    if (!data) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Group not found" });
+    }
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    console.error("GET EMERGED BY ID ERROR:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch grouped emergency",
+    });
+  }
+};
+
+// ===============================
+// 🟡 GET UNASSIGNED  (?kebeleId=… ; responders default to their first kebele)
 // ===============================
 const getUnassignedHandler = async (req, res) => {
   try {
-    const kebeleId = req.user?.kebeleId;
+    const scope = await callerKebeleIds(req.user);
+    let kebeleId = req.query.kebeleId ? Number(req.query.kebeleId) : null;
+    if (!kebeleId && scope && scope.length) kebeleId = scope[0];
 
     if (!kebeleId) {
-      return res.status(401).json({
+      return res.status(400).json({
         success: false,
-        message: "kebeleId missing",
+        message: "kebeleId is required",
       });
+    }
+    if (scope && !scope.includes(kebeleId)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
     }
 
     const data = await getUnassignedEmergencies(kebeleId);
@@ -125,16 +172,8 @@ const updateEmergedHandler = async (req, res) => {
       });
     }
 
-    const kebeleId = req.user?.kebeleId;
-
-    if (!kebeleId) {
-      return res.status(401).json({
-        success: false,
-        message: "kebeleId missing",
-      });
-    }
-
-    const updated = await updateEmerged(id, req.body, kebeleId);
+    const scope = await callerKebeleIds(req.user);
+    const updated = await updateEmerged(id, req.body, scope);
 
     return res.status(200).json({
       success: true,
@@ -165,16 +204,8 @@ const deleteEmergedHandler = async (req, res) => {
       });
     }
 
-    const kebeleId = req.user?.kebeleId;
-
-    if (!kebeleId) {
-      return res.status(401).json({
-        success: false,
-        message: "kebeleId missing",
-      });
-    }
-
-    const result = await deleteEmerged(id, kebeleId);
+    const scope = await callerKebeleIds(req.user);
+    const result = await deleteEmerged(id, scope);
 
     return res.status(200).json({
       success: true,
@@ -194,6 +225,7 @@ const deleteEmergedHandler = async (req, res) => {
 module.exports = {
   mergeEmergencies,
   getEmergedHandler,
+  getEmergedByIdHandler,
   getUnassignedHandler,
   updateEmergedHandler,
   deleteEmergedHandler,

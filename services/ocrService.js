@@ -1,11 +1,12 @@
-import Tesseract from "tesseract.js";
+// Lazily loaded by controllers/verifyController.js
+const Tesseract = require("tesseract.js");
 
-export const ocrExtract = async (filePath) => {
+const ocrExtract = async (filePath) => {
   const { data } = await Tesseract.recognize(filePath, "eng");
   return data.text;
 };
 
-export const parseIdFields = (text) => {
+const parseIdFields = (text) => {
   const cleaned = text.replace(/\s+/g, " ").trim();
 
   const idNumber = cleaned.match(/\b\d{6,}\b/);
@@ -14,6 +15,8 @@ export const parseIdFields = (text) => {
   return {
     raw: cleaned,
     idNumber: idNumber ? idNumber[0] : null,
-    dob: dob ? dob[0] : null
+    dob: dob ? dob[0] : null,
   };
 };
+
+module.exports = { ocrExtract, parseIdFields };

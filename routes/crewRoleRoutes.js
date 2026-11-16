@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { verifyToken, adminOnly } = require("../middleware/auth");
 
 const {
   createCrewRoleHandler,
@@ -7,13 +8,9 @@ const {
   deleteCrewRoleHandler,
 } = require("../controllers/crewRoleController");
 
-// Create a new Crew Role
-router.post("/", createCrewRoleHandler);
-
-// Update an existing Crew Role by ID
-router.put(":id", updateCrewRoleHandler);
-
-// Delete a Crew Role by ID
-router.delete("/:id", deleteCrewRoleHandler);
+// System admin only
+router.post("/", verifyToken, adminOnly, createCrewRoleHandler);
+router.put("/:id", verifyToken, adminOnly, updateCrewRoleHandler); // was ":id" (missing slash)
+router.delete("/:id", verifyToken, adminOnly, deleteCrewRoleHandler);
 
 module.exports = router;

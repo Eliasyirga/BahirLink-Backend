@@ -47,6 +47,8 @@ const ResponderTeam = sequelize.define(
   {
     tableName: "responder_teams",
     timestamps: true,
+    // Password hash is only loaded via ResponderTeam.unscoped() (login/password change)
+    defaultScope: { attributes: { exclude: ["password"] } },
   },
 );
 

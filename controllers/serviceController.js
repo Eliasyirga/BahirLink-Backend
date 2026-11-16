@@ -1,3 +1,4 @@
+const { isSystemAdmin } = require("../middleware/auth");
 const serviceService = require("../services/serviceService");
 
 /**
@@ -21,17 +22,16 @@ const parseLang = (req) => {
  */
 exports.create = async (req, res) => {
   try {
-    const { userId } = req.params;
+    // The citizen is always the token's user; the :userId URL param and any
+    // citizenId in the body are ignored.
+    const userId = req.user.id;
+    const { citizenId, ...body } = req.body || {};
 
     if (req.file) {
       console.log(`📂 Upload received: ${req.file.filename}`);
     }
 
-    const service = await serviceService.createService(
-      req.body,
-      userId,
-      req.file,
-    );
+    const service = await serviceService.createService(body, userId, req.file);
 
     return res.status(201).json({
       success: true,
@@ -161,7 +161,13 @@ exports.getServicesByAgency = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const { id } = req.params;
-    const updatedService = await serviceService.updateService(id, req.body);
+    // Explicit allow-list for staff edits (no citizenId / media / ids).
+    const SERVICE_STAFF_FIELDS = ["status", "name", "description"];
+    const updates = {};
+    SERVICE_STAFF_FIELDS.forEach((f) => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
+    });
+    const updatedService = await serviceService.updateService(id, updates);
 
     return res.status(200).json({
       success: true,
@@ -180,7 +186,9 @@ exports.update = async (req, res) => {
 exports.delete = async (req, res) => {
   try {
     const { id } = req.params;
-    await serviceService.deleteService(id);
+    // Citizens may delete only their own requests; admins may delete any.
+    const ownerId = isSystemAdmin(req.user) ? null : req.user.id;
+    await serviceService.deleteService(id, ownerId);
     return res.status(200).json({
       success: true,
       message: "Service deleted successfully",

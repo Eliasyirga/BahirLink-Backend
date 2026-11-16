@@ -1,23 +1,61 @@
 const express = require("express");
 const router = express.Router();
-const { verifyToken, isAdmin } = require("../middleware/auth");
+const {
+  verifyToken,
+  requireType,
+  requireAccess,
+  adminOnly,
+  ADMIN_ROLES,
+} = require("../middleware/auth");
+const {
+  loginLimiter,
+  registerLimiter,
+  verifyCodeLimiter,
+  forgotPasswordLimiter,
+  refreshTokenLimiter,
+} = require("../middleware/rateLimit");
 const userController = require("../controllers/userController");
 
-router.post("/register", userController.register);
-router.post("/login", userController.login);
+// ── Public (rate limited) ─────────────────────────────────
+router.post("/register", registerLimiter, userController.register);
+router.post("/login", loginLimiter(), userController.login);
+router.post("/verify-email-code", verifyCodeLimiter, userController.verifyEmail);
+router.post(
+  "/forgot-password",
+  forgotPasswordLimiter,
+  userController.forgotPassword,
+);
+router.post(
+  "/refresh-token",
+  refreshTokenLimiter,
+  userController.refreshToken,
+);
 
-router.post("/verify-email-code", userController.verifyEmail);
+// ── Own account (users only) ──────────────────────────────
+router.post(
+  "/change-password",
+  verifyToken,
+  requireType("user"),
+  userController.changePassword,
+);
+router.get("/profile", verifyToken, requireType("user"), userController.getProfile);
+router.put(
+  "/profile",
+  verifyToken,
+  requireType("user"),
+  userController.updateProfile,
+);
 
-router.post("/forgot-password", userController.forgotPassword);
+// ── Admin ─────────────────────────────────────────────────
+router.get("/all", verifyToken, adminOnly, userController.getAllUsers);
 
-router.post("/change-password", verifyToken, userController.changePassword);
-
-router.get("/profile", verifyToken, userController.getProfile);
-router.put("/profile", verifyToken, userController.updateProfile);
-
-// -------------------- TOKEN ROUTE --------------------
-router.post("/refresh-token", userController.refreshToken);
-
-router.get("/all", verifyToken, userController.getAllUsers);
+// ── Staff lookup — keep AFTER fixed paths so it can't shadow them ──
+// admin/serviceadmin users, agency, responder
+router.get(
+  "/:id(\\d+)",
+  verifyToken,
+  requireAccess({ userRoles: ADMIN_ROLES, types: ["agency", "responder"] }),
+  userController.getUserById,
+);
 
 module.exports = router;

@@ -64,6 +64,8 @@ const Agency = sequelize.define(
     tableName: "agencies",
     timestamps: true,
     updatedAt: true,
+    // Password hash is only loaded via Agency.unscoped() (login/password change)
+    defaultScope: { attributes: { exclude: ["password"] } },
   },
 );
 

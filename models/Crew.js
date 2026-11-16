@@ -52,6 +52,8 @@ const Crew = sequelize.define(
   {
     tableName: "crews",
     timestamps: true,
+    // Password hash is only loaded via Crew.unscoped() (login/password change)
+    defaultScope: { attributes: { exclude: ["password"] } },
   }
 );
 

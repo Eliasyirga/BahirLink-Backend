@@ -93,6 +93,13 @@ const Cases = sequelize.define(
       allowNull: true,
     },
 
+    // Cloudinary public_id of mediaUrl (for deleting replaced/removed media).
+    // Column is added by migrations/ensureColumns.js (sync() runs without alter).
+    mediaPublicId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
     contactInfo: {
       type: DataTypes.STRING,
       allowNull: true,

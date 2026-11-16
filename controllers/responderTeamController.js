@@ -8,6 +8,11 @@ const {
   getTeamById,
   fetchTeamsByMultipleAgencyTypeNames,
 } = require("../services/responderTeamService");
+const { canManageTeam } = require("../utils/ownership");
+const { isSystemAdmin } = require("../middleware/auth");
+
+const denied = (res) =>
+  res.status(403).json({ success: false, message: "Access denied" });
 
 const AGENCY_MAP = {
   service: [
@@ -31,6 +36,11 @@ const getTeamByIdHandler = async (req, res) => {
     }
 
     const team = await getTeamById(id);
+    if (!team) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Responder Team not found" });
+    }
     return res.status(200).json(team); // Return direct object for easier frontend access
   } catch (error) {
     console.error("GET TEAM BY ID ERROR:", error);
@@ -43,16 +53,16 @@ const getTeamByIdHandler = async (req, res) => {
  */
 const createTeamHandler = async (req, res) => {
   try {
-    const {
-      name,
-      username,
-      email,
-      password,
-      phone,
-      agencyId,
-      status,
-      kebeles,
-    } = req.body;
+    const { name, username, email, password, phone, status, kebeles } =
+      req.body;
+
+    // Agencies can only create teams under themselves; system admins choose.
+    let agencyId = req.body.agencyId;
+    if (req.user.type === "agency") {
+      agencyId = req.user.id;
+    } else if (!isSystemAdmin(req.user)) {
+      return denied(res);
+    }
 
     if (
       !name ||
@@ -127,8 +137,11 @@ const responderLoginHandler = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.error("RESPONDER LOGIN ERROR:", error);
-    return res.status(401).json({ success: false, message: error.message });
+    if (!error.statusCode) console.error("RESPONDER LOGIN ERROR:", error);
+    return res.status(error.statusCode || 401).json({
+      success: false,
+      message: error.statusCode ? error.message : "Invalid email or password",
+    });
   }
 };
 
@@ -138,9 +151,12 @@ const responderLoginHandler = async (req, res) => {
 const updateTeamHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const data = req.body;
 
-    const team = await updateTeam(id, data);
+    if (!(await canManageTeam(req.user, id))) return denied(res);
+
+    // A responder team editing itself gets the restricted self-service path.
+    const self = req.user.type === "responder";
+    const team = await updateTeam(id, req.body, { self });
     return res.status(200).json({
       success: true,
       message: "Responder Team updated successfully",
@@ -148,7 +164,9 @@ const updateTeamHandler = async (req, res) => {
     });
   } catch (error) {
     console.error("UPDATE TEAM ERROR:", error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res
+      .status(error.statusCode || 500)
+      .json({ success: false, message: error.message });
   }
 };
 
@@ -158,6 +176,8 @@ const updateTeamHandler = async (req, res) => {
 const deleteTeamHandler = async (req, res) => {
   try {
     const { id } = req.params;
+    if (req.user.type === "responder") return denied(res);
+    if (!(await canManageTeam(req.user, id))) return denied(res);
     const result = await deleteTeam(id);
     return res.status(200).json({ success: true, message: result.message });
   } catch (error) {

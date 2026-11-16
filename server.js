@@ -7,6 +7,8 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const { connectDB, sequelize } = require("./config/db");
+require("./models"); // register every model + association before migrations/sync
+const { ensureColumns } = require("./migrations/ensureColumns");
 
 // --- Route Imports ---
 const userRoutes = require("./routes/userRoute");
@@ -28,19 +30,46 @@ const serviceRoutes = require("./routes/serviceRoutes");
 const caseReportsRoutes = require("./routes/caseReportsRoutes");
 const emergedRoutes = require("./routes/emergedRoutes");
 const finalReportRoutes = require("./routes/finalReportRoutes");
+// Heavy verification deps (OCR/face) are loaded lazily inside the handler.
+const verifyRoutes = require("./routes/verifyRoutes");
+const translationRoutes = require("./routes/translationRoutes");
 
 const chatSocket = require("./socket/chatSocket");
 const videoCallSocket = require("./socket/videoCallSocket");
 const socketAuth = require("./middleware/socketAuth");
 const langMiddleware = require("./middleware/lang.middleware");
 
+// --- CORS allow-list ---------------------------------------------------------
+// CORS_ORIGINS: comma-separated list of allowed browser origins.
+// TODO: add the production web origin (e.g. the Vercel/Netlify URL of
+// bahirdarLink_web, and the Flutter web build if deployed) via CORS_ORIGINS
+// on Render — it could not be determined from the repos.
+const DEFAULT_CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"];
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+const corsOrigins = allowedOrigins.length ? allowedOrigins : DEFAULT_CORS_ORIGINS;
+
+// Requests without an Origin header (mobile app, curl, server-to-server) are
+// allowed; browser requests must come from an allow-listed origin.
+const corsOriginCheck = (origin, callback) => {
+  if (!origin || corsOrigins.includes(origin)) return callback(null, true);
+  return callback(null, false);
+};
+
 const app = express();
+// Render terminates TLS in front of us; needed for correct client IPs
+// (rate limiting) and req.secure.
+app.set("trust proxy", 1);
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: corsOriginCheck,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
@@ -57,14 +86,14 @@ io.on("connection", (socket) => {
 app.use(express.json());
 app.use(
   cors({
-    origin: "*",
+    origin: corsOriginCheck,
     credentials: true,
   }),
 );
 
-// Static File Serving
+// Static File Serving — legacy uploaded media (image tags can't send auth
+// headers). The rest of public/ is no longer exposed.
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
-app.use("/public", express.static("public"));
 
 app.get("/", (req, res) =>
   res.send("BahirLink Mission-Critical Backend is Live."),
@@ -92,6 +121,8 @@ app.use("/api/service", serviceRoutes);
 app.use("/api/caseReports", caseReportsRoutes);
 app.use("/api/emerged", emergedRoutes);
 app.use("/api/finalReport", finalReportRoutes);
+app.use("/api/verify", verifyRoutes); // verifyToken + type "user" inside
+app.use("/api/translation", translationRoutes); // public, rate-limited (Gemini)
 
 app.use("/api/message", require("./routes/messageRoutes")(io));
 
@@ -107,9 +138,10 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 connectDB()
-  .then(() => {
-    sequelize.sync();
-  })
+  // Additive, idempotent column fixes BEFORE sync (see migrations/ensureColumns.js).
+  .then(() => ensureColumns(sequelize))
+  // Schema is managed by sync() WITHOUT alter: it only creates missing tables.
+  .then(() => sequelize.sync())
   .then(() => {
     console.log("Database Synced to Neon.");
     server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

@@ -8,19 +8,16 @@ const {
   getAllAgencyTypesHandler,
   getAgentsByCreatorIdHandler,
 } = require("../controllers/agencyTypeController");
-const { verifyToken } = require("../middleware/auth");
+const { verifyToken, adminOnly } = require("../middleware/auth");
 
 // ── Public ────────────────────────────────────────────────
 router.get("/", getAllAgencyTypesHandler);
 
-// ── Protected: specific named routes BEFORE /:id ─────────
-// IMPORTANT: /my-agents must be declared before any /:id
-// route, otherwise Express will treat "my-agents" as an id.
-router.get("/my-agents", verifyToken, getAgentsByCreatorIdHandler);
+// ── System admin. /my-agents must be declared before any /:id route. ──
+router.get("/my-agents", verifyToken, adminOnly, getAgentsByCreatorIdHandler);
 
-// ── Protected: CRUD ───────────────────────────────────────
-router.post("/",       verifyToken, createAgencyTypeHandler);
-router.put("/:id",     verifyToken, updateAgencyTypeHandler);
-router.delete("/:id",  verifyToken, deleteAgencyTypeHandler);
+router.post("/", verifyToken, adminOnly, createAgencyTypeHandler);
+router.put("/:id", verifyToken, adminOnly, updateAgencyTypeHandler);
+router.delete("/:id", verifyToken, adminOnly, deleteAgencyTypeHandler);
 
 module.exports = router;

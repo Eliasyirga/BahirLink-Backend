@@ -67,6 +67,22 @@ const User = sequelize.define(
   {
     timestamps: true,
     tableName: "users",
+    // Never return credentials / secrets unless a query explicitly asks for
+    // them (use User.unscoped() for login, password change, refresh).
+    defaultScope: {
+      attributes: {
+        exclude: [
+          "password",
+          "refreshToken",
+          "verificationCode",
+          "verificationCodeExpires",
+          "verificationToken",
+          "verificationTokenExpires",
+          "resetPasswordToken",
+          "resetPasswordExpires",
+        ],
+      },
+    },
   },
 );
 

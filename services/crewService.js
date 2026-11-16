@@ -1,6 +1,24 @@
 const Crew = require("../models/Crew");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const { generateAccessToken } = require("../utils/token");
+
+const STAFF_EDITABLE_FIELDS = [
+  "name",
+  "username",
+  "email",
+  "phone",
+  "status",
+  "roleId",
+  "responderTeamId",
+];
+const SELF_EDITABLE_FIELDS = ["name", "phone"];
+
+const sanitizeCrew = (crew) => {
+  if (!crew) return crew;
+  const plain = typeof crew.toJSON === "function" ? crew.toJSON() : { ...crew };
+  delete plain.password;
+  return plain;
+};
 
 const createCrew = async (data) => {
   const {
@@ -46,32 +64,42 @@ const createCrew = async (data) => {
     roleId,
   });
 
-  return crew;
+  return sanitizeCrew(crew);
 };
 
-const updateCrew = async (id, data) => {
-  const crew = await Crew.findByPk(id);
+/**
+ * opts.self === true → a crew member editing their own profile
+ * (name, phone, password only).
+ */
+const updateCrew = async (id, data = {}, opts = {}) => {
+  const crew = await Crew.unscoped().findByPk(id);
   if (!crew) throw new Error("Crew member not found");
 
-  const { password, username, email, ...otherData } = data;
+  const allowed = opts.self ? SELF_EDITABLE_FIELDS : STAFF_EDITABLE_FIELDS;
+  const updates = {};
+  allowed.forEach((f) => {
+    if (data[f] !== undefined) updates[f] = data[f];
+  });
 
-  if (username && username !== crew.username) {
-    const existingUsername = await Crew.findOne({ where: { username } });
+  if (updates.username && updates.username !== crew.username) {
+    const existingUsername = await Crew.findOne({
+      where: { username: updates.username },
+    });
     if (existingUsername) throw new Error("Username already exists");
   }
 
-  if (email && email !== crew.email) {
-    const existingEmail = await Crew.findOne({ where: { email } });
+  if (updates.email && updates.email !== crew.email) {
+    const existingEmail = await Crew.findOne({ where: { email: updates.email } });
     if (existingEmail) throw new Error("Email already exists");
   }
 
-  if (password) {
-    otherData.password = await bcrypt.hash(password, 10);
+  if (data.password) {
+    updates.password = await bcrypt.hash(String(data.password), 10);
   }
 
-  await crew.update({ username, email, ...otherData });
+  await crew.update(updates);
 
-  return crew;
+  return sanitizeCrew(crew);
 };
 
 const deleteCrew = async (id) => {
@@ -82,35 +110,24 @@ const deleteCrew = async (id) => {
   return { message: "Crew member deleted successfully" };
 };
 
-const loginCrew = async (data) => {
+const loginCrew = async (data = {}) => {
   const { email, password } = data;
+  const generic = new Error("Invalid email or password");
 
-  if (!email || !password) {
-    throw new Error("Email and password are required");
-  }
+  if (!email || !password) throw generic;
 
-  const crew = await Crew.findOne({
-    where: { email },
-  });
+  const crew = await Crew.unscoped().findOne({ where: { email } });
+  if (!crew) throw generic;
 
-  if (!crew) {
-    throw new Error("Invalid credentials");
-  }
+  const isMatch = await bcrypt.compare(String(password), crew.password);
+  if (!isMatch) throw generic;
 
-  const isMatch = await bcrypt.compare(password, crew.password);
-
-  if (!isMatch) {
-    throw new Error("Invalid credentials");
-  }
-
-  const token = jwt.sign(
-    {
-      id: crew.id,
-      role: "crew",
-      responderTeamId: crew.responderTeamId,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "1d" },
+  const token = generateAccessToken(
+    crew.id,
+    "crew",
+    "crew",
+    { responderTeamId: crew.responderTeamId },
+    "1d",
   );
 
   return {

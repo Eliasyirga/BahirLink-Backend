@@ -13,12 +13,32 @@ const createGuest = async (contactNo) => {
 
   return guest;
 };
+// Fields a guest may set on an emergency. Everything else is ignored.
+const GUEST_EMERGENCY_FIELDS = [
+  "description",
+  "subdivision",
+  "street",
+  "kebeleId",
+  "emergencyTypeId",
+  "categoryId",
+  "location",
+  "time",
+  "deviceId",
+];
+
+const pickGuestFields = (data = {}) =>
+  GUEST_EMERGENCY_FIELDS.reduce((acc, f) => {
+    if (data[f] !== undefined) acc[f] = data[f];
+    return acc;
+  }, {});
+
 // Create a new emergency
 const createEmergency = async (guestId, emergencyData) => {
   return await Emergency.create({
-    ...emergencyData,
+    ...pickGuestFields(emergencyData),
     guestId,
-    status: "reported" // default status
+    reporterType: "guest",
+    status: "reported", // default status
   });
 };
 
@@ -30,7 +50,7 @@ const updateEmergency = async (guestId, emergencyId, updatedData) => {
 
   if (!emergency) throw new Error("Emergency not found for this guest");
 
-  return await emergency.update(updatedData);
+  return await emergency.update(pickGuestFields(updatedData));
 };
 
 // Delete an emergency

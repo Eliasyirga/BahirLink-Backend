@@ -44,10 +44,11 @@ const extractArray = (body, key) => {
 const createFinalReport = async (req, res) => {
   try {
     const { emergencyId } = req.params;
-    const responderId = req.user?.id || null;
+    // FinalReport.responderId references responder_teams
+    const responderId = req.user?.type === "responder" ? req.user.id : null;
 
+    // Explicit allow-list (no ...req.body pass-through)
     const payload = {
-      ...req.body,
       injuredCount: parseInt(req.body.injuredCount) || 0,
       deceasedCount: parseInt(req.body.deceasedCount) || 0,
       propertyDamageValue: parseFloat(req.body.propertyDamageValue) || 0,
@@ -83,7 +84,18 @@ const createFinalReport = async (req, res) => {
 const updateFinalReport = async (req, res) => {
   try {
     const { emergencyId } = req.params;
-    const payload = { ...req.body };
+    // Explicit allow-list (no ...req.body pass-through)
+    const UPDATABLE = [
+      "incidentSummary",
+      "injuredCount",
+      "deceasedCount",
+      "propertyDamage",
+      "propertyDamageValue",
+    ];
+    const payload = {};
+    UPDATABLE.forEach((f) => {
+      if (req.body[f] !== undefined) payload[f] = req.body[f];
+    });
 
     if (payload.injuredCount !== undefined)
       payload.injuredCount = parseInt(payload.injuredCount) || 0;

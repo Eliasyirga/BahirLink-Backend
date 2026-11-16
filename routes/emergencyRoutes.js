@@ -1,111 +1,102 @@
 const express = require("express");
 const router = express.Router();
-const jwt = require("jsonwebtoken");
 const emergencyController = require("../controllers/emergencyController");
 const upload = require("../middleware/upload");
-const { validate } = require("uuid");
-const validator = require("../utils/validator");
-const { registerSchema } = require("../utils/schema");
+const safeUpload = require("../middleware/safeUpload");
+const {
+  verifyToken,
+  requireType,
+  requireAccess,
+  adminOnly,
+  staffOnly,
+  ADMIN_ROLES,
+} = require("../middleware/auth");
 
-const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+// Multer/Cloudinary rejections → 400 with a clear message (not the global 500).
+const safeUploadWrapper = safeUpload(upload.single("media"), { maxMb: 25 });
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Unauthorized: No token provided" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({
-      success: false,
-      message: "Unauthorized: Invalid or expired token",
-    });
-  }
-};
-
-const safeUploadWrapper = (req, res, next) => {
-  upload.single("media")(req, res, function (err) {
-    if (err) {
-      console.error("❌ Cloudinary/Multer Middleware Interceptor Error:", err);
-      return res.status(400).json({
-        success: false,
-        message:
-          "Media upload verification failed. Please check the file format or size.",
-      });
-    }
-    next();
-  });
-};
+// Citizens (owner checks in controller) + admin/serviceadmin users.
+const citizenOrAdmin = requireAccess({ userRoles: ["user", ...ADMIN_ROLES] });
 
 // --- CREATE ---
 router.post(
   "/users/:userId",
   verifyToken,
-  safeUploadWrapper, // FIXED: Wrapped to prevent unhandled rejections on missing assets
+  requireType("user"),
+  safeUploadWrapper,
   emergencyController.createUserEmergencyHandler,
 );
 
+// Public: guest (not logged in) reporting
 router.post(
   "/guests",
-  safeUploadWrapper, // FIXED: Wrapped to process text-only guest submissions flawlessly
+  safeUploadWrapper,
   emergencyController.createGuestEmergencyHandler,
 );
 
 // --- READ ---
+router.get(
+  "/admin/all",
+  verifyToken,
+  adminOnly,
+  emergencyController.getAllEmergenciesAdmin,
+);
+
+// Owner citizen or staff (checked in controller)
 router.get(
   "/detail/:id",
   verifyToken,
   emergencyController.getEmergencyByIdHandler,
 );
 
+// Staff only: admin/serviceadmin users, agency, responder (and crew)
 router.patch(
   "/:id/status",
   verifyToken,
+  staffOnly,
   emergencyController.updateEmergencyStatusHandler,
 );
 
+// NOTE: still public — not used by current clients; deviceId is not sequential.
 router.get(
   "/device/:deviceId",
   emergencyController.getEmergenciesByDeviceIdHandler,
 );
 
-router.get("/:userOrGuestId", emergencyController.getEmergenciesHandler);
-
-router.get(
-  "/admin/all",
-  verifyToken,
-  emergencyController.getAllEmergenciesAdmin,
-);
-
 router.get(
   "/responder-team/:responderTeamId",
   verifyToken,
+  staffOnly,
   emergencyController.getEmergenciesForResponderTeamHandler,
 );
 
 router.get(
   "/agency/:agencyId/emergencies",
   verifyToken,
+  staffOnly,
   emergencyController.getEmergenciesByAgencyHandler,
 );
 
+// Own list (token user id must match) or staff (checked in controller)
+router.get(
+  "/:userOrGuestId",
+  verifyToken,
+  emergencyController.getEmergenciesHandler,
+);
+
+// --- UPDATE / DELETE: owning citizen or admin/serviceadmin ---
 router.put(
   "/:userOrGuestId/:id",
   verifyToken,
-  safeUploadWrapper, // FIXED: Wrapped to securely handle updates with or without media changes
+  citizenOrAdmin,
+  safeUploadWrapper,
   emergencyController.updateEmergencyHandler,
 );
 
 router.delete(
   "/:userOrGuestId/:id",
   verifyToken,
+  citizenOrAdmin,
   emergencyController.deleteEmergencyHandler,
 );
 

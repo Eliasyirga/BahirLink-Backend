@@ -1,5 +1,14 @@
 const jwt = require("jsonwebtoken");
-const { User, ResponderTeam } = require("../models");
+const { User, Agency, Crew, ResponderTeam } = require("../models");
+const { ACCOUNT_TYPES } = require("../utils/token");
+
+// token `type` → model + chat senderType
+const IDENTITY_SOURCES = {
+  user: { model: User, senderType: "user" },
+  responder: { model: ResponderTeam, senderType: "responderTeam" },
+  agency: { model: Agency, senderType: "agency" },
+  crew: { model: Crew, senderType: "crew" },
+};
 
 /**
  * Normalise a raw token value into a clean JWT string, or return null.
@@ -55,16 +64,20 @@ function extractSocketToken(socket) {
 /**
  * Socket.IO authentication middleware.
  *
- * Verifies the JWT, loads the corresponding DB record (User or ResponderTeam),
- * and attaches a normalised `socket.identity` object for use in event handlers.
+ * Verifies the JWT, loads the DB record that matches the token's `type`
+ * (User / ResponderTeam / Agency / Crew), and attaches a normalised
+ * `socket.identity` object for use in event handlers.
  *
  * socket.identity shape:
  * {
  *   id:         number,
- *   senderType: "user" | "responderTeam",
- *   role:       "citizen" | "responder",
+ *   type:       "user" | "responder" | "agency" | "crew",
+ *   senderType: "user" | "responderTeam" | "agency" | "crew",
+ *   role:       "citizen" | "responder" | "agency" | "crew",
  *   name:       string,
  * }
+ * Only "user" and "responderTeam" sender types can post chat messages
+ * (Message.senderType enum); agency/crew sockets may join and listen.
  */
 module.exports = async (socket, next) => {
   let tokenMeta = null;
@@ -80,34 +93,37 @@ module.exports = async (socket, next) => {
     // Verify signature and expiry
     const payload = jwt.verify(extracted.token, process.env.JWT_SECRET);
 
-    // Determine whether this is a ResponderTeam token or a User token.
-    // ResponderTeam tokens carry role: "responder".
-    const isResponderTeamToken = payload.role === "responder";
+    // Tokens issued before the `type` claim existed must re-login.
+    if (!ACCOUNT_TYPES.includes(payload.type)) {
+      return next(new Error("Session expired — please log in again"));
+    }
 
-    const identityRecord = isResponderTeamToken
-      ? await ResponderTeam.findByPk(payload.id)
-      : await User.findByPk(payload.id);
+    const source = IDENTITY_SOURCES[payload.type];
+    const identityRecord = await source.model.findByPk(payload.id);
 
     if (!identityRecord) {
       console.error(
-        `[SocketAuth] Record not found — id=${payload.id} role=${payload.role}`
+        `[SocketAuth] Record not found — id=${payload.id} type=${payload.type}`
       );
       return next(new Error("Account not found — please log in again"));
+    }
+
+    let role;
+    if (payload.type === "user") {
+      role =
+        identityRecord.role === "admin" || identityRecord.role === "responder"
+          ? "responder"
+          : "citizen";
+    } else {
+      role = payload.type; // "responder" | "agency" | "crew"
     }
 
     // Attach normalised identity to the socket for downstream use
     socket.identity = {
       id: identityRecord.id,
-
-      // senderType is used by the chat/call systems to identify the sender
-      senderType: isResponderTeamToken ? "responderTeam" : "user",
-
-      // role drives access-control checks in socket handlers
-      role: isResponderTeamToken
-        ? "responder"
-        : identityRecord.role === "admin" || identityRecord.role === "responder"
-          ? "responder"
-          : "citizen",
+      type: payload.type,
+      senderType: source.senderType,
+      role,
 
       // Human-readable name for display / logging
       name:

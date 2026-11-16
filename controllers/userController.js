@@ -1,185 +1,48 @@
-// const userService = require("../services/userService"); // REGISTER
-
-// export const register = async (req, res) => {
-//   try {
-//     const user = await userService.registerUser(req.body);
-
-//     res.status(201).json({
-//       success: true,
-//       message:
-//         user.role === "admin"
-//           ? "Admin registered successfully"
-//           : "Registration successful. Check your email for verification code.",
-//       user,
-//     });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
-// // ✅ VERIFY EMAIL
-// export const verifyEmail = async (req, res) => {
-//   try {
-//     await userService.verifyEmailCode(req.body.email, req.body.code);
-
-//     res.json({
-//       success: true,
-//       message: "Email verified successfully",
-//     });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
-// // ✅ LOGIN
-// export const login = async (req, res) => {
-//   try {
-//     const result = await userService.loginUser(req.body);
-
-//     // 🔥 Allow admin without verification
-//     if (!result.user.isEmailVerified && result.user.role !== "admin") {
-//       return res.status(400).json({
-//         success: false,
-//         error: "Email not verified. Please verify first.",
-//       });
-//     }
-
-//     res.json({
-//       success: true,
-//       accessToken: result.accessToken,
-//       refreshToken: result.refreshToken,
-//       mustChangePassword: result.mustChangePassword,
-//       user: result.user,
-//     });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
-// // ✅ PROFILE
-// export const getProfile = async (req, res) => {
-//   try {
-//     const user = await userService.getUserProfile(req.user.id);
-
-//     res.json({ success: true, user });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
-// // ✅ UPDATE PROFILE
-// export const updateProfile = async (req, res) => {
-//   try {
-//     const user = await userService.updateUserProfile(req.user.id, req.body);
-
-//     res.json({
-//       success: true,
-//       message: "Profile updated successfully",
-//       user,
-//     });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
-// // ✅ FORGOT PASSWORD
-// export const forgotPassword = async (req, res) => {
-//   try {
-//     await userService.forgotUserPassword(req.body.email);
-
-//     res.json({
-//       success: true,
-//       message: "Temporary password sent to email",
-//     });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
-// // ✅ CHANGE PASSWORD
-// export const changePassword = async (req, res) => {
-//   try {
-//     await userService.changeUserPassword(
-//       req.user.id,
-//       req.body.currentPassword,
-//       req.body.newPassword,
-//     );
-
-//     res.json({
-//       success: true,
-//       message: "Password changed successfully",
-//     });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
-// // ✅ REFRESH TOKEN
-// export const refreshToken = async (req, res) => {
-//   try {
-//     const accessToken = await userService.refreshUserToken(req.body.token);
-
-//     res.json({ success: true, accessToken });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
-// export const getAllUsers = async (req, res) => {
-//   try {
-//     const users = await userService.getAllUsers();
-//     res.json({ success: true, users });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// };
-
 const userService = require("../services/userService");
 
-// ✅ REGISTER
+const statusOf = (err, fallback = 400) => err.statusCode || fallback;
+
+// ✅ REGISTER — `role` in the body is ignored; self-registration is always "user".
 const register = async (req, res) => {
   try {
-    const user = await userService.registerUser(req.body);
+    const { firstName, lastName, email, password } = req.body || {};
+    const user = await userService.registerUser({
+      firstName,
+      lastName,
+      email,
+      password,
+    });
 
     res.status(201).json({
       success: true,
       message:
-        user.role === "admin"
-          ? "Admin registered successfully"
-          : "Registration successful. Check your email for verification code.",
+        "Registration successful. Check your email for verification code.",
       user,
     });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(statusOf(err)).json({ success: false, error: err.message });
   }
 };
 
 // ✅ VERIFY EMAIL
 const verifyEmail = async (req, res) => {
   try {
-    await userService.verifyEmailCode(req.body.email, req.body.code);
+    await userService.verifyEmailCode(req.body?.email, req.body?.code);
 
     res.json({
       success: true,
       message: "Email verified successfully",
     });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(statusOf(err)).json({ success: false, error: err.message });
   }
 };
 
 // ✅ LOGIN
 const login = async (req, res) => {
   try {
-    const result = await userService.loginUser(req.body);
-
-    // 🔥 Allow admin without verification
-    if (!result.user.isEmailVerified && result.user.role !== "admin") {
-      return res.status(400).json({
-        success: false,
-        error: "Email not verified. Please verify first.",
-      });
-    }
+    const { email, password, rememberMe } = req.body || {};
+    const result = await userService.loginUser({ email, password, rememberMe });
 
     res.json({
       success: true,
@@ -189,7 +52,11 @@ const login = async (req, res) => {
       user: result.user,
     });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    if (!err.statusCode) console.error("LOGIN ERROR:", err);
+    res.status(statusOf(err)).json({
+      success: false,
+      error: err.statusCode ? err.message : "Invalid email or password",
+    });
   }
 };
 
@@ -199,7 +66,17 @@ const getProfile = async (req, res) => {
     const user = await userService.getUserProfile(req.user.id);
     res.json({ success: true, user });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(statusOf(err)).json({ success: false, error: err.message });
+  }
+};
+
+// ✅ GET USER BY ID (staff only — enforced in the router)
+const getUserById = async (req, res) => {
+  try {
+    const user = await userService.getUserById(req.params.id);
+    res.json({ success: true, user, data: user });
+  } catch (err) {
+    res.status(statusOf(err)).json({ success: false, error: err.message });
   }
 };
 
@@ -213,21 +90,21 @@ const updateProfile = async (req, res) => {
       user,
     });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(statusOf(err)).json({ success: false, error: err.message });
   }
 };
 
-// ✅ FORGOT PASSWORD
+// ✅ FORGOT PASSWORD — identical response whether or not the email exists.
 const forgotPassword = async (req, res) => {
   try {
-    await userService.forgotUserPassword(req.body.email);
-    res.json({
-      success: true,
-      message: "Temporary password sent to email",
-    });
+    await userService.forgotUserPassword(req.body?.email);
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    console.error("FORGOT PASSWORD ERROR:", err && err.message);
   }
+  res.json({
+    success: true,
+    message: "Temporary password sent to email",
+  });
 };
 
 // ✅ CHANGE PASSWORD
@@ -235,25 +112,28 @@ const changePassword = async (req, res) => {
   try {
     await userService.changeUserPassword(
       req.user.id,
-      req.body.currentPassword,
-      req.body.newPassword,
+      req.body?.currentPassword,
+      req.body?.newPassword,
+      { viaTempLogin: req.user.pwdReset === true, pwdNonce: req.user.pwdNonce },
     );
     res.json({
       success: true,
       message: "Password changed successfully",
     });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(statusOf(err)).json({ success: false, error: err.message });
   }
 };
 
 // ✅ REFRESH TOKEN
 const refreshToken = async (req, res) => {
   try {
-    const accessToken = await userService.refreshUserToken(req.body.token);
+    const accessToken = await userService.refreshUserToken(
+      req.body?.token || req.body?.refreshToken,
+    );
     res.json({ success: true, accessToken });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(statusOf(err)).json({ success: false, error: err.message });
   }
 };
 
@@ -263,16 +143,16 @@ const getAllUsers = async (req, res) => {
     const users = await userService.getAllUsers();
     res.json({ success: true, users });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(statusOf(err)).json({ success: false, error: err.message });
   }
 };
 
-// 🔹 Export all controller functions
 module.exports = {
   register,
   verifyEmail,
   login,
   getProfile,
+  getUserById,
   updateProfile,
   forgotPassword,
   changePassword,

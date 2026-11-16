@@ -1,4 +1,5 @@
 const { Op } = require("sequelize");
+const { mediaTypeFromMime, destroyMedia } = require("../utils/cloudinaryMedia");
 const {
   Service,
   ServiceType,
@@ -222,9 +223,10 @@ const createService = async (data, userIdFromParams, file) => {
     location: finalLocation,
     mediaUrl,
     mediaPublicId, // Tracking attribute safely injected
-    mediaType:
-      data.mediaType ||
-      (file ? (file.mimetype?.startsWith("video") ? "video" : "photo") : null),
+    mediaType: file
+      ? mediaTypeFromMime(file.mimetype) ||
+        (["photo", "video", "audio"].includes(data.mediaType) ? data.mediaType : "photo")
+      : null,
     status: "pending",
     time: data.time || new Date().toLocaleTimeString("it-IT"),
   });
@@ -245,16 +247,21 @@ const updateService = async (serviceId, updates, file) => {
     finalUpdates.subdivision = await autoTranslate(updates.subdivision);
   if (updates.street) finalUpdates.street = await autoTranslate(updates.street);
 
-  // UPDATED: Clean local references inside dynamic asset updates
+  const previousMedia = {
+    publicId: service.mediaPublicId,
+    mediaType: service.mediaType,
+  };
   if (file) {
     finalUpdates.mediaUrl = file.path;
     finalUpdates.mediaPublicId = file.filename;
-    finalUpdates.mediaType = file.mimetype?.startsWith("video")
-      ? "video"
-      : "photo";
+    finalUpdates.mediaType = mediaTypeFromMime(file.mimetype) || "photo";
   }
 
   await service.update(finalUpdates);
+  // Media replaced → remove the old Cloudinary asset (best-effort, logged).
+  if (file && previousMedia.publicId && previousMedia.publicId !== file.filename) {
+    destroyMedia(previousMedia.publicId, previousMedia.mediaType);
+  }
   return await Service.findByPk(serviceId, { include: serviceIncludes });
 };
 
@@ -374,10 +381,16 @@ const getServicesByUser = async (citizenId, lang = "en") => {
 // =========================
 // DELETE SERVICE
 // =========================
-const deleteService = async (serviceId) => {
+// ownerId: when set, the service must belong to that citizen.
+const deleteService = async (serviceId, ownerId = null) => {
   const service = await Service.findByPk(serviceId);
   if (!service) throw new Error("Service not found");
+  if (ownerId != null && String(service.citizenId) !== String(ownerId)) {
+    throw new Error("Service not found");
+  }
+  const { mediaPublicId, mediaType } = service;
   await service.destroy();
+  if (mediaPublicId) destroyMedia(mediaPublicId, mediaType);
   return { success: true, message: "Service deleted successfully" };
 };
 

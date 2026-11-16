@@ -1,3 +1,4 @@
+const { mediaTypeFromMime, destroyMedia } = require("../utils/cloudinaryMedia");
 const { Cases, CaseType, Agency, ResponderTeam, Kebele } = require("../models");
 const translate = require("google-translate-api-x");
 
@@ -235,6 +236,7 @@ const createCase = async (data, file) => {
     // Inline asset parsing mapping directly to your Cloudinary storage schema
     mediaUrl: file ? file.path : null,
     mediaPublicId: file ? file.filename : null,
+    mediaType: file ? mediaTypeFromMime(file.mimetype) || "photo" : null,
 
     // Structural keys and data transformations
     responderTeamId: rTeamId,
@@ -281,12 +283,21 @@ const updateCase = async (id, updates, file) => {
     }
   }
 
+  const previousMedia = {
+    publicId: singleCase.mediaPublicId,
+    mediaType: singleCase.mediaType,
+  };
   if (file) {
     finalUpdates.mediaUrl = file.path;
     finalUpdates.mediaPublicId = file.filename;
+    finalUpdates.mediaType = mediaTypeFromMime(file.mimetype) || "photo";
   }
 
   await singleCase.update(finalUpdates);
+  // Media replaced → remove the old Cloudinary asset (best-effort, logged).
+  if (file && previousMedia.publicId && previousMedia.publicId !== file.filename) {
+    destroyMedia(previousMedia.publicId, previousMedia.mediaType);
+  }
   return await getCaseById(id, "all");
 };
 
@@ -302,7 +313,9 @@ const updateCaseStatus = async (id, status) => {
 const deleteCase = async (id) => {
   const singleCase = await Cases.findByPk(id);
   if (!singleCase) throw new Error("Case not found.");
+  const { mediaPublicId, mediaType } = singleCase;
   await singleCase.destroy();
+  if (mediaPublicId) destroyMedia(mediaPublicId, mediaType);
   return { success: true, message: "Case purged successfully" };
 };
 

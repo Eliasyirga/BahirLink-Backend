@@ -5,8 +5,18 @@ const {
   Agency,
 } = require("../models");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
+const { generateAccessToken } = require("../utils/token");
+
+// Fields editable by a system admin / the owning agency, and by the team itself.
+const MANAGER_EDITABLE_FIELDS = ["name", "username", "email", "phone", "status"];
+const SELF_EDITABLE_FIELDS = ["email", "phone"];
+
+const httpError = (message, statusCode) => {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  return err;
+};
 
 const createTeam = async (data) => {
   const { name, username, email, password, phone, agencyId, status, kebeles } =
@@ -59,7 +69,7 @@ const createTeam = async (data) => {
     through: { agencyId },
   });
 
-  // 3. Return with kebeles
+  // 3. Return with kebeles (defaultScope excludes the password hash)
   return await ResponderTeam.findByPk(team.id, {
     include: {
       model: Kebele,
@@ -70,25 +80,39 @@ const createTeam = async (data) => {
 };
 
 /**
- * Update Responder Team + reassign kebeles
+ * Update Responder Team + reassign kebeles.
+ * opts.self === true → the responder team editing its own account
+ * (email/phone; password change requires oldPassword; no kebele changes).
  */
-const updateTeam = async (id, data) => {
-  const team = await ResponderTeam.findByPk(id);
-  if (!team) throw new Error("Responder Team not found");
+const updateTeam = async (id, data = {}, opts = {}) => {
+  const team = await ResponderTeam.unscoped().findByPk(id);
+  if (!team) throw httpError("Responder Team not found", 404);
 
-  const { password, kebeles, ...teamData } = data;
+  const allowed = opts.self ? SELF_EDITABLE_FIELDS : MANAGER_EDITABLE_FIELDS;
+  const teamData = {};
+  allowed.forEach((f) => {
+    if (data[f] !== undefined) teamData[f] = data[f];
+  });
 
   // hash password if updated
-  if (password) {
-    teamData.password = await bcrypt.hash(password, 10);
+  if (data.password) {
+    if (opts.self) {
+      const ok =
+        data.oldPassword &&
+        (await bcrypt.compare(String(data.oldPassword), team.password));
+      if (!ok) throw httpError("Current password incorrect", 400);
+    }
+    teamData.password = await bcrypt.hash(String(data.password), 10);
   }
 
   await team.update(teamData);
 
+  const kebeles = opts.self ? undefined : data.kebeles;
+
   // update kebele assignments
   if (kebeles !== undefined) {
     if (!Array.isArray(kebeles) || kebeles.length === 0) {
-      throw new Error("At least one kebele must be provided");
+      throw httpError("At least one kebele must be provided", 400);
     }
 
     // remove all old relations
@@ -143,11 +167,10 @@ const getTeamsByAgency = async (agencyId) => {
 };
 
 const loginResponder = async (email, password) => {
-  if (!email || !password) {
-    throw new Error("Email and password are required");
-  }
+  const generic = httpError("Invalid email or password", 401);
+  if (!email || !password) throw generic;
 
-  const responder = await ResponderTeam.findOne({
+  const responder = await ResponderTeam.unscoped().findOne({
     where: { email },
     include: {
       model: Kebele,
@@ -156,24 +179,21 @@ const loginResponder = async (email, password) => {
     },
   });
 
-  if (!responder) throw new Error("Responder not found");
+  if (!responder) throw generic;
+
+  const isMatch = await bcrypt.compare(String(password), responder.password);
+  if (!isMatch) throw generic;
 
   if (responder.status !== "active") {
-    throw new Error("Responder account is inactive");
+    throw httpError("Responder account is inactive", 403);
   }
 
-  const isMatch = await bcrypt.compare(password, responder.password);
-  if (!isMatch) throw new Error("Invalid password");
-
-  const token = jwt.sign(
-    {
-      id: responder.id,
-      email: responder.email,
-      agencyId: responder.agencyId,
-      role: "responder",
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "1d" },
+  const token = generateAccessToken(
+    responder.id,
+    "responder",
+    "responder",
+    { email: responder.email, agencyId: responder.agencyId },
+    "1d",
   );
 
   return {

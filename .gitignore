@@ -1,1 +1,13 @@
 node_modules/
+
+# Secrets — never commit real env files
+.env
+.env.*
+!.env.example
+
+# User-uploaded media (served from disk / Cloudinary, not versioned)
+public/uploads/
+
+# Editor / OS clutter
+*.code-workspace
+*.lnk

@@ -138,7 +138,6 @@ const getAllAgenciesHandler = async (req, res) => {
 const updateAgencyHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const adminId = req.user.id;
 
     if (!id) {
       return res.status(400).json({
@@ -147,8 +146,13 @@ const updateAgencyHandler = async (req, res) => {
       });
     }
 
-    // Pass adminId to ensure this admin actually owns the agent they are updating
-    const agency = await updateAgency(id, req.body, adminId);
+    // Router guarantees: system admin, or an agency editing its own record.
+    const self = req.user.type === "agency";
+    if (self && String(req.user.id) !== String(id)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const agency = await updateAgency(id, req.body, { self });
 
     return res.status(200).json({
       success: true,
@@ -156,7 +160,7 @@ const updateAgencyHandler = async (req, res) => {
       data: agency,
     });
   } catch (error) {
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
       message: error.message || "Internal server error",
     });
@@ -197,14 +201,15 @@ const deleteAgencyHandler = async (req, res) => {
  */
 const loginAgencyHandler = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    const { email, username, password } = req.body || {};
+    const identifier = email || username;
+    if (!identifier || !password) {
       return res
         .status(400)
         .json({ success: false, message: "Missing credentials" });
     }
 
-    const { agency, token } = await loginAgency(email, password);
+    const { agency, token } = await loginAgency(identifier, password);
 
     return res.status(200).json({
       success: true,
@@ -213,7 +218,9 @@ const loginAgencyHandler = async (req, res) => {
       token,
     });
   } catch (error) {
-    return res.status(401).json({ success: false, message: error.message });
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid email or password" });
   }
 };
 const getAgentsByCreatorIdHandler = async (req, res) => {
@@ -251,7 +258,8 @@ const getAgencyByIdHandler = async (req, res) => {
   try {
     const { id } = req.params; // Get the ID from the URL (e.g., /api/agencies/5)
 
-    const agency = await Agency.findByPk(id); // "Find By Primary Key"
+    // Agency defaultScope excludes the password hash.
+    const agency = await Agency.findByPk(id);
 
     if (!agency) {
       return res.status(404).json({ message: "Agency not found" });
@@ -259,9 +267,7 @@ const getAgencyByIdHandler = async (req, res) => {
 
     res.status(200).json({ data: agency });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error retrieving agency", error: error.message });
+    res.status(500).json({ message: "Error retrieving agency" });
   }
 };
 

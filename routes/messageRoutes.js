@@ -1,7 +1,13 @@
 const express = require("express");
-const { verifyToken } = require("../middleware/auth");
-const upload = require("../middleware/upload");
+const { verifyToken, requireType } = require("../middleware/auth");
+const { audioUpload, AUDIO_FORMATS, AUDIO_MAX_MB } = require("../middleware/audioUpload");
+const safeUpload = require("../middleware/safeUpload");
 const { makeController } = require("../controllers/messageController");
+
+const audioUploadSafe = safeUpload(audioUpload.single("audio"), {
+  maxMb: AUDIO_MAX_MB,
+  invalidMessage: `Unsupported or invalid audio file. Allowed formats: ${AUDIO_FORMATS.join(", ")} (max ${AUDIO_MAX_MB} MB).`,
+});
 
 /**
  * Factory — must be called with the Socket.IO `io` instance so the audio
@@ -14,13 +20,16 @@ module.exports = (io) => {
   const router = express.Router();
   const ctrl = makeController(io);
 
-  router.get("/:emergencyId", verifyToken, ctrl.getEmergencyMessages);
-  router.post("/init",        verifyToken, ctrl.initEmergencyChat);
-  router.post("/",            verifyToken, ctrl.postMessage);
+  // Chat participants: citizens (type "user") and responder teams.
+  const participant = [verifyToken, requireType("user", "responder")];
+
+  router.get("/:emergencyId", ...participant, ctrl.getEmergencyMessages);
+  router.post("/init",        ...participant, ctrl.initEmergencyChat);
+  router.post("/",            ...participant, ctrl.postMessage);
   router.post(
     "/audio",
-    verifyToken,
-    upload.single("audio"),
+    ...participant,
+    audioUploadSafe,
     ctrl.postAudioMessage,
   );
 

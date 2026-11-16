@@ -4,9 +4,13 @@ const {
   deleteCrew,
   loginCrew,
 } = require("../services/crewService");
+const { canManageTeam, canManageCrew } = require("../utils/ownership");
+
+const denied = (res) =>
+  res.status(403).json({ success: false, message: "Access denied" });
 
 /**
- * Create a Crew member
+ * Create a Crew member (system admin, agency for its teams, responder for itself)
  */
 const createCrewHandler = async (req, res) => {
   try {
@@ -35,6 +39,8 @@ const createCrewHandler = async (req, res) => {
       });
     }
 
+    if (!(await canManageTeam(req.user, responderTeamId))) return denied(res);
+
     const crew = await createCrew({
       name,
       username,
@@ -56,14 +62,30 @@ const createCrewHandler = async (req, res) => {
 };
 
 /**
- * Update a Crew member
+ * Update a Crew member — managers of the crew's team, or the crew member
+ * themself (name/phone/password only).
  */
 const updateCrewHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const data = req.body;
+    const self = req.user.type === "crew";
 
-    const crew = await updateCrew(id, data);
+    if (self) {
+      if (String(req.user.id) !== String(id)) return denied(res);
+    } else {
+      const allowed = await canManageCrew(req.user, id);
+      if (allowed === null)
+        return res.status(404).json({ message: "Crew member not found" });
+      if (!allowed) return denied(res);
+      if (
+        req.body.responderTeamId !== undefined &&
+        !(await canManageTeam(req.user, req.body.responderTeamId))
+      ) {
+        return denied(res);
+      }
+    }
+
+    const crew = await updateCrew(id, req.body, { self });
 
     res.status(200).json({
       message: "Crew member updated successfully",
@@ -81,6 +103,11 @@ const deleteCrewHandler = async (req, res) => {
   try {
     const { id } = req.params;
 
+    const allowed = await canManageCrew(req.user, id);
+    if (allowed === null)
+      return res.status(404).json({ message: "Crew member not found" });
+    if (!allowed) return denied(res);
+
     const result = await deleteCrew(id);
 
     res.status(200).json(result);
@@ -91,7 +118,7 @@ const deleteCrewHandler = async (req, res) => {
 
 const loginCrewHandler = async (req, res) => {
   try {
-    const result = await crewService.loginCrew(req.body);
+    const result = await loginCrew(req.body);
 
     return res.status(200).json({
       success: true,
@@ -102,7 +129,7 @@ const loginCrewHandler = async (req, res) => {
   } catch (error) {
     return res.status(401).json({
       success: false,
-      message: error.message || "Login failed",
+      message: "Invalid email or password",
     });
   }
 };

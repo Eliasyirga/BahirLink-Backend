@@ -1,5 +1,11 @@
 const express = require("express");
 const router = express.Router();
+const {
+  verifyToken,
+  requireAccess,
+  ADMIN_ROLES,
+} = require("../middleware/auth");
+const { loginLimiter } = require("../middleware/rateLimit");
 
 const {
   createCrewHandler,
@@ -8,15 +14,24 @@ const {
   loginCrewHandler,
 } = require("../controllers/crewController");
 
-// Create a new Crew member
-router.post("/", createCrewHandler);
+// Who manages crew: system admins, agencies (their teams), responder teams (own).
+const crewManagers = requireAccess({
+  userRoles: ADMIN_ROLES,
+  types: ["agency", "responder"],
+});
 
-// Update an existing Crew member by ID
-router.put("/:id", updateCrewHandler);
+router.post("/login", loginLimiter(), loginCrewHandler);
 
-// Delete a Crew member by ID
-router.delete("/:id", deleteCrewHandler);
+router.post("/", verifyToken, crewManagers, createCrewHandler);
 
-router.post("/login", loginCrewHandler);
+// Crew members may also update their own profile (checked in controller).
+router.put(
+  "/:id",
+  verifyToken,
+  requireAccess({ userRoles: ADMIN_ROLES, types: ["agency", "responder", "crew"] }),
+  updateCrewHandler,
+);
+
+router.delete("/:id", verifyToken, crewManagers, deleteCrewHandler);
 
 module.exports = router;
